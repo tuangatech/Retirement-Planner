@@ -2,7 +2,7 @@
 
 import { useInputs } from '@/contexts/InputsContext';
 import { useState } from 'react';
-import { TrendingUp, RotateCcw, FolderOpen, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { RotateCcw, FolderOpen, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { ScenarioStorage } from '@/lib/storage/scenarioStorage';
 import { useNavigate } from 'react-router-dom';
 import { ScenarioManager } from '@/components/common/ScenarioManager';
@@ -41,18 +41,10 @@ export function Header({ variant = 'wizard' }: HeaderProps) {
         <header className="bg-white shadow-sm border-b">
             <div className="max-w-6xl mx-auto px-4 py-4">
                 <div className="flex justify-between items-center">
-                    {/* ✅ LEFT SIDE: Logo + Title (consistent across all pages) */}
-                    <div className="flex items-center gap-3">
-                        <TrendingUp className="w-8 h-8 text-blue-600" />
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">
-                                Retirement Planner
-                            </h1>
-                            <p className="text-sm text-gray-600">
-                                Plan your financial future with confidence
-                            </p>
-                        </div>
-                    </div>
+                    {/* ✅ LEFT SIDE: Logo (links to home) */}
+                    <button onClick={() => navigate('/')} className="focus:outline-none">
+                        <img src="/logo-app.png" alt="Will It Last? Retirement Planner" className="h-14 w-auto" />
+                    </button>
 
                     {/* ✅ RIGHT SIDE: Context-aware action buttons */}
                     <div className="flex items-center gap-4">
