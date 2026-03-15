@@ -528,32 +528,65 @@ export function Step4Income() {
                 </div>
 
                 {income.rentalIncome.enabled && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Annual Net Income</label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-2 text-gray-500">$</span>
+                    <div className="mt-4 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Annual Net Income</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                    <input
+                                        type="number"
+                                        value={income.rentalIncome.annualNetIncome}
+                                        onChange={(e) =>
+                                            updateRentalIncome({ annualNetIncome: parseFloat(e.target.value) || 0 })
+                                        }
+                                        className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">After expenses and mortgage</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Start Age</label>
                                 <input
                                     type="number"
-                                    value={income.rentalIncome.annualNetIncome}
-                                    onChange={(e) =>
-                                        updateRentalIncome({ annualNetIncome: parseFloat(e.target.value) || 0 })
-                                    }
-                                    className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                    value={income.rentalIncome.startAge}
+                                    onChange={(e) => updateRentalIncome({ startAge: parseInt(e.target.value) || 0 })}
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">After expenses and mortgage</p>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">End Age</label>
+                                <input
+                                    type="number"
+                                    value={income.rentalIncome.endAge ?? ''}
+                                    disabled={income.rentalIncome.endAge === null}
+                                    placeholder="e.g. 85"
+                                    onChange={(e) =>
+                                        updateRentalIncome({ endAge: parseInt(e.target.value) || null })
+                                    }
+                                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                                        income.rentalIncome.endAge === null
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : ''
+                                    }`}
+                                />
+                                <div className="flex items-center mt-1.5">
+                                    <input
+                                        type="checkbox"
+                                        id="rentalNoEndDate"
+                                        checked={income.rentalIncome.endAge === null}
+                                        onChange={(e) =>
+                                            updateRentalIncome({ endAge: e.target.checked ? null : 85 })
+                                        }
+                                        className="w-3 h-3 text-blue-600 rounded"
+                                    />
+                                    <label htmlFor="rentalNoEndDate" className="ml-1.5 text-xs text-gray-500">
+                                        No end date (ongoing)
+                                    </label>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Start Age</label>
-                            <input
-                                type="number"
-                                value={income.rentalIncome.startAge}
-                                onChange={(e) => updateRentalIncome({ startAge: parseInt(e.target.value) || 0 })}
-                                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-                        <div className="flex items-center pt-6">
+                        <div className="flex items-center">
                             <input
                                 type="checkbox"
                                 id="inflationAdjusted"
