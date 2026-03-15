@@ -58,34 +58,34 @@ export const US_STATES: { value: USState; label: string }[] = [
 
 export const DEFAULT_VALUES: UserInputs = {
     personal: {
-        retirementAge: 58,
+        retirementAge: 60,
         lifeExpectancy: 90,
         state: 'GA',
         // filingStatus: 'single',
     },
     phases: [
-        { name: 'go_go', startAge: 58, endAge: 74, annualSpending: 50000 },
+        { name: 'go_go', startAge: 60, endAge: 74, annualSpending: 50000 },
         { name: 'slow_go', startAge: 75, endAge: 85, annualSpending: 40000 },
         { name: 'no_go', startAge: 86, endAge: 90, annualSpending: 36000 },
     ],
     oneTimeExpenses: [],
     accounts: {
         taxDeferred: {  // e.g., Traditional IRA, 401(k)
-            balanceAtRetirement: 250000,
+            balanceAtRetirement: 400000,
             expectedReturnRate: 0.07,
         },
         roth: {         // e.g., Roth IRA, Roth 401(k)
-            balanceAtRetirement: 350000,
+            balanceAtRetirement: 300000,
             expectedReturnRate: 0.08,
         },
         taxable: {      // e.g., Brokerage Account
-            balanceAtRetirement: 80000,
+            balanceAtRetirement: 100000,
             expectedReturnRate: 0.08,
             costBasisPercentage: 0.70,
         },        
         hsa: {  // HSA Account (Health Savings Account)
-            balanceAtRetirement: 90000,       // Typical HSA balance for someone retiring at 58
-            expectedReturnRate: 0.07,          // Conservative growth (similar to tax-deferred)
+            balanceAtRetirement: 150000,       // Typical HSA balance for someone retiring at 58
+            expectedReturnRate: 0.06,          // Conservative growth (similar to tax-deferred)
             allowNonMedicalAfter65: false,      // Keep HSA for healthcare only (instead of Allowing general withdrawals after 65)
         },
     },
@@ -95,7 +95,7 @@ export const DEFAULT_VALUES: UserInputs = {
     },
     income: {
         socialSecurity: {
-            monthlyBenefitAtFRA: 2000,
+            monthlyBenefitAtFRA: 2500,
             claimingAge: 67,
             colaRate: 0.030,
             taxablePercentage: 0.85,
