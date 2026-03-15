@@ -1,0 +1,88 @@
+export const DEFAULT_VALUES: UserInputs = {
+    personal: {
+        retirementAge: 58,
+        lifeExpectancy: 90,
+        state: 'GA',
+        // filingStatus: 'single',
+    },
+    phases: [
+        { name: 'go_go', startAge: 58, endAge: 74, annualSpending: 50000 },
+        { name: 'slow_go', startAge: 75, endAge: 85, annualSpending: 40000 },
+        { name: 'no_go', startAge: 86, endAge: 90, annualSpending: 36000 },
+    ],
+    oneTimeExpenses: [],
+    accounts: {
+        taxDeferred: {  // e.g., Traditional IRA, 401(k)
+            balanceAtRetirement: 350000,
+            expectedReturnRate: 0.07,
+        },
+        roth: {         // e.g., Roth IRA, Roth 401(k)
+            balanceAtRetirement: 330000,
+            expectedReturnRate: 0.08,
+        },
+        taxable: {      // e.g., Brokerage Account
+            balanceAtRetirement: 100000,
+            expectedReturnRate: 0.08,
+            costBasisPercentage: 0.70,
+        },        
+        hsa: {  // HSA Account (Health Savings Account)
+            balanceAtRetirement: 100000,       // Typical HSA balance for someone retiring at 60
+            expectedReturnRate: 0.07,          // Conservative growth (similar to tax-deferred)
+            allowNonMedicalAfter65: false,      // Keep HSA for healthcare only (instead of Allowing general withdrawals after 65)
+        },
+    },
+    withdrawalStrategy: {
+        priorityOrder: ['taxable', 'tax_deferred', 'roth'],
+        // Note: HSA is not in priority order - it's ALWAYS used first for healthcare
+    },
+    income: {
+        socialSecurity: {
+            monthlyBenefitAtFRA: 2000,
+            claimingAge: 67,
+            colaRate: 0.030,
+            taxablePercentage: 0.85,
+        },
+        pensions: [],
+        partTimeWork: {
+            enabled: false,
+            annualIncome: 0,
+            startAge: 62,
+            endAge: 70,
+        },
+        rentalIncome: {
+            enabled: true,
+            annualNetIncome: 12000,
+            startAge: 60,
+            endAge: 85,
+            inflationAdjusted: true,
+        },
+    },
+    healthcare: {
+        preMedicare: {
+            monthlyPremium: 900,
+            annualOutOfPocket: 3000,
+        },
+        medicare: {
+            partBStandardPremium: 200,
+            partDPremium: 55,
+            expectIRMAA: false,
+            irmaaSurcharge: 0,
+            medigapPremium: 215,
+            outOfPocketByPhase: {
+                phase1: 4000,
+                phase2: 6500,
+                phase3: 12000,
+            },
+        },
+    },
+    tax: {
+        combinedEffectiveRate: 0.18,
+    },
+    simulation: {
+        numberOfRuns: 5000,
+        generalInflationRate: 0.03,
+        healthcareInflationRate: 0.05,
+        returnStdDeviation: 0.18,
+    },
+    mode: 'basic',
+};
