@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, TrendingUp, Heart, AlertCircle, ArrowRight, Lock } from 'lucide-react';
+import { CheckCircle, XCircle, TrendingUp, AlertCircle, ArrowRight, Lock } from 'lucide-react';
+import { Footer } from '../components/common/Footer';
 
 function Logo({ size = 'md', variant = 'full' }: { size?: 'sm' | 'md' | 'lg', variant?: 'full' | 'icon' }) {
     const heights = { sm: 'h-7', md: 'h-9', lg: 'h-14' };
@@ -235,21 +236,7 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="bg-slate-900 text-slate-400 py-12">
-                <div className="max-w-6xl mx-auto px-4">
-                    <div className="flex flex-col items-center justify-center text-center space-y-4">
-                        <p className="text-sm max-w-2xl">
-                            For educational purposes only. Not financial, tax, legal, or investment advice.
-                            Projections use actuarial models with documented assumptions. Consult a qualified professional before making retirement decisions.
-                        </p>
-                        <div className="flex items-center gap-2 text-xs">
-                            <Heart className="w-4 h-4 text-red-400" />
-                            <span>Built with transparency • 2026</span>
-                        </div>
-                    </div>
-                </div>
-            </footer>
+            <Footer />
         </div>
     );
 }
