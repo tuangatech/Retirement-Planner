@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, TrendingUp, Heart, AlertCircle, ArrowRight, Lock, Eye } from 'lucide-react';
+import { CheckCircle, XCircle, TrendingUp, Heart, AlertCircle, ArrowRight, Lock } from 'lucide-react';
 
 function Logo({ size = 'md', variant = 'full' }: { size?: 'sm' | 'md' | 'lg', variant?: 'full' | 'icon' }) {
     const heights = { sm: 'h-7', md: 'h-9', lg: 'h-14' };
