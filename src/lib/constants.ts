@@ -139,8 +139,8 @@ export const DEFAULT_VALUES: UserInputs = {
     simulation: {
         numberOfRuns: 5000,
         generalInflationRate: 0.03,
-        healthcareInflationRate: 0.05,
-        returnStdDeviation: 0.18,
+        healthcareInflationRate: 0.03,
+        returnStdDeviation: 0.17,
     },
     mode: 'basic',
 };

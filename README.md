@@ -456,39 +456,9 @@ interface SavedProfile {
 
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit changes**: `git commit -m 'Add amazing feature'`
-4. **Push to branch**: `git push origin feature/amazing-feature`
-5. **Open Pull Request**
-
-### Code Style
-
-- Follow existing TypeScript patterns
-- Use functional components with hooks (no class components)
-- Add JSDoc comments for complex functions
-- Keep functions small and single-purpose
-- Write unit tests for calculation logic
-
----
-
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 📧 Contact
-
-For questions, suggestions, or bug reports:
-
-- **GitHub Issues**: [Create an issue](https://github.com/yourusername/retirement-planner/issues)
-- **Email**: your.email@example.com
-- **Website**: https://yourwebsite.com
 
 ---
 
