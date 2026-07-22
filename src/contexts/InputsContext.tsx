@@ -39,6 +39,7 @@ interface InputsContextType {
     updateRentalIncome: (data: Partial<RentalIncome>) => void;
     updateHealthcare: (type: 'preMedicare' | 'medicare', data: Partial<PreMedicareCosts & MedicareCosts>) => void;
     updateTax: (data: Partial<TaxSettings>) => void;
+    updateWithdrawalStrategy: (data: Partial<UserInputs['withdrawalStrategy']>) => void;
     updateSimulation: (data: Partial<SimulationSettings>) => void;
     setMode: (mode: 'basic' | 'advanced') => void;
     resetToDefaults: () => void;
@@ -195,6 +196,13 @@ export function InputsProvider({ children }: { children: ReactNode }) {
         }));
     }, []);
 
+    const updateWithdrawalStrategy = useCallback((data: Partial<UserInputs['withdrawalStrategy']>) => {
+        setInputs((prev: UserInputs) => ({
+            ...prev,
+            withdrawalStrategy: { ...prev.withdrawalStrategy, ...data },
+        }));
+    }, []);
+
     const updateSimulation = useCallback((data: Partial<SimulationSettings>) => {
         setInputs((prev: UserInputs) => ({
             ...prev,
@@ -240,6 +248,7 @@ export function InputsProvider({ children }: { children: ReactNode }) {
                 updateRentalIncome,
                 updateHealthcare,
                 updateTax,
+                updateWithdrawalStrategy,
                 updateSimulation,
                 setMode,
                 resetToDefaults,

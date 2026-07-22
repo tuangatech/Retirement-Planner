@@ -6,6 +6,8 @@ import {
     calculateTaxOnTaxableWithdrawal,
     calculateGrossWithdrawalForNet,
     calculateEffectiveTaxRateOnTaxable,
+    calculateTaxFreeTaxDeferredRoom,
+    type FilingStatus,
 } from './taxes';
 import { calculateHSAWithdrawal } from './hsa';
 
@@ -49,18 +51,25 @@ export interface WithdrawalResult {
  * 1. HSA for healthcare (tax-free, any age)
  * 2. HSA for general expenses (age 65+, taxed)
  * 3. RMDs from tax-deferred (age 73+)
- * 4. Regular accounts by priority order
- * 
+ * 4. Tax-smart fill (strategy !== 'standard'): draw tax-deferred up to the
+ *    standard-deduction floor (~tax-free), then fall through to priority order
+ * 5. Regular accounts by priority order
+ *
  * @param currentAge - Current age
  * @param cashFlowGap - Initial cash needed (expenses + taxes - income)
  * @param currentBalances - Current account balances (includes HSA)
  * @param healthcareCosts - Total healthcare costs for the year
  * @param allowNonMedicalHSA - Whether HSA can be used for non-medical after 65
  * @param priorityOrder - Withdrawal priority for tax-deferred/roth/taxable
- * @param _income - Income sources (for tax calculations)
- * @param effectiveTaxRate - Effective tax rate
- * @param _socialSecurityTaxablePercentage - SS taxable percentage
+ * @param income - Income sources (for the tax-free-room calculation)
+ * @param effectiveTaxRate - Marginal tax rate above the standard-deduction floor
+ * @param socialSecurityTaxablePercentage - Cap on the taxable share of SS
  * @param costBasisPercentage - Cost basis for taxable account
+ * @param strategy - 'standard' uses priorityOrder only; 'tax_smart'/'roth_conversion'
+ *   fill the tax-deferred deduction floor first, then follow priorityOrder
+ * @param year - Calendar year (for the senior-bonus deduction sunset)
+ * @param deductionInflationFactor - Inflation scaling applied to the deduction floor
+ * @param filingStatus - Filing status for the deduction and SS thresholds
  */
 export function executeWithdrawals(
     currentAge: number,
@@ -69,10 +78,14 @@ export function executeWithdrawals(
     healthcareCosts: number,
     allowNonMedicalHSA: boolean,
     priorityOrder: Array<'taxable' | 'tax_deferred' | 'roth'>,
-    _income: IncomeForTax,
+    income: IncomeForTax,
     effectiveTaxRate: number,
-    _socialSecurityTaxablePercentage: number,
-    costBasisPercentage: number
+    socialSecurityTaxablePercentage: number,
+    costBasisPercentage: number,
+    strategy: 'standard' | 'tax_smart' | 'roth_conversion' = 'standard',
+    year: number = 2026,
+    deductionInflationFactor: number = 1,
+    filingStatus: FilingStatus = 'single'
 ): WithdrawalResult {
     const balances = { ...currentBalances };
 
@@ -159,6 +172,42 @@ export function executeWithdrawals(
 
             taxOnWithdrawals += taxOnRMD;
             cashFlowGap -= afterTaxRMD;
+        }
+    }
+
+    // STEP 1.5: Tax-smart fill — draw tax-deferred up to the standard-deduction floor.
+    // In the gap years this converts what would otherwise become fully-taxed RMD dollars
+    // (and the SS "tax torpedo" they trigger) into ~tax-free income now, and shrinks
+    // future RMDs. Capped by the remaining need (drawing beyond the need is the
+    // Roth-conversion tier's job), the tax-free room, and the available balance. Because
+    // the draw stays within the deduction floor, its marginal tax is ~0, so gross ≈ net.
+    if (strategy !== 'standard' && cashFlowGap > 10) {
+        const availableTaxDeferred = balances.taxDeferred - withdrawals.taxDeferred;
+
+        if (availableTaxDeferred > 10) {
+            // Non-SS taxable income already present this year. Any RMD already pulled counts;
+            // brokerage gains are still zero because taxable draws happen later (STEP 2).
+            const otherOrdinaryTaxable =
+                income.pensions + income.partTimeWork + income.rentalIncome + withdrawals.taxDeferred;
+
+            const room = calculateTaxFreeTaxDeferredRoom(
+                income.socialSecurity,
+                otherOrdinaryTaxable,
+                socialSecurityTaxablePercentage,
+                currentAge,
+                year,
+                deductionInflationFactor,
+                filingStatus
+            );
+
+            const fillAmount = Math.min(cashFlowGap, room, availableTaxDeferred);
+
+            if (fillAmount > 0) {
+                withdrawals.taxDeferred += fillAmount;
+                // Within the deduction floor → ~0 marginal tax, so the net proceeds equal
+                // the gross draw. Reduce the remaining need accordingly.
+                cashFlowGap -= fillAmount;
+            }
         }
     }
 

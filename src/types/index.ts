@@ -115,6 +115,22 @@ export interface UserInputs {
     withdrawalStrategy: {
         priorityOrder: Array<'taxable' | 'tax_deferred' | 'roth'>;
         // Note: HSA is handled separately - always used first for healthcare
+
+        /**
+         * Which sequencing strategy the engine applies:
+         * - 'standard'        — spend strictly by priorityOrder (the conventional rule of thumb).
+         * - 'tax_smart'       — each gap year, draw tax-deferred up to the standard-deduction
+         *                       floor (≈ tax-free), then fall through to priorityOrder. Default.
+         * - 'roth_conversion' — tax-smart PLUS Roth conversions in the gap years (Advanced;
+         *                       not yet implemented — shown as "coming soon" in the wizard).
+         * Optional so pre-existing saved scenarios (which lack it) stay valid; the engine and
+         * the storage loader default a missing value to keep old plans faithful to how they
+         * were computed.
+         */
+        strategy?: 'standard' | 'tax_smart' | 'roth_conversion';
+
+        /** Advanced tier only: taxable-income ceiling to convert up to. Unused until Roth conversions ship. */
+        conversionCeiling?: number;
     };
     income: {
         socialSecurity: SocialSecurity;

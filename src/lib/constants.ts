@@ -92,6 +92,9 @@ export const DEFAULT_VALUES: UserInputs = {
     withdrawalStrategy: {
         priorityOrder: ['taxable', 'tax_deferred', 'roth'],
         // Note: HSA is not in priority order - it's ALWAYS used first for healthcare
+        // Tax-smart sequencing is the recommended default: it fills the standard-deduction
+        // floor with tax-deferred draws in the gap years, then follows priorityOrder.
+        strategy: 'tax_smart',
     },
     income: {
         socialSecurity: {

@@ -215,6 +215,15 @@ export class ScenarioStorage {
                 return null;
             }
 
+            // Backward compat: scenarios saved before the withdrawal-strategy feature have
+            // no `strategy` field. Default them to 'standard' so they stay faithful to how
+            // they were originally computed (their saved results reflect the old taxable-first
+            // order) rather than silently switching to tax-smart. New scenarios get
+            // 'tax_smart' from DEFAULT_VALUES.
+            if (scenario.inputs.withdrawalStrategy && !scenario.inputs.withdrawalStrategy.strategy) {
+                scenario.inputs.withdrawalStrategy.strategy = 'standard';
+            }
+
             return scenario;
         } catch (error) {
             console.error(`Failed to load scenario ${id}:`, error);

@@ -34,6 +34,14 @@ export function ScenarioPanel({ scenario, side }: ScenarioPanelProps) {
 
     const { inputs } = scenario;
 
+    // Legacy scenarios (saved before the feature) are normalized to 'standard' on load.
+    const strategyLabels: Record<string, string> = {
+        standard: 'Standard order',
+        tax_smart: 'Tax-smart sequencing',
+        roth_conversion: 'Gap-year Roth conversions',
+    };
+    const strategyLabel = strategyLabels[inputs.withdrawalStrategy.strategy ?? 'tax_smart'];
+
     return (
         <div className={`bg-white rounded-lg shadow-lg border-t-4 ${borderColor}`}>
             {/* Header */}
@@ -149,6 +157,10 @@ export function ScenarioPanel({ scenario, side }: ScenarioPanelProps) {
                         <span className="font-bold text-gray-900 text-lg">
                             {formatCurrency(totalPortfolio)}
                         </span>
+                    </div>
+                    <div className="pt-3 mt-3 border-t border-gray-200 flex justify-between items-center text-sm">
+                        <span className="text-gray-600">Withdrawal Strategy</span>
+                        <span className="font-medium">{strategyLabel}</span>
                     </div>
                 </div>
             </div>

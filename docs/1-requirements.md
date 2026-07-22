@@ -1,4 +1,4 @@
-# Retirement Planning Simulator - Requirements Document (v1.3)
+# Retirement Planning Simulator - Requirements Document (v1.4)
 
 ## 1. EXECUTIVE SUMMARY
 
@@ -18,7 +18,15 @@ A US-focused retirement planning **simulation tool** for individuals that models
 
 Users provide their **projected retirement balances**, and we model the **retirement phase only** (from retirement age to life expectancy).
 
-**Recent Updates (v1.3):**
+**Recent Updates (v1.4):**
+- **Tax model reworked** - IRS provisional-income taxation of Social Security + a
+  standard-deduction "tax-free floor", with the user's rate applied as a marginal rate
+  above the floor (was a single blended effective rate). See §6 and `docs/2-tax-model.md`.
+- **Withdrawal strategy selection** - New dedicated wizard step offering *Standard order*,
+  *Tax-smart sequencing* (default), and *Gap-year Roth conversions* (documented, not yet
+  built). See §3.3 and `docs/3-withdrawal-strategy.md`.
+
+**Earlier Updates (v1.3):**
 - **Removed pre-retirement modeling** - Focus exclusively on retirement phase
 - **Simplified inputs** - No current age, no contributions, no growth-before-retirement
 - **Clarified language** - All amounts in "retirement-year dollars"
@@ -145,7 +153,15 @@ Example: $400k @ 7% + $100k @ 5% = $28k + $5k = $33k / $500k = 6.6%
 
 **Purpose:** Optimize tax efficiency by withdrawing from accounts in the right order.
 
-Generally optimal strategy:
+**Withdrawal Strategy (selected on the dedicated wizard step, after Tax):**
+- **Standard order** — strict priority order (the conventional rule of thumb below).
+- **Tax-smart sequencing (default)** — each gap year, first draw Tax-Deferred up to the
+  standard-deduction floor (≈ tax-free), then follow the priority order. Uses the free
+  deduction room every year and shrinks future RMDs and the SS "tax torpedo".
+- **Gap-year Roth conversions (Advanced)** — documented and shown as "coming soon"; not
+  yet implemented. See [`docs/3-withdrawal-strategy.md`](3-withdrawal-strategy.md).
+
+Generally optimal priority order (used by Standard, and as the fall-through for Tax-smart):
 1. **Taxable first** (lowest tax - only gains taxed)
 2. **Tax-Deferred middle** (deferred tax - full withdrawal taxed)
 3. **Roth last** (never taxed - preserve longest)
@@ -184,12 +200,18 @@ Generally optimal strategy:
    - Use HSA for general cash flow needs (taxed as ordinary income)
    - Calculated with tax gross-up: `grossNeeded = net / (1 - effectiveTaxRate)`
 
-4. **Normal Priority Sequence (User-Specified):**
+4. **Tax-Smart Fill (if strategy ≠ Standard, before the priority sequence):**
+   - Draw Tax-Deferred up to the standard-deduction floor (≈ tax-free), capped by the
+     remaining need and the available Tax-Deferred balance
+   - Accounts for the SS provisional-income feedback so the fill stays within the floor
+   - Any RMD already taken counts toward the floor; the remainder follows the priority order
+
+5. **Normal Priority Sequence (User-Specified):**
    - Attempt withdrawals in user-specified order (Priority 1-3)
    - Withdraw from each account until need met or account depleted
    - Move to next priority if account insufficient
 
-5. **Account Depletion Handling:**
+6. **Account Depletion Handling:**
    - If account insufficient, use available balance and move to next account
    - Track shortfall if all accounts depleted
    - No withdrawals possible after total portfolio depletion (income-only survival)
@@ -643,10 +665,10 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 - Call-to-action: "Start Planning" → Wizard Step 1
 - Optional: "Learn More" → FAQ/About section
 
-### 9.2 Wizard Interface (6 Steps)
+### 9.2 Wizard Interface (7 Steps)
 
 **Navigation:**
-- Progress indicator (1 of 6, 2 of 6, etc.)
+- Progress indicator (1 of 7, 2 of 7, etc.)
 - Back/Next buttons (validation on Next)
 - Save draft to localStorage (auto-save on each step)
 
@@ -666,7 +688,11 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 - Pre-Medicare costs, Medicare parts, out-of-pocket by phase
 
 **Step 6: Taxes & Simulation**
-- Effective tax rate, inflation rates, simulation runs
+- Marginal tax rate (above the standard deduction), inflation rates, simulation runs
+
+**Step 7: Withdrawal Strategy**
+- Choose the withdrawal strategy (Standard / Tax-smart default / Roth conversions – coming soon)
+- Includes a retirement-timeline diagram of the gap-year milestones
 - **Calculate button** → Web Worker → Results page
 
 **Basic/Advanced Toggle:**
@@ -1184,16 +1210,20 @@ Consult qualified professionals (CFP, CPA, attorney) before making financial dec
 
 ---
 
-**END OF REQUIREMENTS DOCUMENT v1.3**
+**END OF REQUIREMENTS DOCUMENT v1.4**
 
-**Document Version:** 1.3  
-**Last Updated:** 2025-02-12  
-**Major Changes from v1.2:**
+**Document Version:** 1.4  
+**Last Updated:** 2026-07-22  
+**Major Changes from v1.3:**
+- Reworked the tax model to provisional-income SS + standard-deduction floor + marginal rate (§6)
+- Added withdrawal-strategy selection and a dedicated wizard step; wizard is now 7 steps (§3.3, §9.2)
+- Added the tax-smart fill to the withdrawal execution order (§3.3)
+
+**Major Changes from v1.2 (v1.3):**
 - Removed pre-retirement modeling (current age, contributions, years until retirement)
 - Simplified to retirement-phase-only focus
 - Clarified all inputs are "at retirement" or "retirement-year dollars"
 - Streamlined account section (removed contribution logic)
-- Updated future enhancements (removed HSA contribution modeling)
 - Maintained all v1.2 improvements (HSA, landing page, terminology)
 
 **Status:** Ready for Implementation

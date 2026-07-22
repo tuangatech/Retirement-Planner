@@ -5,6 +5,7 @@ import {
     TAX_RULES,
     calculateTaxableSocialSecurity,
     calculateStandardDeduction,
+    calculateTaxFreeTaxDeferredRoom,
     calculateTotalTaxes,
     calculateTaxOnTaxableWithdrawal,
     calculateGrossWithdrawalForNet,
@@ -141,5 +142,39 @@ describe('calculateTotalTaxes (aggregation)', () => {
             income, noWithdrawals, 0.12, 0.85, 0.7, 0, 70, 2029, 1, /* hsaNonMedical */ 20000,
         );
         expect(t.total).toBeCloseTo(222, 6);
+    });
+});
+
+describe('calculateTaxFreeTaxDeferredRoom (tax-smart fill)', () => {
+    it('equals the full deduction floor when there is no other taxable income', () => {
+        // Age 65+, 2026 floor = 16,100 + 2,050 + 6,000 = 24,150. No SS, no other income →
+        // total taxable is just the draw itself, so the room is the whole floor.
+        const room = calculateTaxFreeTaxDeferredRoom(0, 0, 0.85, 65, 2026, 1, 'single');
+        expect(room).toBeCloseTo(24_150, -1); // within ~$5 (bisection tolerance)
+    });
+
+    it('uses the base-only floor before age 65', () => {
+        // Age 60, 2026 → base standard deduction 16,100 (no age-65 add, no senior bonus).
+        const room = calculateTaxFreeTaxDeferredRoom(0, 0, 0.85, 60, 2026, 1, 'single');
+        expect(room).toBeCloseTo(16_100, -1);
+    });
+
+    it('drops the senior bonus once it sunsets in 2029', () => {
+        // Age 65, 2029 → 16,100 + 2,050 = 18,150 (bonus gone).
+        const room = calculateTaxFreeTaxDeferredRoom(0, 0, 0.85, 65, 2029, 1, 'single');
+        expect(room).toBeCloseTo(18_150, -1);
+    });
+
+    it('returns 0 when other income already fills the floor', () => {
+        expect(calculateTaxFreeTaxDeferredRoom(0, 30_000, 0.85, 65, 2026, 1, 'single')).toBe(0);
+    });
+
+    it('shrinks the room via the SS "torpedo" feedback', () => {
+        // SS $30k, no other income, age 65+, 2026 floor 24,150. Each extra $1 of tax-deferred
+        // raises provisional income and drags SS into the taxable base, so the tax-free room
+        // is well below the naive 24,150. Closed-form solve gives ≈ $19,351.
+        const room = calculateTaxFreeTaxDeferredRoom(30_000, 0, 0.85, 65, 2026, 1, 'single');
+        expect(room).toBeCloseTo(19_351, -1);
+        expect(room).toBeLessThan(24_150); // strictly less than the no-SS room
     });
 });

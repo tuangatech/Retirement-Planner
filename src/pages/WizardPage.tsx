@@ -13,6 +13,7 @@ import { Step3Accounts } from '@/components/wizard/Step3Accounts';
 import { Step4Income } from '@/components/wizard/Step4Income';
 import { Step5Healthcare } from '@/components/wizard/Step5Healthcare';
 import { Step6TaxSettings } from '@/components/wizard/Step6TaxSettings';
+import { Step7WithdrawalStrategy } from '@/components/wizard/Step7WithdrawalStrategy';
 import { useResults } from '@/contexts/ResultsContext';
 import { useInputs } from '@/contexts/InputsContext';
 import { trackPageView, trackWizardStep, trackCalculationStart } from '@/lib/analytics';
@@ -25,6 +26,7 @@ const STEPS = [
     { component: Step4Income, title: 'Income Sources' },
     { component: Step5Healthcare, title: 'Healthcare' },
     { component: Step6TaxSettings, title: 'Tax & Simulation' },
+    { component: Step7WithdrawalStrategy, title: 'Withdrawal Strategy' },
 ];
 
 export default function WizardPage() {
@@ -77,7 +79,7 @@ export default function WizardPage() {
     const handleCalculate = async () => {
         // Track final step completion
         const timeSpent = Date.now() - stepStartTime;
-        trackWizardStep(6, timeSpent);
+        trackWizardStep(STEPS.length, timeSpent);
 
         // Track calculation start
         trackCalculationStart(inputs.simulation.numberOfRuns);

@@ -158,7 +158,14 @@ export function calculateYearlyProjection(
             },
             tax.combinedEffectiveRate,
             income.socialSecurity.taxablePercentage,
-            accounts.taxable.costBasisPercentage || 0.70
+            accounts.taxable.costBasisPercentage || 0.70,
+            // Tax-smart sequencing (fill the deduction floor from tax-deferred first).
+            // Default to 'tax_smart' when the field is absent (e.g. older code paths);
+            // the storage loader keeps legacy saved scenarios on 'standard'.
+            inputs.withdrawalStrategy.strategy ?? 'tax_smart',
+            year,
+            deductionInflationFactor,
+            filingStatus
         );
 
         // Deduct withdrawals from current balances

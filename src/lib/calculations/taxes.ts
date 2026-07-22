@@ -119,6 +119,70 @@ export function calculateStandardDeduction(
 }
 
 /**
+ * Tax-smart sequencing helper: how much can be pulled from a tax-deferred account
+ * this year while keeping total taxable income at or below the standard-deduction
+ * floor (i.e. an approximately tax-free draw).
+ *
+ * This is NOT simply `deduction − otherTaxable`: each extra dollar of tax-deferred
+ * income raises provisional income, which can drag up to $0.85 of Social Security
+ * into the taxable base (the "tax torpedo"). So the total taxable income as a
+ * function of the draw `x` is
+ *
+ *     total(x) = taxableSS(otherOrdinary + x) + otherOrdinary + x
+ *
+ * which is monotonically increasing in `x`. We bisect for the largest `x` with
+ * `total(x) ≤ deduction`. The caller still caps the result by the spending need and
+ * the available balance.
+ *
+ * @param ssBenefit - Social Security benefit for the year
+ * @param otherOrdinaryTaxable - non-SS taxable income already present (pensions,
+ *   part-time, rental, brokerage gains, and any RMD already withdrawn)
+ * @param ssTaxablePctCap - user cap on the taxable share of SS (≤ statutory 85%)
+ * @returns the tax-free tax-deferred draw (0 if the floor is already used up)
+ */
+export function calculateTaxFreeTaxDeferredRoom(
+    ssBenefit: number,
+    otherOrdinaryTaxable: number,
+    ssTaxablePctCap: number,
+    currentAge: number,
+    year: number,
+    deductionInflationFactor: number = 1,
+    filingStatus: FilingStatus = 'single',
+    includeSeniorBonus: boolean = true
+): number {
+    const deduction = calculateStandardDeduction(
+        currentAge,
+        year,
+        filingStatus,
+        deductionInflationFactor,
+        includeSeniorBonus
+    );
+
+    const totalTaxableAt = (x: number): number =>
+        calculateTaxableSocialSecurity(ssBenefit, otherOrdinaryTaxable + x, filingStatus, ssTaxablePctCap) +
+        otherOrdinaryTaxable +
+        x;
+
+    // Already at/above the floor before any discretionary draw → no tax-free room.
+    if (totalTaxableAt(0) >= deduction) return 0;
+
+    // Bisect for the draw that lifts taxable income up to (not over) the floor.
+    // Upper bound: x = deduction always overshoots since total(x) ≥ x.
+    let lo = 0;
+    let hi = deduction;
+    for (let i = 0; i < 40 && hi - lo > 1; i++) {
+        const mid = (lo + hi) / 2;
+        if (totalTaxableAt(mid) <= deduction) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+
+    return lo;
+}
+
+/**
  * Maximum iterations for tax gross-up convergence.
  * Typically converges in 2-3 iterations.
  */

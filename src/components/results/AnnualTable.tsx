@@ -148,6 +148,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                 </div>
 
                 {/* ✅ CLEAN TABLE: 8 columns for easy scanning */}
+                <TooltipProvider delayDuration={100}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead className="bg-gray-50 border-b-2 border-gray-200">
@@ -223,38 +224,86 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                         </td>
 
                                         {/* Income */}
-                                        <td className="px-4 py-3 text-right text-green-700 font-medium">
-                                            {formatMoney(p.income.totalBeforeWithdrawals)}
-                                        </td>
+                                        <BreakdownCell
+                                            value={p.income.totalBeforeWithdrawals}
+                                            className="text-green-700 font-medium"
+                                            emptyText="No income this year"
+                                            lines={[
+                                                { label: 'Social Security', value: p.income.socialSecurity },
+                                                { label: 'Pensions', value: p.income.pensions },
+                                                { label: 'Part-time work', value: p.income.partTimeWork },
+                                                { label: 'Rental income', value: p.income.rentalIncome },
+                                            ]}
+                                        />
 
                                         {/* Expenses */}
-                                        <td className="px-4 py-3 text-right text-red-700 font-medium">
-                                            {formatMoney(p.expenses.total)}
-                                        </td>
+                                        <BreakdownCell
+                                            value={p.expenses.total}
+                                            className="text-red-700 font-medium"
+                                            lines={[
+                                                { label: 'Living expenses', value: p.expenses.living },
+                                                { label: 'Healthcare premiums', value: p.expenses.healthcarePremiums },
+                                                { label: 'Healthcare out-of-pocket', value: p.expenses.healthcareOutOfPocket },
+                                                { label: 'One-time expenses', value: p.expenses.oneTimeExpenses },
+                                            ]}
+                                        />
 
                                         {/* Taxes */}
-                                        <td className="px-4 py-3 text-right text-orange-700 font-medium">
-                                            {formatMoney(p.taxes.total)}
-                                        </td>
+                                        <BreakdownCell
+                                            value={p.taxes.total}
+                                            className="text-orange-700 font-medium"
+                                            emptyText="No tax this year"
+                                            lines={[
+                                                { label: 'Income tax', value: p.taxes.onFixedIncome },
+                                                { label: 'Withdrawal tax', value: p.taxes.onWithdrawals },
+                                                { label: 'Payroll tax', value: p.taxes.payrollTax },
+                                            ]}
+                                        />
 
                                         {/* Withdrawals */}
-                                        <td className="px-4 py-3 text-right text-purple-700 font-medium">
-                                            {formatMoney(p.portfolio.withdrawals.total)}
-                                        </td>
+                                        <BreakdownCell
+                                            value={p.portfolio.withdrawals.total}
+                                            className="text-purple-700 font-medium"
+                                            emptyText="No withdrawals this year"
+                                            lines={[
+                                                { label: 'Tax-deferred', value: p.portfolio.withdrawals.taxDeferred },
+                                                { label: 'Roth', value: p.portfolio.withdrawals.roth },
+                                                { label: 'Taxable', value: p.portfolio.withdrawals.taxable },
+                                                { label: 'HSA', value: p.portfolio.withdrawals.hsa },
+                                            ]}
+                                            notes={[
+                                                ...(p.portfolio.rmdAmount > 0.5
+                                                    ? [`Includes required RMD of ${formatMoney(p.portfolio.rmdAmount)}`]
+                                                    : []),
+                                                ...(p.portfolio.hsaForHealthcare > 0.5
+                                                    ? [`${formatMoney(p.portfolio.hsaForHealthcare)} of HSA used tax-free for healthcare`]
+                                                    : []),
+                                            ]}
+                                        />
 
                                         {/* Portfolio Balance */}
-                                        <td className={`px-4 py-3 text-right font-semibold ${p.portfolio.balances.total < 100000 ? 'text-red-600' :
+                                        <BreakdownCell
+                                            value={p.portfolio.balances.total}
+                                            totalLabel="Total portfolio"
+                                            emptyText="Portfolio depleted"
+                                            className={`font-semibold ${p.portfolio.balances.total < 100000 ? 'text-red-600' :
                                                 p.portfolio.balances.total > 1000000 ? 'text-green-600' :
                                                     'text-gray-900'
-                                            }`}>
-                                            {formatMoney(p.portfolio.balances.total)}
-                                        </td>
+                                                }`}
+                                            lines={[
+                                                { label: 'Tax-deferred', value: p.portfolio.balances.taxDeferred },
+                                                { label: 'Roth', value: p.portfolio.balances.roth },
+                                                { label: 'Taxable', value: p.portfolio.balances.taxable },
+                                                { label: 'HSA', value: p.portfolio.balances.hsa },
+                                            ]}
+                                        />
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
                 </div>
+                </TooltipProvider>
             </div>
 
             {/* Column Explanations Panel */}
@@ -283,8 +332,9 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-blue-300 text-xs text-blue-700">
-                    <strong>💡 Tip:</strong> Export to CSV for detailed account-by-account breakdowns including HSA balance,
-                    individual account withdrawals, healthcare coverage, RMDs, and more.
+                    <strong>💡 Tip:</strong> Hover any Income, Expenses, Taxes, Withdrawals, or Portfolio
+                    figure to see the items that make it up. Export to CSV for the full account-by-account
+                    breakdown including HSA balance, healthcare coverage, RMDs, and more.
                 </div>
             </div>
 
@@ -318,6 +368,64 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                 </div>
             </div>
         </div>
+    );
+}
+
+// Per-row breakdown cell: shows the figure with a hover tooltip itemizing the
+// components that sum to it. Non-zero components only; empty years show emptyText.
+interface BreakdownLine {
+    label: string;
+    value: number;
+}
+
+function BreakdownCell({
+    value,
+    className,
+    lines,
+    notes,
+    emptyText,
+    totalLabel = 'Total',
+}: {
+    value: number;
+    className: string;
+    lines: BreakdownLine[];
+    notes?: string[];
+    emptyText?: string;
+    totalLabel?: string;
+}) {
+    const shown = lines.filter((l) => Math.abs(l.value) > 0.5);
+
+    return (
+        <td className={`px-4 py-3 text-right ${className}`}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="cursor-help underline decoration-dotted decoration-gray-400/60 underline-offset-4">
+                        {formatMoney(value)}
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent className="text-left max-w-[15rem]">
+                    {shown.length === 0 ? (
+                        <div>{emptyText ?? 'No components'}</div>
+                    ) : (
+                        <div className="space-y-1">
+                            {shown.map((l, i) => (
+                                <div key={i} className="flex justify-between gap-6">
+                                    <span className="opacity-70">{l.label}</span>
+                                    <span className="font-medium tabular-nums">{formatMoney(l.value)}</span>
+                                </div>
+                            ))}
+                            <div className="flex justify-between gap-6 border-t border-primary-foreground/30 pt-1 mt-1">
+                                <span>{totalLabel}</span>
+                                <span className="font-semibold tabular-nums">{formatMoney(value)}</span>
+                            </div>
+                            {notes?.map((n, i) => (
+                                <div key={i} className="opacity-70 italic pt-0.5">{n}</div>
+                            ))}
+                        </div>
+                    )}
+                </TooltipContent>
+            </Tooltip>
+        </td>
     );
 }
 
