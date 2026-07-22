@@ -1,6 +1,7 @@
 // src/components/wizard/Step4Income.tsx
 
 import { useInputs } from '@/contexts/InputsContext';
+import { DEFAULT_VALUES } from '@/lib/constants';
 import { Trash2, AlertCircle } from 'lucide-react';
 import type { Pension } from '@/types';
 import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
@@ -36,10 +37,13 @@ export function Step4Income() {
     const estimatedMonthlyBenefit = income.socialSecurity.monthlyBenefitAtFRA * claimingFactor;
 
     const taxPct = income.socialSecurity.taxablePercentage * 100;
+    // This value is a CAP on the taxable share of SS. The tool computes the actual
+    // taxable portion each year from the IRS provisional-income formula and never
+    // exceeds this cap. (Default 85% = the statutory maximum.)
     const taxableLabel =
-        taxPct === 0 ? 'None taxable — combined income below $25,000' :
-            taxPct <= 50 ? 'Up to 50% taxable — combined income $25,000–$34,000' :
-                '85% taxable — combined income above $34,000';
+        taxPct >= 85
+            ? 'Cap at the 85% statutory max — the tool computes the actual taxable share (0–85%) each year via the IRS formula'
+            : `Caps taxable SS at ${taxPct}% — the tool computes the actual share (0–${taxPct}%) via the IRS formula`;
 
     return (
         <div className="space-y-6">
@@ -168,7 +172,7 @@ export function Step4Income() {
                             />
                             <span className="absolute right-3 top-2 text-gray-500">%</span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Default: 2.5% (10-year average)</p>
+                        <p className="text-xs text-gray-500 mt-1">Default: {(DEFAULT_VALUES.income.socialSecurity.colaRate * 100).toFixed(1)}% (≈10-year average)</p>
                     </div>
 
                     <div>
@@ -228,9 +232,10 @@ export function Step4Income() {
                                     </tbody>
                                 </table>
                                 <p className="text-xs text-gray-600">
-                                    💡 85% is the IRS maximum — SS benefits are never fully taxable.
-                                    Most retirees with investment accounts exceed the $34,000 threshold,
-                                    so 85% is the right default for most users of this tool.
+                                    💡 This field is a <strong>cap</strong>, not a fixed rate. The tool
+                                    applies the IRS provisional-income formula each year and taxes
+                                    <em> less</em> than the cap when your income is low (it can be 0%).
+                                    Leaving it at 85% (the statutory maximum) simply lets the formula decide.
                                 </p>
                             </HelpPopover>
                         </label>
@@ -253,8 +258,9 @@ export function Step4Income() {
                         <p className="text-xs text-gray-500 mt-1">{taxableLabel}</p>
                         {taxPct === 85 && (
                             <InlineGuidance variant="example" className="mt-2">
-                                <strong>85% is correct for most users.</strong> Anyone with portfolio withdrawals
-                                + SS will typically exceed the $34,000 combined income threshold.
+                                <strong>Leaving this at 85% is safe.</strong> It's a cap — the tool applies
+                                the IRS formula each year and taxes less when your income is low, so this
+                                won't over-tax your benefits.
                             </InlineGuidance>
                         )}
                     </div>

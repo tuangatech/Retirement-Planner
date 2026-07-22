@@ -1,12 +1,20 @@
 // src/components/wizard/Step3Accounts.tsx
 
 import { useInputs } from '@/contexts/InputsContext';
+import { DEFAULT_VALUES } from '@/lib/constants';
 import { HelpCircle } from 'lucide-react';
 import { HelpPopover } from '@/components/common/HelpPopover';
 
 export function Step3Accounts() {
     const { inputs, updateAccount, updateHSA } = useInputs();
     const { accounts, mode } = inputs;
+
+    // Derived from the configured default tax rate so the HSA example never drifts.
+    const defaultTaxRate = DEFAULT_VALUES.tax.combinedEffectiveRate;
+    const taxRatePct = (defaultTaxRate * 100).toFixed(0);
+    const afterTaxDollar = (1 - defaultTaxRate).toFixed(2);
+    const hsaEfficiencyPct = (defaultTaxRate / (1 - defaultTaxRate) * 100).toFixed(0);
+    const defaultCostBasisPct = ((DEFAULT_VALUES.accounts.taxable.costBasisPercentage ?? 0.7) * 100).toFixed(0);
 
     const accountTypes = [
         {
@@ -173,7 +181,7 @@ export function Step3Accounts() {
                                     <span className="absolute right-3 top-2 text-gray-500">%</span>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Portion that is original investment (not gains). Default: 70%
+                                    Portion that is original investment (not gains). Default: {defaultCostBasisPct}%
                                 </p>
                             </div>
                         )}
@@ -262,8 +270,9 @@ export function Step3Accounts() {
                                 </span>
                             </label>
                             <p className="text-xs text-gray-500 mt-1 ml-6">
-                                Unchecking means HSA will only be used for healthcare expenses, even after 65.
-                                Most people leave this checked (default behavior).
+                                Leaving this unchecked (the default) means the HSA is used only for
+                                healthcare, even after 65 — the most tax-efficient use. Check it to also
+                                tap the HSA for general expenses after 65 (taxed as ordinary income).
                             </p>
                         </div>
                     )}
@@ -281,7 +290,7 @@ export function Step3Accounts() {
                             <strong>Why This Matters:</strong> A $70K HSA can cover ~$10K/year healthcare × 7 years = no withdrawals needed from your taxed accounts for healthcare during your Go-Go years.
                         </p>
                         <p className="pt-1 border-t border-teal-300">
-                            💡 Every $1 in HSA = $1 of healthcare coverage. Every $1 withdrawn from Tax-Deferred = only $0.82 after taxes (at 18% rate). HSA is 22% more efficient for healthcare.
+                            💡 Every $1 in HSA = $1 of tax-free healthcare coverage. A $1 tax-deferred withdrawal is worth about ${afterTaxDollar} after income tax (at a {taxRatePct}% marginal rate), so the HSA stretches roughly {hsaEfficiencyPct}% further for healthcare.
                         </p>
                     </div>
                 </div>

@@ -61,7 +61,7 @@ export const DEFAULT_VALUES: UserInputs = {
         retirementAge: 60,
         lifeExpectancy: 90,
         state: 'GA',
-        // filingStatus: 'single',
+        filingStatus: 'single',
     },
     phases: [
         { name: 'go_go', startAge: 60, endAge: 74, annualSpending: 50000 },
@@ -134,12 +134,16 @@ export const DEFAULT_VALUES: UserInputs = {
         },
     },
     tax: {
-        combinedEffectiveRate: 0.18,
+        // Marginal rate applied to taxable income ABOVE the standard deduction
+        // (the model now handles deductions + the SS provisional formula itself).
+        // 12% reflects a typical retiree's top federal bracket; add a few points
+        // for states that actually tax retirement income.
+        combinedEffectiveRate: 0.12,
     },
     simulation: {
-        numberOfRuns: 5000,
+        numberOfRuns: 10000,
         generalInflationRate: 0.03,
-        healthcareInflationRate: 0.03,
+        healthcareInflationRate: 0.05,
         returnStdDeviation: 0.17,
     },
     mode: 'basic',

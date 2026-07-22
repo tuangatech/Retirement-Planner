@@ -104,6 +104,16 @@ export function calculateYearlyProjection(
         simulation.healthcareInflationRate
     );
 
+    // Tax-model context shared by the initial and final tax calculations.
+    // The standard-deduction floor is scaled by the same inflation that grows
+    // income (deductions are inflation-indexed in reality); the SS provisional
+    // thresholds inside the tax module stay frozen (the "tax torpedo").
+    const filingStatus = personal.filingStatus ?? 'single';
+    const deductionInflationFactor = Math.pow(
+        1 + simulation.generalInflationRate,
+        Math.max(0, currentAge - personal.retirementAge)
+    );
+
     // STEP 4: Calculate initial taxes on fixed income
     const initialTaxOnIncome = calculateTaxOnFixedIncome(
         {
@@ -113,7 +123,11 @@ export function calculateYearlyProjection(
             rentalIncome: incomeResult.rentalIncome,
         },
         tax.combinedEffectiveRate,
-        income.socialSecurity.taxablePercentage
+        income.socialSecurity.taxablePercentage,
+        currentAge,
+        year,
+        deductionInflationFactor,
+        filingStatus
     );
 
     // STEP 5: Determine cash flow gap
@@ -172,7 +186,15 @@ export function calculateYearlyProjection(
         };
     }
 
-    // Calculate final taxes
+    // HSA: only the non-medical portion (age 65+) is taxable ordinary income;
+    // medical withdrawals are always tax-free. Passed to the tax model so it's
+    // taxed consistently (and shielded by the deduction floor like other income).
+    const hsaNonMedicalWithdrawal = Math.max(
+        0,
+        withdrawalResult.withdrawals.hsa - withdrawalResult.hsaForHealthcare
+    );
+
+    // Calculate final taxes (provisional-income SS + standard-deduction floor).
     const finalTaxes = calculateTotalTaxes(
         {
             socialSecurity: incomeResult.socialSecurity,
@@ -184,8 +206,37 @@ export function calculateYearlyProjection(
         tax.combinedEffectiveRate,
         income.socialSecurity.taxablePercentage,
         accounts.taxable.costBasisPercentage || 0.70,
-        incomeResult.partTimePayrollTax
+        incomeResult.partTimePayrollTax,
+        currentAge,
+        year,
+        deductionInflationFactor,
+        hsaNonMedicalWithdrawal,
+        filingStatus
     );
+
+    // Total withdrawals and net cash flow — computed here (before returns) so any
+    // surplus can be reinvested and then compounded this year.
+    const totalWithdrawals =
+        withdrawalResult.withdrawals.taxDeferred +
+        withdrawalResult.withdrawals.roth +
+        withdrawalResult.withdrawals.taxable +
+        withdrawalResult.withdrawals.hsa;
+
+    const netCashFlow =
+        incomeResult.totalBeforeWithdrawals +
+        totalWithdrawals -
+        expensesResult.total -
+        finalTaxes.total;
+
+    // Reinvest surplus from the withdrawal branch into the taxable account. This
+    // covers both forced-RMD excess and the small over-withdrawal that arises
+    // because the withdrawal engine's gross-up ignores the deduction floor. Without
+    // this, that cash would leak out and understate the final balance. (The surplus
+    // branch above already reinvests via handleSurplus, so only the withdrawal
+    // branch needs it here.)
+    if (cashFlowGap > 0 && netCashFlow > 0) {
+        updatedBalances.taxable += netCashFlow;
+    }
 
     // ✅ UPDATED: STEP 7 - Apply investment returns (including HSA)
     const returns = generateAccountReturns(
@@ -226,19 +277,6 @@ export function calculateYearlyProjection(
     updatedBalances.roth = Math.max(0, updatedBalances.roth);
     updatedBalances.taxable = Math.max(0, updatedBalances.taxable);
     updatedBalances.hsa = Math.max(0, updatedBalances.hsa);  // ✅ NEW
-
-    // Calculate net cash flow
-    const totalWithdrawals =
-        withdrawalResult.withdrawals.taxDeferred +
-        withdrawalResult.withdrawals.roth +
-        withdrawalResult.withdrawals.taxable +
-        withdrawalResult.withdrawals.hsa;  // ✅ UPDATED
-
-    const netCashFlow =
-        incomeResult.totalBeforeWithdrawals +
-        totalWithdrawals -
-        expensesResult.total -
-        finalTaxes.total;
 
     // STEP 8: Assemble complete projection
     return {
@@ -352,8 +390,17 @@ export function runCompleteSimulation(
         }
     }
 
-    const finalBalance = calculateTotalPortfolio(currentBalances);
-    const success = finalBalance > 0;
+    // Success means the portfolio funded all spending through life expectancy —
+    // i.e., it never hit the depletion threshold (isPortfolioDepleted, < $100).
+    // NOTE: do NOT use `finalBalance > 0`. Depleted runs can strand a few dollars
+    // (the withdrawal engine ignores balances under $10, and reinvested-surplus
+    // pennies compound), which would otherwise miscount a failed run — one that
+    // depleted mid-retirement with years of unmet spending — as a "success" and
+    // pollute the percentile distribution (the "$9 median" artifact).
+    const success = ageOfDepletion === null;
+
+    // Report depleted runs as $0 so failed outcomes don't display stranded pennies.
+    const finalBalance = success ? calculateTotalPortfolio(currentBalances) : 0;
 
     return {
         success,

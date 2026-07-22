@@ -372,6 +372,47 @@ describe('Monte Carlo Simulation', () => {
 });
 ```
 
+### 4.2 Independent Verification (JSON bundle + verify_plan.py)
+
+In addition to unit tests, every run can be checked against an **independent
+re-implementation** of the expected-value formulas written in Python. This
+catches drift between what the UI shows and what the inputs imply.
+
+**Export (app side):** `src/lib/exportVerification.ts` builds a self-describing
+bundle and the **"JSON" button** on the Annual Breakdown tab downloads it as
+`retirement-verification-<yyyymmdd-hhmm>.json`. The bundle contains:
+
+- `inputs` — the full `UserInputs` (all settings the run used)
+- `results` — success rate, percentiles, failed-run stats, selected run IDs
+- `projections` — the complete year-by-year `YearlyProjection[]` for p10 / p50 / p90
+
+**Verify (script side):** `scripts/verify_plan.py` reads a bundle and re-derives
+every deterministic value from `inputs`, then compares against the projection:
+
+- Social Security (claiming-age factor × COLA + earnings test), pensions, rental
+- Living expenses (phase spending × general inflation)
+- Healthcare premiums and out-of-pocket (pre-Medicare and Medicare, each inflated)
+- Income tax — independently recomputed via the provisional-income SS formula +
+  standard-deduction floor + marginal rate (mirrors `TAX_RULES` in `taxes.ts`); plus payroll tax
+- Component sums (Total Income / Expenses / Tax / Withdrawals)
+- Cash-flow identity: `Income + Withdrawals = Expenses + Taxes + Net Cash Flow`
+- Implied per-account returns are range-checked (informational; balances are stochastic)
+
+> The tax model itself (and its year-specific constants/sources) is documented in
+> [`docs/2-tax-model.md`](2-tax-model.md). Keep the Python `TAX_RULES` in `verify_plan.py`
+> in sync with the TypeScript `TAX_RULES` in `taxes.ts`.
+
+```bash
+# Save the downloaded bundle into scripts/, then:
+python3 scripts/verify_plan.py                          # newest bundle in scripts/
+python3 scripts/verify_plan.py --percentile p10         # check the worst-case run
+python3 scripts/verify_plan.py --json path/to/file.json --tolerance 0.03
+```
+
+The script discovers the newest bundle by file modification time (filename format
+is irrelevant) and exits non-zero if any deterministic check fails. Downloaded
+bundles are git-ignored (`scripts/retirement-verification-*.json`).
+
 ---
 
 ## 5. PERFORMANCE OPTIMIZATION IMPLEMENTATION (Enhanced)
@@ -566,55 +607,29 @@ function CustomTooltip({ active, payload }: any) {
 
 ---
 
-## 7. DEPLOYMENT CHECKLIST (Updated)
+## 7. DEPLOYMENT (Vercel, Git-based)
 
-### 7.1 Pre-Deployment
+Deployment is **push-to-deploy** via Vercel's GitHub integration — Vercel runs the build
+on its own servers. You do **not** run `npm run build` or the Vercel CLI locally to deploy.
 
-- [x] All tests passing (`npm run test`)
-- [x] Build succeeds (`npm run build`)
-- [ ] No console errors in production build
-- [ ] Performance audit (Lighthouse score > 90)
-- [x] All charts render in production build
-- [x] Web Worker loads correctly
-- [x] localStorage works
-- [x] Responsive design tested (mobile/tablet/desktop)
+### 7.1 Deploy
 
-### 7.2 Build Verification
+1. Import the GitHub repo into Vercel once (auto-detects the Vite preset; output `dist`).
+2. Push to `master` → production deploy. Push any other branch / open a PR → preview deploy.
+3. `vercel.json` (repo root) rewrites all routes to `index.html` so client-side routes
+   (`/results`, `/wizard/1`) don't 404 on refresh.
 
-```bash
-# Production build
-npm run build
+### 7.2 Optional local sanity check (not part of deploy)
 
-# Expected output:
-# dist/index.html                    5.2 KB
-# dist/assets/index-{hash}.js       203.4 KB (gzip: 65.1 KB)
-# dist/assets/vendor-{hash}.js      487.2 KB (gzip: 156.3 KB)
-# dist/assets/charts-{hash}.js      312.8 KB (gzip: 98.7 KB)
-# dist/workers/monte-carlo-{hash}.js 98.3 KB (gzip: 31.2 KB)
-
-# Preview production build
-npm run preview
-
-# Test at http://localhost:4173
-# Verify:
-# - All routes work
-# - Calculation runs
-# - Charts render
-# - CSV export works
-```
-
-### 7.3 Vercel Deployment
+If you want to verify a production bundle before pushing:
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-
-# Production deployment
-vercel --prod
+npm run build      # type-check + build to ./dist
+npm run preview    # serve the build at http://localhost:4173
 ```
+
+Then confirm routes work, a calculation runs, charts render, and CSV/JSON export work.
+None of this is required — pushing to `master` is the whole workflow.
 
 ---
 

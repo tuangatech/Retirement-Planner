@@ -12,7 +12,9 @@ export interface PersonalInfo {
     retirementAge: number;
     lifeExpectancy: number;
     state: USState;
-    // filingStatus: 'single' | 'married_joint';
+    // Optional; the tax model defaults to 'single' when unset. (A filing-status
+    // selector in the wizard is a future enhancement.)
+    filingStatus?: 'single' | 'married_joint';
 }
 
 export interface RetirementPhase {

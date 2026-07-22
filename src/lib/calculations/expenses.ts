@@ -271,28 +271,51 @@ export function calculateHealthcareCosts(
 } {
     const phase = determinePhase(currentAge, phases);
 
+    // Not yet retired: no healthcare costs modeled.
+    if (currentAge < retirementAge) {
+        return { premiums: 0, outOfPocket: 0, total: 0 };
+    }
+
     if (currentAge < MEDICARE_AGE) {
-        const total = calculatePreMedicareCosts(
-            currentAge,
-            preMedicare,
-            healthcareInflationRate,
-            retirementAge
-        );
-        // Pre-Medicare breakdown (rough estimate)
-        const premiums = preMedicare.monthlyPremium * 12;
-        const outOfPocket = total - premiums;
-        return { premiums, outOfPocket, total };
+        // Pre-Medicare: inflate premiums and out-of-pocket independently from the
+        // retirement start year. (Previously the `premiums` field was reported as a
+        // flat, un-inflated monthlyPremium*12 and `outOfPocket` absorbed all premium
+        // inflation — the totals were correct but the split shown to the user was not.)
+        const yearsSinceRetirement = currentAge - retirementAge;
+        const inflation = Math.pow(1 + healthcareInflationRate, yearsSinceRetirement);
+
+        const premiums = preMedicare.monthlyPremium * 12 * inflation;
+        const outOfPocket = preMedicare.annualOutOfPocket * inflation;
+
+        return { premiums, outOfPocket, total: premiums + outOfPocket };
     } else {
-        const total = calculateMedicareCosts(
-            currentAge,
-            medicare,
-            healthcareInflationRate,
-            phase
-        );
-        // Medicare breakdown (rough estimate - premiums are ~60% of total)
-        const premiums = total * 0.6;
-        const outOfPocket = total - premiums;
-        return { premiums, outOfPocket, total };
+        // Medicare: build premiums from the actual components (Part B + Part D +
+        // Medigap + optional IRMAA) and out-of-pocket from the phase-specific base,
+        // each inflated from age 65. (Previously the split was a fabricated 60/40 of
+        // the total, which is why the reported premium jumped at every phase change.)
+        const yearsSinceMedicare = currentAge - MEDICARE_AGE;
+        const inflation = Math.pow(1 + healthcareInflationRate, yearsSinceMedicare);
+
+        const monthlyPremium =
+            medicare.partBStandardPremium +
+            medicare.partDPremium +
+            medicare.medigapPremium +
+            (medicare.expectIRMAA ? medicare.irmaaSurcharge : 0);
+
+        const premiums = monthlyPremium * 12 * inflation;
+
+        let baseOutOfPocket = 0;
+        if (phase === 'go_go') {
+            baseOutOfPocket = medicare.outOfPocketByPhase.phase1;
+        } else if (phase === 'slow_go') {
+            baseOutOfPocket = medicare.outOfPocketByPhase.phase2;
+        } else if (phase === 'no_go') {
+            baseOutOfPocket = medicare.outOfPocketByPhase.phase3;
+        }
+
+        const outOfPocket = baseOutOfPocket * inflation;
+
+        return { premiums, outOfPocket, total: premiums + outOfPocket };
     }
 }
 

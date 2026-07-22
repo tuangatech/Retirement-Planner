@@ -1,6 +1,7 @@
 // src/components/wizard/Step5Healthcare.tsx
 
 import { useInputs } from '@/contexts/InputsContext';
+import { DEFAULT_VALUES } from '@/lib/constants';
 import { AlertCircle } from 'lucide-react';
 import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
 import { HelpPopover } from '@/components/common/HelpPopover';
@@ -177,7 +178,7 @@ export function Step5Healthcare() {
                                 <ul className="list-disc ml-4 space-y-1 text-sm">
                                     <li>2025 base: $200/month</li>
                                     <li>Typically increases 3-5% annually</li>
-                                    <li>The simulator applies 5% healthcare inflation</li>
+                                    <li>The simulator applies the healthcare inflation rate from Step 6 (default {(DEFAULT_VALUES.simulation.healthcareInflationRate * 100).toFixed(0)}%)</li>
                                 </ul>
                             </HelpPopover>
                         </label>
@@ -387,7 +388,7 @@ export function Step5Healthcare() {
                                     className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">Default: $4,000/year (active, healthy)</p>
+                            <p className="text-xs text-gray-500 mt-1">Default: ${DEFAULT_VALUES.healthcare.medicare.outOfPocketByPhase.phase1.toLocaleString()}/year (active, healthy)</p>
                         </div>
 
                         <div>
@@ -409,7 +410,7 @@ export function Step5Healthcare() {
                                     className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">Default: $6,500/year (more care needed)</p>
+                            <p className="text-xs text-gray-500 mt-1">Default: ${DEFAULT_VALUES.healthcare.medicare.outOfPocketByPhase.phase2.toLocaleString()}/year (more care needed)</p>
                         </div>
 
                         <div>
@@ -431,7 +432,7 @@ export function Step5Healthcare() {
                                     className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">Default: $12,000/year (significant needs)</p>
+                            <p className="text-xs text-gray-500 mt-1">Default: ${DEFAULT_VALUES.healthcare.medicare.outOfPocketByPhase.phase3.toLocaleString()}/year (significant needs)</p>
                         </div>
                     </div>
                 </div>

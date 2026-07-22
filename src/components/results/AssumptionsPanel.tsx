@@ -97,11 +97,11 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                     <AssumptionSection title="Investment Assumptions">
                         <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                             <li>
-                                Returns modeled as independent normal distributions
+                                Returns modeled as a normal distribution
                                 (mean: {(inputs.accounts.taxDeferred.expectedReturnRate * 100).toFixed(1)}%,
                                 std dev: {(inputs.simulation.returnStdDeviation * 100).toFixed(0)}%)
                             </li>
-                            <li>No asset correlation modeling between accounts</li>
+                            <li>All accounts share one market shock each year (perfectly correlated) — no diversification benefit between accounts is modeled</li>
                             <li>Does not capture extreme market crashes or fat-tail events (e.g., 2008 financial crisis)</li>
                             <li>Returns are capped at -50% to +50% per year to prevent extreme outliers (covers 99.1% of historical market scenarios)</li>
                             <li>No modeling of transaction costs, management fees, or tax-loss harvesting</li>
@@ -112,16 +112,22 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                     <AssumptionSection title="Tax Assumptions">
                         <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                             <li>
-                                Uses simplified combined effective tax rate
-                                ({(inputs.tax.combinedEffectiveRate * 100).toFixed(1)}%),
-                                not actual tax brackets
+                                Applies a single marginal rate
+                                ({(inputs.tax.combinedEffectiveRate * 100).toFixed(1)}%) to taxable
+                                income above the standard deduction — not the full 10–37% brackets
                             </li>
                             <li>
-                                Social Security taxed at user-specified percentage
-                                ({(inputs.income.socialSecurity.taxablePercentage * 100).toFixed(0)}%),
-                                not provisional income formula
+                                Models the standard deduction using <strong>2026</strong> amounts
+                                (base + age-65 additions + the 2025–2028 OBBBA senior bonus); assumes
+                                a {(inputs.personal.filingStatus ?? 'single').replace('_', ' ')} filer
                             </li>
-                            <li>No modeling of standard/itemized deductions, tax credits, or state-specific rules</li>
+                            <li>
+                                Social Security taxability uses the IRS provisional-income formula
+                                (0–85%), capped at your setting of {(inputs.income.socialSecurity.taxablePercentage * 100).toFixed(0)}%;
+                                thresholds are not inflation-indexed (the "tax torpedo")
+                            </li>
+                            <li>Long-term capital gains taxed at the flat rate — the 0%/15%/20% brackets are NOT modeled</li>
+                            <li>No itemized deductions, tax credits, or state-specific exemptions (e.g., many states exempt Social Security and some retirement income)</li>
                             <li>IRMAA (Medicare surcharges) estimated by user, not calculated from precise MAGI</li>
                             <li>RMDs enforced starting at age 73 per current IRS rules</li>
                         </ul>

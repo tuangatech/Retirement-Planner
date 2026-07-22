@@ -1,297 +1,387 @@
 #!/usr/bin/env python3
 """
-Retirement Plan Verification Script
-====================================
-Checks the Annual Breakdown CSV export for mathematical consistency
-against plan inputs.
+Retirement Plan Verification Script (v2 — JSON bundle)
+======================================================
+Independently re-checks a simulation run for mathematical consistency.
 
-What is verified (deterministic):
-  - Social Security income (FRA benefit × COLA compounding)
-  - Rental income (base × general inflation from start year)
-  - Living expenses (phase spending × general inflation from retirement)
-  - Healthcare premiums (flat pre-Medicare; 5%/yr Medicare)
-  - Component sums: Total Income, Total Expenses, Total Tax, Total Withdrawals
-  - Cash flow identity: Income + Withdrawals = Expenses + Taxes + Net Cash Flow
+As of v2 this reads a SINGLE self-describing JSON file exported from the app
+("Export Verification JSON" button on the Annual Breakdown tab). That bundle
+contains the full user inputs, the simulation settings, the aggregate results,
+and the complete p10/p50/p90 year-by-year projections. Because inputs AND
+results live in the same file, there is no longer a hand-maintained PLAN dict
+to keep in sync — every expected value is derived from the inputs the app
+actually ran with.
+
+What is verified (deterministic, derived from inputs):
+  - Social Security  (FRA benefit x claiming-age factor x COLA, + earnings test)
+  - Rental income    (base x general inflation from start age)
+  - Living expenses   (phase spending x general inflation from retirement)
+  - Healthcare premiums   (pre-Medicare and Medicare, inflated correctly)
+  - Healthcare out-of-pocket (pre-Medicare and Medicare, inflated correctly)
+  - Income tax       (provisional-income SS formula + standard-deduction floor +
+                      marginal rate) and payroll tax (7.65% of part-time work)
+  - Component sums: Total Income / Expenses / Tax / Withdrawals
+  - Cash-flow identity: Income + Withdrawals = Expenses + Taxes + Net Cash Flow
+
+The TAX_RULES table below MUST stay in sync with TAX_RULES in
+src/lib/calculations/taxes.ts. See docs/2-tax-model.md for the model and sources.
 
 What is NOT verified (stochastic):
-  - Portfolio account balances (p50 run uses random returns each year)
-  - Instead: implied annual return per account is checked for plausibility
+  - Portfolio account balances (random returns each year).
+    Instead: implied annual return per account is checked for plausibility.
 
-Known anomalies flagged (not treated as failures):
-  - Pre-Medicare OOP grows much faster than 5% healthcare inflation
-  - Pre-Medicare premiums are flat (no inflation applied ages 58-64)
+Workflow:
+  1. Run a simulation in the app.
+  2. On the Annual Breakdown tab, click "Export Verification JSON".
+  3. Save the downloaded retirement-verification-<timestamp>.json into THIS
+     scripts/ folder (works the same on macOS and Windows).
+  4. Run this script — it automatically picks the newest bundle in scripts/.
 
 Usage:
-  python verify_plan.py
-  python verify_plan.py --tolerance 0.03
-  python verify_plan.py --csv "path/to/breakdown.csv" --tolerance 0.10
+  python verify_plan.py                              # newest bundle in scripts/
+  python verify_plan.py --json path/to/bundle.json
+  python verify_plan.py --percentile p10 --tolerance 0.03
 """
 
-import csv
+import argparse
+import glob
+import json
 import os
 import sys
-import argparse
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
-DEFAULT_CSV = r"C:\Users\TTRAN12\Downloads\retirement-plan-p50-1773542297704.csv"
-DEFAULT_TOLERANCE = 0.05          # ±5%
+DEFAULT_TOLERANCE = 0.02          # ±2% (tighter than v1: the split is now exact)
 PLAUSIBLE_RETURN_MIN = -0.60      # Flag if implied annual return < -60%
-PLAUSIBLE_RETURN_MAX =  1.50      # Flag if implied annual return > +150%
+PLAUSIBLE_RETURN_MAX = 1.50       # Flag if implied annual return > +150%
+MEDICARE_AGE = 65
+FULL_RETIREMENT_AGE = 67
 
-# ─── PLAN INPUTS (from myplan.txt) ────────────────────────────────────────────
-PLAN = {
-    "retirement_age":       58,
-    "life_expectancy":      90,
-    "general_inflation":    0.03,
-    "healthcare_inflation": 0.05,
+# Social Security claiming-age adjustment factors (must match the app).
+SS_ADJUSTMENT_FACTORS = {
+    62: 0.70, 63: 0.75, 64: 0.80, 65: 0.867, 66: 0.933,
+    67: 1.0, 68: 1.08, 69: 1.16, 70: 1.24,
+}
+EARNINGS_TEST_BEFORE_FRA = 23400
+EARNINGS_TEST_IN_FRA_YEAR = 62160
 
-    "phases": [
-        {"name": "go_go",  "start": 58, "end": 74, "spending": 50_000},
-        {"name": "slow_go","start": 75, "end": 85, "spending": 40_000},
-        {"name": "no_go",  "start": 86, "end": 90, "spending": 36_000},
-    ],
-
-    "accounts": {
-        "tax_deferred": {"balance": 350_000},
-        "roth":         {"balance": 330_000},
-        "taxable":      {"balance": 100_000},
-        "hsa":          {"balance": 100_000},
+# Tax-rule constants — must mirror TAX_RULES in src/lib/calculations/taxes.ts
+TAX_RULES = {
+    "standard_deduction": {"single": 16100, "married_joint": 32200},   # 2026
+    "additional_65": {"single": 2050, "married_joint": 1650},          # 2026
+    "senior_bonus": 6000,
+    "senior_bonus_last_year": 2028,
+    "ss_thresholds": {
+        "single": {"base": 25000, "second": 34000},
+        "married_joint": {"base": 32000, "second": 44000},
     },
-
-    "ss": {
-        "monthly_fra":  2_000,
-        "claiming_age": 67,
-        "cola":         0.030,
-    },
-
-    "rental": {
-        "annual":    12_000,
-        "start_age": 60,
-        "end_age":   85,
-    },
-
-    "pre_medicare": {
-        "monthly_premium": 900,       # $10,800/yr — appears flat in CSV (no inflation)
-        "annual_oop":      3_000,
-    },
-
-    # Part B ($200) + Part D ($55) + Medigap ($215) = $470/mo = $5,640/yr base
-    # Note: actual starting value at age 65 in CSV is $5,784, not $5,640.
-    # The app likely inflates from a different base year. We accept the observed
-    # age-65 value and verify 5%/yr growth thereafter.
-    "medicare_monthly_base": 200 + 55 + 215,
+    "ss_max_taxable_fraction": 0.85,
 }
 
-# ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+# Directory containing this script — bundles are expected to be saved here.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+# ─── BUNDLE LOADING ─────────────────────────────────────────────────────────────
+def find_newest_bundle() -> str | None:
+    """Return the newest retirement-verification-*.json saved in scripts/."""
+    candidates = glob.glob(os.path.join(SCRIPT_DIR, "retirement-verification-*.json"))
+    if not candidates:
+        return None
+    return max(candidates, key=os.path.getmtime)
+
+
+def load_bundle(path: str) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+# ─── EXPECTED-VALUE FORMULAS (derived from the bundle's inputs) ─────────────────
+class Plan:
+    """Expected-value formulas built from the app inputs in the bundle."""
+
+    def __init__(self, inputs: dict):
+        self.inputs = inputs
+        self.retirement_age = inputs["personal"]["retirementAge"]
+        sim = inputs["simulation"]
+        self.gen_infl = sim["generalInflationRate"]
+        self.hc_infl = sim["healthcareInflationRate"]
+        self.phases = inputs["phases"]
+        self.ss = inputs["income"]["socialSecurity"]
+        self.pensions = inputs["income"].get("pensions", []) or []
+        self.rental = inputs["income"]["rentalIncome"]
+        self.part_time = inputs["income"]["partTimeWork"]
+        self.pre_med = inputs["healthcare"]["preMedicare"]
+        self.med = inputs["healthcare"]["medicare"]
+        self.filing = inputs["personal"].get("filingStatus") or "single"
+        self.eff_rate = inputs["tax"]["combinedEffectiveRate"]
+        self.ss_cap = self.ss.get("taxablePercentage", TAX_RULES["ss_max_taxable_fraction"])
+        self.cost_basis = inputs["accounts"]["taxable"].get("costBasisPercentage", 0.70)
+
+    # -- phase helpers --
+    def get_phase(self, age: int) -> dict:
+        for p in self.phases:
+            if p["startAge"] <= age <= p["endAge"]:
+                return p
+        return self.phases[-1]
+
+    def yrs_from_retirement(self, age: int) -> int:
+        return age - self.retirement_age
+
+    # -- income --
+    def part_time_income(self, age: int) -> float:
+        w = self.part_time
+        if not w.get("enabled") or age < w["startAge"] or age > w["endAge"]:
+            return 0.0
+        return w["annualIncome"]
+
+    def exp_ss(self, age: int) -> float:
+        s = self.ss
+        claiming = s["claimingAge"]
+        if age < claiming:
+            return 0.0
+        factor = SS_ADJUSTMENT_FACTORS.get(claiming, 1.0)
+        full = s["monthlyBenefitAtFRA"] * 12 * factor * (1 + s["colaRate"]) ** (age - claiming)
+
+        # Earnings test (only before FRA, only if working).
+        earnings = self.part_time_income(age)
+        if age >= FULL_RETIREMENT_AGE or earnings == 0:
+            return full
+        if age == FULL_RETIREMENT_AGE:
+            over = max(0.0, earnings - EARNINGS_TEST_IN_FRA_YEAR)
+            return max(0.0, full - over / 3)
+        over = max(0.0, earnings - EARNINGS_TEST_BEFORE_FRA)
+        return max(0.0, full - over / 2)
+
+    def exp_pensions(self, age: int) -> float:
+        total = 0.0
+        for p in self.pensions:
+            if age >= p["startAge"]:
+                total += p["monthlyAmount"] * 12 * (1 + p["colaRate"]) ** (age - p["startAge"])
+        return total
+
+    def exp_rental(self, age: int) -> float:
+        r = self.rental
+        if not r.get("enabled") or age < r["startAge"]:
+            return 0.0
+        end = r.get("endAge")
+        if end is not None and age > end:
+            return 0.0
+        base = r["annualNetIncome"]
+        if r.get("inflationAdjusted"):
+            return base * (1 + self.gen_infl) ** (age - r["startAge"])
+        return base
+
+    # -- expenses --
+    def exp_living(self, age: int) -> float:
+        if age < self.retirement_age:
+            return 0.0
+        phase = self.get_phase(age)
+        return phase["annualSpending"] * (1 + self.gen_infl) ** self.yrs_from_retirement(age)
+
+    def exp_hc_premiums(self, age: int) -> float:
+        if age < self.retirement_age:
+            return 0.0
+        if age < MEDICARE_AGE:
+            yrs = age - self.retirement_age
+            return self.pre_med["monthlyPremium"] * 12 * (1 + self.hc_infl) ** yrs
+        yrs = age - MEDICARE_AGE
+        monthly = (
+            self.med["partBStandardPremium"]
+            + self.med["partDPremium"]
+            + self.med["medigapPremium"]
+            + (self.med["irmaaSurcharge"] if self.med.get("expectIRMAA") else 0)
+        )
+        return monthly * 12 * (1 + self.hc_infl) ** yrs
+
+    def exp_hc_oop(self, age: int) -> float:
+        if age < self.retirement_age:
+            return 0.0
+        if age < MEDICARE_AGE:
+            yrs = age - self.retirement_age
+            return self.pre_med["annualOutOfPocket"] * (1 + self.hc_infl) ** yrs
+        yrs = age - MEDICARE_AGE
+        phase = self.get_phase(age)["name"]
+        oop_by_phase = self.med["outOfPocketByPhase"]
+        base = {"go_go": oop_by_phase["phase1"],
+                "slow_go": oop_by_phase["phase2"],
+                "no_go": oop_by_phase["phase3"]}.get(phase, 0)
+        return base * (1 + self.hc_infl) ** yrs
+
+    # -- taxes --
+    def taxable_social_security(self, ss_benefit: float, other_income: float) -> float:
+        """IRS provisional-income formula, capped at the user's max fraction."""
+        if ss_benefit <= 0:
+            return 0.0
+        th = TAX_RULES["ss_thresholds"][self.filing]
+        base, second = th["base"], th["second"]
+        provisional = other_income + 0.5 * ss_benefit
+        if provisional <= base:
+            taxable = 0.0
+        elif provisional <= second:
+            taxable = min(0.5 * ss_benefit, 0.5 * (provisional - base))
+        else:
+            tier1 = min(0.5 * ss_benefit, 0.5 * (second - base))
+            taxable = min(0.85 * ss_benefit, 0.85 * (provisional - second) + tier1)
+        return min(taxable, self.ss_cap * ss_benefit)
+
+    def standard_deduction(self, age: int, year: int) -> float:
+        seniors = 1 if age >= 65 else 0
+        infl = (1 + self.gen_infl) ** max(0, age - self.retirement_age)
+        ded = (TAX_RULES["standard_deduction"][self.filing]
+               + TAX_RULES["additional_65"][self.filing] * seniors) * infl
+        if seniors and year <= TAX_RULES["senior_bonus_last_year"]:
+            ded += TAX_RULES["senior_bonus"] * seniors
+        return ded
+
+    def expected_income_tax(self, row: dict) -> float:
+        """Expected onFixedIncome + onWithdrawals for a projection row."""
+        inc = row["income"]
+        wd = row["portfolio"]["withdrawals"]
+        hsa_nonmed = max(0.0, wd["hsa"] - row["portfolio"]["hsaForHealthcare"])
+        brokerage_gain = wd["taxable"] * (1 - self.cost_basis)
+        ordinary_wd = wd["taxDeferred"] + hsa_nonmed
+
+        other_excl_ss = (inc["pensions"] + inc["partTimeWork"] + inc["rentalIncome"]
+                         + ordinary_wd + brokerage_gain)
+        taxable_ss = self.taxable_social_security(inc["socialSecurity"], other_excl_ss)
+
+        fixed_base = taxable_ss + inc["pensions"] + inc["partTimeWork"] + inc["rentalIncome"]
+        wd_base = ordinary_wd + brokerage_gain
+
+        ded = self.standard_deduction(int(row["age"]), int(row["year"]))
+        fixed_taxable = max(0.0, fixed_base - ded)
+        ded_left = max(0.0, ded - fixed_base)
+        wd_taxable = max(0.0, wd_base - ded_left)
+        return (fixed_taxable + wd_taxable) * self.eff_rate
+
+
+# ─── CHECK HELPERS ──────────────────────────────────────────────────────────────
 def within_tol(actual: float, expected: float, tol: float) -> bool:
-    if expected == 0:
-        return abs(actual) <= 1.0     # allow $1 absolute when expected is zero
+    if abs(expected) < 1e-9:
+        return abs(actual) <= 1.0
     return abs(actual - expected) / abs(expected) <= tol
 
+
 def fmt_diff(actual: float, expected: float) -> str:
-    if expected == 0:
+    if abs(expected) < 1e-9:
         return f"expected $0  got ${actual:,.0f}"
     d = (actual - expected) / abs(expected) * 100
     sign = "+" if d >= 0 else ""
     return f"{sign}{d:.1f}%   actual ${actual:,.0f}   expected ~${expected:,.0f}"
 
-def get_phase(age: int) -> dict:
-    for p in PLAN["phases"]:
-        if p["start"] <= age <= p["end"]:
-            return p
-    return PLAN["phases"][-1]
 
-def yrs_from_retirement(age: int) -> int:
-    return age - PLAN["retirement_age"]
+# ─── MAIN VERIFICATION ──────────────────────────────────────────────────────────
+def verify(bundle: dict, percentile: str, tol: float) -> int:
+    PASS, FAIL, WARN = "[PASS]", "[FAIL]", "[WARN]"
 
-# ─── EXPECTED VALUE FORMULAS ──────────────────────────────────────────────────
-def exp_ss(age: int) -> float:
-    s = PLAN["ss"]
-    if age < s["claiming_age"]:
-        return 0.0
-    annual_at_fra = s["monthly_fra"] * 12          # $2,000 × 12 = $24,000
-    return annual_at_fra * (1 + s["cola"]) ** (age - s["claiming_age"])
+    plan = Plan(bundle["inputs"])
+    projections = bundle["projections"][percentile]
 
-def exp_rental(age: int) -> float:
-    r = PLAN["rental"]
-    if age < r["start_age"] or age > r["end_age"]:
-        return 0.0
-    return r["annual"] * (1 + PLAN["general_inflation"]) ** (age - r["start_age"])
+    total = 0
+    n_fail = 0
 
-def exp_living(age: int) -> float:
-    phase = get_phase(age)
-    return phase["spending"] * (1 + PLAN["general_inflation"]) ** yrs_from_retirement(age)
-
-def exp_pre_medicare_premium() -> float:
-    """CSV shows flat $10,800 for all pre-Medicare ages (no healthcare inflation)."""
-    return PLAN["pre_medicare"]["monthly_premium"] * 12
-
-def exp_medicare_premium(age: int, phase_base: float, phase_start_age: int) -> float:
-    """
-    Verify 5%/yr growth WITHIN each phase from the observed phase-start base.
-    The absolute base resets at phase transitions (cause unknown — flagged separately).
-    """
-    return phase_base * (1 + PLAN["healthcare_inflation"]) ** (age - phase_start_age)
-
-# ─── CSV LOADER ───────────────────────────────────────────────────────────────
-def load_csv(path: str) -> list:
-    rows = []
-    with open(path, newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            parsed = {}
-            for k, v in row.items():
-                try:
-                    parsed[k] = float(v)
-                except (ValueError, TypeError):
-                    parsed[k] = v
-            rows.append(parsed)
-    return rows
-
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
-def verify(rows: list, tol: float):
-    PASS = "[PASS]"
-    FAIL = "[FAIL]"
-    WARN = "[WARN]"
-    NOTE = "[NOTE]"
-
-    total   = 0
-    n_fail  = 0
-
-    def chk(label: str, actual: float, expected: float, issues: list):
+    def chk(label, actual, expected, issues):
         nonlocal total, n_fail
         total += 1
         if not within_tol(actual, expected, tol):
             n_fail += 1
             issues.append(f"    {FAIL} {label}: {fmt_diff(actual, expected)}")
 
-    # ── Capture observed HC premium at the start of each Medicare phase ─────────
-    # The premium base resets at each phase transition (cause unknown, flagged separately).
-    # We verify 5%/yr growth WITHIN each phase from its observed starting value.
-    phase_premium_base: dict[str, tuple[float, int]] = {}   # phase_name -> (base_premium, start_age)
-    for row in rows:
-        age = int(row["Age"])
-        if age < 65:
-            continue
-        phase_name = get_phase(age)["name"]
-        if phase_name not in phase_premium_base:
-            phase_premium_base[phase_name] = (row["Healthcare Premiums"], age)
-
-    # ── Prior-year balances (for implied-return check) ───────────────────────
+    # Starting balances for the implied-return check.
+    acc = bundle["inputs"]["accounts"]
     prev_bal = {
-        "Tax-Deferred Balance": PLAN["accounts"]["tax_deferred"]["balance"],
-        "Roth Balance":         PLAN["accounts"]["roth"]["balance"],
-        "Taxable Balance":      PLAN["accounts"]["taxable"]["balance"],
-        "HSA Balance":          PLAN["accounts"]["hsa"]["balance"],
-    }
-    wd_col = {
-        "Tax-Deferred Balance": "Tax-Deferred Withdrawal",
-        "Roth Balance":         "Roth Withdrawal",
-        "Taxable Balance":      "Taxable Withdrawal",
-        "HSA Balance":          "HSA Withdrawal",
+        "taxDeferred": acc["taxDeferred"]["balanceAtRetirement"],
+        "roth": acc["roth"]["balanceAtRetirement"],
+        "taxable": acc["taxable"]["balanceAtRetirement"],
+        "hsa": acc["hsa"]["balanceAtRetirement"],
     }
 
-    print(f"\n{'='*68}")
-    print(f"  RETIREMENT PLAN VERIFICATION  (tolerance ±{tol*100:.0f}%)")
-    print(f"{'='*68}\n")
+    res = bundle["results"]
+    print(f"\n{'=' * 68}")
+    print(f"  RETIREMENT PLAN VERIFICATION  ({percentile}, tolerance ±{tol * 100:.0f}%)")
+    print(f"{'=' * 68}")
+    print(f"  Generated : {bundle.get('generatedAt', '?')}")
+    print(f"  Runs      : {res['numberOfRuns']:,}   "
+          f"Success rate: {res['successRate'] * 100:.1f}%")
+    print(f"  Percentile final balances: "
+          f"p10 ${res['percentiles']['p10']:,.0f}  "
+          f"p50 ${res['percentiles']['p50']:,.0f}  "
+          f"p90 ${res['percentiles']['p90']:,.0f}")
+    print(f"{'=' * 68}\n")
 
-    # ── Known anomalies — print once upfront ─────────────────────────────────
-    print(f"  {NOTE} KNOWN ANOMALIES (not counted as failures)")
-    print( "  +-------------------------------------------------------------+")
-    print( "  | 1. Pre-Medicare premiums are FLAT ($10,800 ages 58-64).     |")
-    print( "  |    5% healthcare inflation is NOT applied. Possible bug.    |")
-    print( "  |                                                             |")
-    print( "  | 2. Pre-Medicare OOP grows ~23% in year 1 (not 5%).         |")
-    print( "  |    Pattern is inconsistent with healthcare inflation rate.  |")
-    print( "  |    Medicare OOP (age 65+) is verified separately.          |")
-    print( "  +-------------------------------------------------------------+\n")
+    for p in projections:
+        age = int(p["age"])
+        phase = plan.get_phase(age)
+        issues: list[str] = []
 
-    # ── Row-by-row checks ────────────────────────────────────────────────────
-    for row in rows:
-        age   = int(row["Age"])
-        phase = get_phase(age)
-        issues = []
+        inc = p["income"]
+        exp = p["expenses"]
+        tax = p["taxes"]
+        wd = p["portfolio"]["withdrawals"]
+        bal = p["portfolio"]["balances"]
 
         # Income
-        chk("Social Security",  row["Social Security"],  exp_ss(age),     issues)
-        chk("Rental Income",    row["Rental Income"],    exp_rental(age),  issues)
-        chk("Living Expenses",  row["Living Expenses"],  exp_living(age),  issues)
+        chk("Social Security", inc["socialSecurity"], plan.exp_ss(age), issues)
+        chk("Pensions", inc["pensions"], plan.exp_pensions(age), issues)
+        chk("Rental Income", inc["rentalIncome"], plan.exp_rental(age), issues)
 
-        # Healthcare premiums — verify 5%/yr growth within each phase
-        if age < 65:
-            chk("HC Premiums (pre-Medicare flat)",
-                row["Healthcare Premiums"], exp_pre_medicare_premium(), issues)
-        elif phase["name"] in phase_premium_base:
-            base_prem, base_age = phase_premium_base[phase["name"]]
-            if age > base_age:   # skip the phase-start row itself (that's our base)
-                chk(f"HC Premiums 5%/yr within {phase['name']} phase",
-                    row["Healthcare Premiums"],
-                    exp_medicare_premium(age, base_prem, base_age), issues)
-            elif age == base_age and phase["name"] != "go_go":
-                # Flag the phase-transition jump as a warning (informational)
-                prev_row_prem = next(
-                    (r["Healthcare Premiums"] for r in rows if int(r["Age"]) == age - 1), None
-                )
-                if prev_row_prem and prev_row_prem > 0:
-                    jump = (row["Healthcare Premiums"] - prev_row_prem) / prev_row_prem * 100
-                    issues.append(
-                        f"    {WARN} HC Premium phase-transition jump at age {age} "
-                        f"({phase['name']}): {jump:+.1f}%  "
-                        f"${prev_row_prem:,.0f} -> ${row['Healthcare Premiums']:,.0f}"
-                    )
-
-        # Medicare OOP growth (age 65+, within same phase only)
-        if age > 65 and get_phase(age - 1)["name"] == phase["name"]:
-            prev_row_oop = next(
-                (r["Healthcare Out-of-Pocket"] for r in rows if int(r["Age"]) == age - 1),
-                None
-            )
-            if prev_row_oop and prev_row_oop > 0:
-                chk(f"Medicare OOP 5%/yr growth (age {age})",
-                    row["Healthcare Out-of-Pocket"],
-                    prev_row_oop * (1 + PLAN["healthcare_inflation"]), issues)
+        # Expenses
+        chk("Living Expenses", exp["living"], plan.exp_living(age), issues)
+        chk("Healthcare Premiums", exp["healthcarePremiums"], plan.exp_hc_premiums(age), issues)
+        chk("Healthcare Out-of-Pocket", exp["healthcareOutOfPocket"], plan.exp_hc_oop(age), issues)
 
         # Component sums
-        chk("Total Income   = SS + Pensions + Work + Rental",
-            row["Total Income"],
-            row["Social Security"] + row["Pensions"] +
-            row["Part-Time Work"]  + row["Rental Income"],
+        chk("Total Income = SS + Pensions + Work + Rental",
+            inc["totalBeforeWithdrawals"],
+            inc["socialSecurity"] + inc["pensions"] + inc["partTimeWork"] + inc["rentalIncome"],
             issues)
 
-        chk("Total Expenses = Living + HC Premiums + HC OOP + One-Time",
-            row["Total Expenses"],
-            row["Living Expenses"] + row["Healthcare Premiums"] +
-            row["Healthcare Out-of-Pocket"] + row["One-Time Expenses"],
+        chk("Total Expenses = Living + Premiums + OOP + One-Time",
+            exp["total"],
+            exp["living"] + exp["healthcarePremiums"] + exp["healthcareOutOfPocket"] + exp["oneTimeExpenses"],
             issues)
 
-        chk("Total Tax      = Income Tax + Payroll Tax + Withdrawal Tax",
-            row["Total Tax"],
-            row["Income Tax"] + row["Payroll Tax"] + row["Withdrawal Tax"],
+        chk("Total Tax = Fixed-income + Payroll + Withdrawal",
+            tax["total"],
+            tax["onFixedIncome"] + tax["payrollTax"] + tax["onWithdrawals"],
             issues)
 
-        chk("Total WD       = Tax-Deferred + Roth + Taxable + HSA",
-            row["Total Withdrawals"],
-            row["Tax-Deferred Withdrawal"] + row["Roth Withdrawal"] +
-            row["Taxable Withdrawal"]      + row["HSA Withdrawal"],
+        # Independent recomputation of the tax model (provisional-income SS +
+        # standard-deduction floor + flat marginal rate).
+        chk("Income Tax (SS provisional + deduction floor + rate)",
+            tax["onFixedIncome"] + tax["onWithdrawals"],
+            plan.expected_income_tax(p),
             issues)
 
-        # Cash flow identity
-        lhs = row["Total Income"] + row["Total Withdrawals"]
-        rhs = row["Total Expenses"] + row["Total Tax"] + row["Net Cash Flow"]
+        chk("Payroll Tax = 7.65% of part-time work",
+            tax["payrollTax"],
+            inc["partTimeWork"] * 0.0765,
+            issues)
+
+        chk("Total WD = TaxDeferred + Roth + Taxable + HSA",
+            wd["total"],
+            wd["taxDeferred"] + wd["roth"] + wd["taxable"] + wd["hsa"],
+            issues)
+
+        # Cash-flow identity
+        lhs = inc["totalBeforeWithdrawals"] + wd["total"]
+        rhs = exp["total"] + tax["total"] + p["netCashFlow"]
         chk("Cash Flow: Income + WD = Expenses + Tax + NCF", lhs, rhs, issues)
 
-        # Portfolio implied-return plausibility (informational)
-        for bal_col, w_col in wd_col.items():
-            start = prev_bal[bal_col]
-            end   = row[bal_col]
-            wd    = row[w_col]
+        # Implied-return plausibility (informational)
+        for key, wkey in (("taxDeferred", "taxDeferred"), ("roth", "roth"),
+                          ("taxable", "taxable"), ("hsa", "hsa")):
+            start = prev_bal[key]
+            end = bal[key]
+            w = wd[wkey]
             if start > 0:
-                r = (end + wd - start) / start
+                r = (end + w - start) / start
                 if r < PLAUSIBLE_RETURN_MIN or r > PLAUSIBLE_RETURN_MAX:
                     issues.append(
-                        f"    {WARN} {bal_col}: implied return {r*100:.1f}%  "
-                        f"(start=${start:,.0f}  wd=${wd:,.0f}  end=${end:,.0f})"
-                    )
-            prev_bal[bal_col] = end
+                        f"    {WARN} {key} implied return {r * 100:.1f}%  "
+                        f"(start=${start:,.0f} wd=${w:,.0f} end=${end:,.0f})")
+            prev_bal[key] = end
 
         if issues:
             print(f"  Age {age}  [{phase['name']}]")
@@ -299,51 +389,52 @@ def verify(rows: list, tol: float):
                 print(line)
             print()
 
-    # ── Summary ───────────────────────────────────────────────────────────────
     passed = total - n_fail
-    print(f"{'='*68}")
+    print(f"{'=' * 68}")
     print(f"  SUMMARY")
-    print(f"{'='*68}")
-    print(f"  Rows checked   : {len(rows)}")
-    print(f"  Total checks   : {total}")
-    print(f"  {PASS} Passed  : {passed}  ({passed / total * 100:.0f}%)")
-    print(f"  {FAIL} Failed  : {n_fail}")
+    print(f"{'=' * 68}")
+    print(f"  Years checked : {len(projections)}")
+    print(f"  Total checks  : {total}")
+    print(f"  {PASS} Passed : {passed}  ({passed / total * 100:.0f}%)")
+    print(f"  {FAIL} Failed : {n_fail}")
     print()
-
     if n_fail == 0:
-        print(f"  All checks passed within ±{tol*100:.0f}% tolerance.\n")
-        print("  The numbers look consistent with the plan inputs.")
+        print(f"  All deterministic checks passed within ±{tol * 100:.0f}% tolerance.")
+        print("  The numbers are consistent with the plan inputs.")
     else:
         print(f"  {n_fail} check(s) failed — review the output above.")
+    print("  Note: portfolio balance checks are informational (stochastic returns).")
+    print(f"{'=' * 68}\n")
 
-    print()
-    print("  Notes:")
-    print("  • Portfolio balance checks are informational only (stochastic returns)")
-    print("  • Pre-Medicare OOP anomaly is flagged upfront, not counted as failures")
-    print(f"  • Implied-return warnings fire outside [{PLAUSIBLE_RETURN_MIN*100:.0f}%, {PLAUSIBLE_RETURN_MAX*100:.0f}%]")
-    print(f"{'='*68}\n")
+    return 1 if n_fail else 0
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Verify retirement plan CSV output")
-    ap.add_argument(
-        "--csv",
-        default=DEFAULT_CSV,
-        help="Path to the Annual Breakdown CSV export",
-    )
-    ap.add_argument(
-        "--tolerance",
-        default=DEFAULT_TOLERANCE,
-        type=float,
-        metavar="T",
-        help="Relative tolerance, e.g. 0.05 = ±5%%  (default: %(default)s)",
-    )
+    ap = argparse.ArgumentParser(description="Verify a retirement-verification JSON bundle")
+    ap.add_argument("--json", default=None,
+                    help="Path to the verification bundle (default: newest in scripts/)")
+    ap.add_argument("--percentile", default="p50", choices=["p10", "p50", "p90"],
+                    help="Which projection to verify (default: p50)")
+    ap.add_argument("--tolerance", default=DEFAULT_TOLERANCE, type=float, metavar="T",
+                    help="Relative tolerance, e.g. 0.02 = ±2%% (default: %(default)s)")
     args = ap.parse_args()
 
-    if not os.path.exists(args.csv):
-        print(f"CSV not found: {args.csv}")
+    path = args.json or find_newest_bundle()
+    if not path:
+        print("No verification bundle found in the scripts/ folder. Export one from "
+              "the app (Annual Breakdown → 'Export Verification JSON'), save it into "
+              "scripts/, or pass --json <file>.")
+        sys.exit(1)
+    if not os.path.exists(path):
+        print(f"Bundle not found: {path}")
         sys.exit(1)
 
-    print(f"CSV       : {args.csv}")
-    print(f"Tolerance : ±{args.tolerance * 100:.0f}%%")
-    verify(load_csv(args.csv), args.tolerance)
+    print(f"Bundle    : {path}")
+    print(f"Percentile: {args.percentile}")
+    print(f"Tolerance : ±{args.tolerance * 100:.0f}%")
+
+    bundle = load_bundle(path)
+    if bundle.get("schema") != "retirement-verification/v1":
+        print(f"Warning: unexpected schema '{bundle.get('schema')}' — proceeding anyway.")
+
+    sys.exit(verify(bundle, args.percentile, args.tolerance))

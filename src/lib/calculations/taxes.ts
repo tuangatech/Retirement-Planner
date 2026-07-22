@@ -18,6 +18,107 @@
  */
 
 /**
+ * Simplified U.S. tax-rule constants used by the effective-rate model.
+ *
+ * Figures approximate 2025 federal law and should be reviewed annually. Kept in
+ * this module (rather than constants.ts) to avoid a circular import
+ * (constants.ts → types → yearlyProjection → taxes).
+ *
+ * NOT modeled: the OBBBA senior-bonus MAGI phase-out (above $150k MFJ / $75k
+ * single — negligible for this tool's typical users), itemized deductions,
+ * credits, and the 0%/15%/20% long-term capital-gains brackets.
+ */
+export const TAX_RULES = {
+    // Base standard deduction by filing status — 2026 (IRS Rev. Proc. 2025-32).
+    standardDeduction: { single: 16100, married_joint: 32200 },
+    // Additional standard deduction per filer/spouse age 65+ — 2026.
+    additionalStandardDeduction65: { single: 2050, married_joint: 1650 },
+    // OBBBA "senior bonus" deduction: $6,000 per person age 65+, tax years 2025–2028.
+    seniorBonusDeduction: 6000,
+    seniorBonusLastYear: 2028,
+    // Social Security provisional-income thresholds (IRC §86). NOT inflation-indexed
+    // (frozen since 1993) — this is what drives the "tax torpedo" over time.
+    ssProvisionalThresholds: {
+        single: { base: 25000, second: 34000 },
+        married_joint: { base: 32000, second: 44000 },
+    },
+    // Statutory maximum share of SS benefits that can be federally taxable.
+    ssMaxTaxableFraction: 0.85,
+} as const;
+
+export type FilingStatus = 'single' | 'married_joint';
+
+/**
+ * Calculates the federally taxable portion of Social Security via the IRS
+ * provisional-income formula (IRC §86 / Pub. 915), rather than a fixed percentage.
+ *
+ * Provisional income = other AGI items (excluding SS) + ½ of SS benefits.
+ * The result is capped at `maxTaxableFraction` (default 85%, the statutory max;
+ * a user may lower it to approximate a state SS exemption).
+ *
+ * @example
+ * // $43,200 SS, $19,200 other income, single
+ * calculateTaxableSocialSecurity(43200, 19200, 'single');
+ * // provisional = 19200 + 21600 = 40800; above $34k → tier-2 formula
+ */
+export function calculateTaxableSocialSecurity(
+    ssBenefit: number,
+    otherTaxableIncome: number,
+    filingStatus: FilingStatus = 'single',
+    maxTaxableFraction: number = TAX_RULES.ssMaxTaxableFraction
+): number {
+    if (ssBenefit <= 0) return 0;
+
+    const { base, second } = TAX_RULES.ssProvisionalThresholds[filingStatus];
+    const provisional = otherTaxableIncome + 0.5 * ssBenefit;
+
+    let taxable: number;
+    if (provisional <= base) {
+        taxable = 0;
+    } else if (provisional <= second) {
+        taxable = Math.min(0.5 * ssBenefit, 0.5 * (provisional - base));
+    } else {
+        const tier1 = Math.min(0.5 * ssBenefit, 0.5 * (second - base));
+        taxable = Math.min(0.85 * ssBenefit, 0.85 * (provisional - second) + tier1);
+    }
+
+    return Math.min(taxable, maxTaxableFraction * ssBenefit);
+}
+
+/**
+ * Computes the total standard deduction "tax-free floor" for the year.
+ *
+ * Includes the base standard deduction, the age-65+ addition, and (for tax years
+ * through 2028) the OBBBA senior bonus. The base + age-65 portion is scaled by
+ * `inflationFactor` so it keeps pace with the simulation's inflated income; the
+ * temporary senior bonus is applied flat.
+ *
+ * Single-filer assumption: one "senior" once age ≥ 65. (MFJ spouse ages are not
+ * modeled — that's the Full-tier feature.)
+ */
+export function calculateStandardDeduction(
+    currentAge: number,
+    year: number,
+    filingStatus: FilingStatus = 'single',
+    inflationFactor: number = 1,
+    includeSeniorBonus: boolean = true
+): number {
+    const seniors = currentAge >= 65 ? 1 : 0;
+
+    let deduction =
+        TAX_RULES.standardDeduction[filingStatus] +
+        TAX_RULES.additionalStandardDeduction65[filingStatus] * seniors;
+
+    deduction *= inflationFactor;
+
+    if (includeSeniorBonus && seniors > 0 && year <= TAX_RULES.seniorBonusLastYear) {
+        deduction += TAX_RULES.seniorBonusDeduction * seniors;
+    }
+
+    return deduction;
+}
+
+/**
  * Maximum iterations for tax gross-up convergence.
  * Typically converges in 2-3 iterations.
  */
@@ -62,15 +163,36 @@ export function calculateTaxOnFixedIncome(
         rentalIncome: number;
     },
     effectiveTaxRate: number,
-    socialSecurityTaxablePercentage: number
+    socialSecurityTaxablePercentage: number,
+    currentAge: number,
+    year: number,
+    deductionInflationFactor: number = 1,
+    filingStatus: FilingStatus = 'single',
+    includeSeniorBonus: boolean = true
 ): number {
-    // Calculate taxable income
-    const taxableSS = income.socialSecurity * socialSecurityTaxablePercentage;
-    const taxableIncome =
-        taxableSS + income.pensions + income.partTimeWork + income.rentalIncome;
+    // Taxable Social Security via the provisional-income formula (other fixed income
+    // only — withdrawals are added in the final calculation). The user-specified
+    // percentage acts as a cap on the statutory 85% maximum.
+    const otherIncome = income.pensions + income.partTimeWork + income.rentalIncome;
+    const taxableSS = calculateTaxableSocialSecurity(
+        income.socialSecurity,
+        otherIncome,
+        filingStatus,
+        socialSecurityTaxablePercentage
+    );
 
-    // Apply effective tax rate
-    return taxableIncome * effectiveTaxRate;
+    const taxableIncome = taxableSS + otherIncome;
+
+    // Subtract the standard-deduction floor before applying the rate.
+    const deduction = calculateStandardDeduction(
+        currentAge,
+        year,
+        filingStatus,
+        deductionInflationFactor,
+        includeSeniorBonus
+    );
+
+    return Math.max(0, taxableIncome - deduction) * effectiveTaxRate;
 }
 
 /**
@@ -301,63 +423,67 @@ export function calculateTotalTaxes(
     effectiveTaxRate: number,
     socialSecurityTaxablePercentage: number,
     costBasisPercentage: number,
-    payrollTax: number
+    payrollTax: number,
+    currentAge: number,
+    year: number,
+    deductionInflationFactor: number = 1,
+    /**
+     * Non-medical portion of HSA withdrawals (age 65+). Taxed as ordinary income;
+     * medical HSA withdrawals are tax-free and excluded. Defaults to 0.
+     */
+    hsaNonMedicalWithdrawal: number = 0,
+    filingStatus: FilingStatus = 'single',
+    includeSeniorBonus: boolean = true
 ): {
     onFixedIncome: number;
     onWithdrawals: number;
     payrollTax: number;
     total: number;
-    breakdown: {
-        socialSecurity: number;
-        pensions: number;
-        partTimeWork: number;
-        rentalIncome: number;
-        taxDeferredWithdrawals: number;
-        rothWithdrawals: number;
-        taxableWithdrawals: number;
-    };
 } {
-    // Tax on fixed income
-    const fixedIncomeTax = calculateTaxOnFixedIncome(
-        income,
-        effectiveTaxRate,
+    // Only the GAIN portion of a brokerage withdrawal is income; cost basis is not.
+    const brokerageGain = withdrawals.taxable * (1 - costBasisPercentage);
+
+    // Ordinary withdrawal income (tax-deferred + non-medical HSA). Roth is tax-free.
+    const ordinaryWithdrawals = withdrawals.taxDeferred + hsaNonMedicalWithdrawal;
+
+    // Taxable Social Security via the provisional formula. "Other income" for the
+    // formula includes everything in AGI except SS itself.
+    const otherAGIexclSS =
+        income.pensions + income.partTimeWork + income.rentalIncome +
+        ordinaryWithdrawals + brokerageGain;
+    const taxableSS = calculateTaxableSocialSecurity(
+        income.socialSecurity,
+        otherAGIexclSS,
+        filingStatus,
         socialSecurityTaxablePercentage
     );
 
-    // Tax on withdrawals
-    const taxDeferredTax = calculateTaxOnTaxDeferredWithdrawal(
-        withdrawals.taxDeferred,
-        effectiveTaxRate
+    // Split the taxable base so the reported fixed-income vs withdrawal tax remains
+    // meaningful. The standard deduction is applied to fixed income first, then any
+    // leftover shields withdrawal income.
+    const fixedBase = taxableSS + income.pensions + income.partTimeWork + income.rentalIncome;
+    const withdrawalBase = ordinaryWithdrawals + brokerageGain;
+
+    const deduction = calculateStandardDeduction(
+        currentAge,
+        year,
+        filingStatus,
+        deductionInflationFactor,
+        includeSeniorBonus
     );
 
-    const taxableTax = calculateTaxOnTaxableWithdrawal(
-        withdrawals.taxable,
-        costBasisPercentage,
-        effectiveTaxRate
-    );
+    const fixedTaxable = Math.max(0, fixedBase - deduction);
+    const deductionLeftover = Math.max(0, deduction - fixedBase);
+    const withdrawalTaxable = Math.max(0, withdrawalBase - deductionLeftover);
 
-    const rothTax = calculateTaxOnRothWithdrawal(withdrawals.roth);
-
-    const totalWithdrawalTax = taxDeferredTax + taxableTax + rothTax;
-
-    // Detailed breakdown
-    const breakdown = {
-        socialSecurity:
-            income.socialSecurity * socialSecurityTaxablePercentage * effectiveTaxRate,
-        pensions: income.pensions * effectiveTaxRate,
-        partTimeWork: income.partTimeWork * effectiveTaxRate,
-        rentalIncome: income.rentalIncome * effectiveTaxRate,
-        taxDeferredWithdrawals: taxDeferredTax,
-        rothWithdrawals: rothTax,
-        taxableWithdrawals: taxableTax,
-    };
+    const onFixedIncome = fixedTaxable * effectiveTaxRate;
+    const onWithdrawals = withdrawalTaxable * effectiveTaxRate;
 
     return {
-        onFixedIncome: fixedIncomeTax,
-        onWithdrawals: totalWithdrawalTax,
+        onFixedIncome,
+        onWithdrawals,
         payrollTax,
-        total: fixedIncomeTax + totalWithdrawalTax + payrollTax,
-        breakdown,
+        total: onFixedIncome + onWithdrawals + payrollTax,
     };
 }
 

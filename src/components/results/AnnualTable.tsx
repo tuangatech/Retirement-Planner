@@ -1,11 +1,13 @@
 // src/components/results/AnnualTable.tsx - Clean Table + Detailed CSV Export
 
 import { useState, useMemo } from 'react';
-import { Download, Info, TrendingUp, AlertCircle, Calendar, DollarSign } from 'lucide-react';
+import { Download, FileJson, Info, TrendingUp, AlertCircle, Calendar, DollarSign } from 'lucide-react';
 import type { SimulationResults } from '@/types'
 import type { UserInputs } from '@/types';
 import type { YearlyProjection } from '@/lib/calculations/yearlyProjection';
 import { formatMoney } from '@/lib/format';
+import { exportVerificationBundle } from '@/lib/exportVerification';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 interface AnnualTableProps {
     results: SimulationResults;
@@ -127,10 +129,20 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
 
                         <button
                             onClick={exportToCSV}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            title="Export the selected percentile's year-by-year breakdown as a CSV spreadsheet"
+                            className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                         >
                             <Download className="w-4 h-4" />
-                            Export CSV
+                            CSV
+                        </button>
+
+                        <button
+                            onClick={() => exportVerificationBundle(results, inputs)}
+                            title="Download a JSON bundle with all inputs, settings, and p10/p50/p90 results for verify_plan.py"
+                            className="flex items-center gap-2 px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors"
+                        >
+                            <FileJson className="w-4 h-4" />
+                            JSON
                         </button>
                     </div>
                 </div>
@@ -166,12 +178,42 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                         <td className="sticky left-0 bg-white px-4 py-3 font-medium">
                                             {p.age}
                                             {hasEvent && (
-                                                <div className="text-xs text-blue-600 font-normal">
-                                                    {isRetirement && '🎂'}
-                                                    {isMedicare && '🏥'}
-                                                    {isSSStart && '💰'}
-                                                    {isRMD && '📊'}
-                                                </div>
+                                                <TooltipProvider delayDuration={100}>
+                                                    <div className="text-xs text-blue-600 font-normal flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                                                        {isRetirement && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="inline-flex items-center gap-0.5 cursor-help">🎂 Retire</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Retirement begins (age {inputs.personal.retirementAge})</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                        {isMedicare && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="inline-flex items-center gap-0.5 cursor-help">🏥 Medicare</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Medicare starts (age 65)</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                        {isSSStart && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="inline-flex items-center gap-0.5 cursor-help">💰 SS</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Social Security starts (claiming age {inputs.income.socialSecurity.claimingAge})</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                        {isRMD && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="inline-flex items-center gap-0.5 cursor-help">📊 RMDs</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Required Minimum Distributions begin (age 73)</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                    </div>
+                                                </TooltipProvider>
                                             )}
                                         </td>
 

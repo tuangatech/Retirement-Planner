@@ -114,6 +114,8 @@
 │  Module 6: Tax Calculations                 │       │       │
 │  ┌────────────────────────────────┐         │       │       │
 │  │  • calculateTotalTaxes()        │         │       │       │
+│  │  • calculateTaxableSocialSecurity() (§86) │         │       │
+│  │  • calculateStandardDeduction() │         │       │       │
 │  │  • Tax gross-up formulas        │─────────┤       │       │
 │  └────────────────────────────────┘         │       │       │
 │           No Dependencies                    │       │       │
@@ -589,10 +591,10 @@ Module 4: Income Calculations                          │
      ↓                  ↓                              │
 Module 5: Expenses     Module 6: Taxes                │
 ├─ calculateYearlyExpenses()  ├─ calculateTotalTaxes()│
-├─ determinePhase()           ├─ calculateGrossUpForNet()
-├─ calculateLivingExpenses()  ├─ Tax by account type  │
-├─ calculateHealthcareCosts() └─ Iterative convergence│
-└─ calculateOneTimeExpenses()        │                │
+├─ determinePhase()           ├─ calculateTaxableSocialSecurity()
+├─ calculateLivingExpenses()  ├─ calculateStandardDeduction()
+├─ calculateHealthcareCosts() ├─ calculateGrossUpForNet()
+└─ calculateOneTimeExpenses() └─ Marginal rate above deduction floor
      │                               │                │
      └───────────────┬───────────────┘                │
                      │                                │

@@ -233,9 +233,10 @@ Generally optimal strategy:
 - Benefits not permanently lost (recalculated at FRA)
 
 **SS Taxable Percentage:**
-- User-specified: 0-85% (default: 50%)
-- Simplified vs actual provisional income formula (limitation disclosed)
-- Applied to SS income for tax calculation
+- User-specified: 0-85% (default: 85%)
+- Acts as a **cap** on the IRS provisional-income formula, which the tool now applies to
+  determine the taxable share of SS (0–85%) rather than using a fixed percentage
+- Lowering it approximates a state SS exemption
 
 **Implementation Details:**
 - Benefit starts at claiming age (may be different from retirement age)
@@ -374,32 +375,40 @@ Generally optimal strategy:
 
 ## 6. TAX MODELING (SIMPLIFIED)
 
-**Purpose:** Taxes significantly impact withdrawal needs. Simplified effective rate approach balances accuracy with usability.
+**Purpose:** Taxes significantly impact withdrawal needs. The model captures the two
+effects that dominate retiree taxation — the provisional-income taxation of Social
+Security and the standard-deduction "tax-free floor" — then applies a single marginal
+rate to what's left. See [`docs/2-tax-model.md`](2-tax-model.md) for the full specification,
+constants (with sources), and the MFJ roadmap.
 
-### 6.1 Effective Tax Rate
+### 6.1 Marginal Tax Rate (above the standard deduction)
 
-**User-specified rate:** 10-40% (default: 22%)
-- Represents average tax rate on all taxable income
-- Simplified vs actual bracket calculations (limitation disclosed)
-- Applied to: Tax-Deferred withdrawals, Taxable gains, SS taxable portion, pensions, work income
+**User-specified rate:** default **12%**
+- A **marginal** rate applied to taxable income *above* the standard deduction — not a
+  blended effective rate on gross income (deductions and the SS formula are modeled
+  explicitly, so no "blending down" is needed).
+- Applied to: taxable SS portion, pensions, work, rental, tax-deferred withdrawals,
+  brokerage **gains**, and non-medical HSA withdrawals — after the deduction floor.
+
+**Modeled (new):**
+- **Social Security taxability via the IRS provisional-income formula** (0–85%), capped at
+  the user's `taxablePercentage` setting (default 85%). Thresholds are frozen (not indexed).
+- **Standard-deduction floor:** base deduction + age-65 addition + the 2025–2028 OBBBA
+  senior bonus. Base is inflation-indexed from retirement; SS thresholds are not.
 
 **Not Taxed:**
 - Roth withdrawals (tax-free)
-- ✅ HSA withdrawals for healthcare (tax-free)
+- HSA withdrawals for healthcare (tax-free)
 - Taxable account cost basis (already taxed)
 
-**Guidance for Single Filers:**
-- 10-15% for $30-50k annual income
-- 15-20% for $50-100k annual income  
-- 20-25% for $100k+ annual income
-- Higher if significant additional income, lower if minimal
+**Federal marginal-rate guidance (single filer):**
+- 10–12% for most retirees (moderate withdrawals + SS)
+- 22% once taxable income is well into six figures
+- Add a few points only for states that actually tax retirement income (many exempt SS)
 
-**Note:** This tool currently supports single filers only. Married couples filing jointly should use separate retirement calculators or wait for future updates.
-
-**Implementation:**
-- Tax = Taxable Income × Effective Rate
-- No deductions, credits, or actual bracket modeling
-- State taxes not included (user adjusts federal rate if desired)
+**Not modeled:** full 10–37% brackets, the 0%/15%/20% capital-gains brackets, itemized
+deductions/credits, and state-specific exemptions. **Filing status: single only** — MFJ
+is a documented roadmap item (see `docs/2-tax-model.md`).
 
 ### 6.2 Payroll Tax
 
@@ -521,10 +530,12 @@ Generally optimal strategy:
 - No rebalancing between accounts
 
 **Tax Assumptions:**
-- Simplified effective rate (not actual brackets)
-- SS taxation user-specified % (not provisional income formula)
+- Single marginal rate above the standard deduction (not full 10–37% brackets)
+- ✅ SS taxability via the IRS provisional-income formula (0–85%), capped at user setting
+- ✅ Standard deduction modeled (base + age-65 + 2025–2028 senior bonus)
+- Long-term capital gains taxed at the flat rate (0%/15%/20% brackets not modeled)
 - IRMAA estimated by user (not precise MAGI calculation)
-- No deductions, credits, or state-specific rules
+- No itemized deductions, credits, or state-specific exemptions; single filer only
 - ✅ HSA healthcare withdrawals correctly modeled as tax-free
 
 **Healthcare Assumptions:**
@@ -767,6 +778,12 @@ Generally optimal strategy:
 - Verify percentile relationships: 10th ≤ 25th ≤ 50th ≤ 75th ≤ 90th
 - Check for infinite loops in tax gross-up
 - Validate account balance never goes negative within a year (should hit zero and stop)
+
+**External Verification (verify_plan.py):**
+- Export a run via the Annual Breakdown "JSON" button (a full inputs + results bundle)
+- Run `python3 scripts/verify_plan.py` to independently re-derive income, expenses,
+  healthcare premiums/out-of-pocket, taxes, and the cash-flow identity from the inputs
+- See `docs/5-technical-implementation.md` §4.2 for details
 
 ---
 

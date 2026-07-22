@@ -1,7 +1,7 @@
 // src/components/wizard/Step1PersonalInfo.tsx
 
 import { useInputs } from '@/contexts/InputsContext';
-import { US_STATES } from '@/lib/constants';
+import { US_STATES, DEFAULT_VALUES } from '@/lib/constants';
 import type { USState } from '@/types';
 
 export function Step1PersonalInfo() {
@@ -56,7 +56,7 @@ export function Step1PersonalInfo() {
                         max="110"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                        How long your money needs to last (default: 95)
+                        How long your money needs to last (default: {DEFAULT_VALUES.personal.lifeExpectancy})
                     </p>
                 </div>
 
@@ -74,7 +74,7 @@ export function Step1PersonalInfo() {
                         ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                        Stored for reference (state taxes not modeled)
+                        Used for tax guidance; state-specific tax rules aren't modeled
                     </p>
                 </div>
 

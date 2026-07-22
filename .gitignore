@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.claude
+
+# Downloaded verification bundles (run outputs, not source)
+scripts/retirement-verification-*.json
+
+# Python artifacts (from scripts/verify_plan.py)
+__pycache__/
+*.pyc
+
+*.pdf
