@@ -14,6 +14,8 @@ import type {
     RentalIncome,
     TaxSettings,
     SimulationSettings,
+    PreMedicareCosts,
+    MedicareCosts,
 } from '@/types';
 import { DEFAULT_VALUES } from '@/lib/constants';
 
@@ -35,7 +37,7 @@ interface InputsContextType {
     updatePension: (id: string, data: Partial<Pension>) => void;
     updatePartTimeWork: (data: Partial<PartTimeWork>) => void;
     updateRentalIncome: (data: Partial<RentalIncome>) => void;
-    updateHealthcare: (type: 'preMedicare' | 'medicare', data: any) => void;
+    updateHealthcare: (type: 'preMedicare' | 'medicare', data: Partial<PreMedicareCosts & MedicareCosts>) => void;
     updateTax: (data: Partial<TaxSettings>) => void;
     updateSimulation: (data: Partial<SimulationSettings>) => void;
     setMode: (mode: 'basic' | 'advanced') => void;
@@ -176,7 +178,7 @@ export function InputsProvider({ children }: { children: ReactNode }) {
         }));
     }, []);
 
-    const updateHealthcare = useCallback((type: 'preMedicare' | 'medicare', data: any) => {
+    const updateHealthcare = useCallback((type: 'preMedicare' | 'medicare', data: Partial<PreMedicareCosts & MedicareCosts>) => {
         setInputs((prev: UserInputs) => ({
             ...prev,
             healthcare: {

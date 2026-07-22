@@ -130,8 +130,9 @@ export default function ScenariosPage() {
             setScenarioName('');
             setSaveError('');
             alert(`Scenario "${scenarioName}" saved successfully!`);
-        } catch (error: any) {
-            setSaveError(error.userMessage || 'Failed to save scenario');
+        } catch (error) {
+            const message = (error as { userMessage?: string })?.userMessage;
+            setSaveError(message || 'Failed to save scenario');
         }
     };
 

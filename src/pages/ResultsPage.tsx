@@ -47,6 +47,10 @@ export default function ResultsPage() {
         } else if (!results && !isCalculating && !error) {
             navigate('/wizard/1');
         }
+        // Intentionally keyed to searchParams only: this is a one-shot route guard
+        // that reads current results/scenario state. Adding the other values as deps
+        // would re-fire the navigation on every state change.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
 
     useEffect(() => {

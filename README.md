@@ -8,6 +8,8 @@ A privacy-first, Monte Carlo simulation-based retirement planning tool that help
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.2-blue)](https://reactjs.org/)
 
+### 👉 [**Try the live demo**](https://retirement-planner-blond.vercel.app/) — no install, runs entirely in your browser
+
 ---
 
 ## 🎯 Product Summary
@@ -45,10 +47,13 @@ Early retirees, the FIRE community, and DIY planners who want transparent, stati
 - **React Context API** — global state (no Redux)
 - **Web Workers** — Monte Carlo runs off the main thread
 - **localStorage** — scenario persistence (inputs only, not results)
+- **Vitest** — unit tests for the calculation engine
 
 ---
 
 ## 🚀 Getting Started
+
+> **Just want to try it?** Use the [**live demo**](https://retirement-planner-blond.vercel.app/) — no setup required. The steps below are only for running it locally.
 
 ### Prerequisites
 
@@ -72,11 +77,17 @@ Then open **http://localhost:5175**.
 npm run dev          # Start Vite dev server (hot reload) on port 5175
 npm run build        # Type-check + production build to ./dist
 npm run preview      # Serve the production build locally
-npm run lint         # Run ESLint (fails on any warning)
+npm test             # Run the Vitest unit-test suite once
+npm run test:watch   # Vitest in watch mode (re-runs on change)
+npm run lint         # ESLint (flat config); errors block, style nits are warnings
 npm run type-check   # TypeScript check, no emit
 ```
 
-> There is currently no automated test suite. Calculations are verified via the JSON export + `verify_plan.py` workflow below.
+> **Testing:** unit tests (Vitest) cover the pure calculation modules in
+> `src/lib/calculations/` — taxes, RMDs, Social Security, HSA, withdrawals, the
+> seeded RNG, and the depletion/success metric. They're the fast regression net;
+> the JSON export + `verify_plan.py` workflow below is the end-to-end cross-check.
+> Test files live next to the code they cover as `*.test.ts`.
 
 ---
 

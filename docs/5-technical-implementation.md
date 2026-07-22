@@ -130,9 +130,9 @@ export default defineConfig({
 - ⏳ Advanced analytics
 - ✅ Responsive design (completed in Phase 4)
 
-### Phase 6: Testing & Polish (Days 15-16) 📋 PLANNED
-- ⏳ Unit tests (calculation engine)
-- ⏳ Integration tests
+### Phase 6: Testing & Polish (Days 15-16)
+- ✅ Unit tests (calculation engine — Vitest; see §4.1)
+- ⏳ Integration/UI tests
 - ⏳ Bug fixes
 - ⏳ Performance optimization
 - ⏳ Documentation
@@ -307,70 +307,39 @@ const exportToCSV = () => {
 
 ---
 
-## 4. TESTING IMPLEMENTATION (Ready)
+## 4. TESTING
 
-### 4.1 Unit Test Examples
+Two complementary layers guard calculation correctness:
 
-```typescript
-// tests/calculations/yearlyProjection.test.ts
-import { describe, it, expect } from 'vitest';
-import { calculateYearlyProjection, runCompleteSimulation } from '@/lib/calculations';
-import { createSeededRNG } from '@/lib/calculations';
-import { DEFAULT_VALUES } from '@/lib/constants';
+1. **Vitest unit tests** — fast, automatic, run on every change. Cover the pure
+   modules in `src/lib/calculations/`.
+2. **`verify_plan.py`** — an independent Python re-implementation that re-derives a
+   full exported run end-to-end (§4.2). Catches drift between UI output and inputs.
 
-describe('Yearly Projection', () => {
-  it('should calculate complete yearly projection', () => {
-    const rng = createSeededRNG(12345);
-    const balances = { taxDeferred: 500000, roth: 100000, taxable: 200000 };
-    
-    const projection = calculateYearlyProjection(
-      65,
-      2030,
-      balances,
-      DEFAULT_VALUES,
-      rng
-    );
-    
-    expect(projection.age).toBe(65);
-    expect(projection.phase).toBe('go_go');
-    expect(projection.portfolio.balances.total).toBeGreaterThan(0);
-  });
-  
-  it('should handle portfolio depletion', () => {
-    const rng = createSeededRNG(12345);
-    const balances = { taxDeferred: 10000, roth: 0, taxable: 0 };
-    
-    const inputs = {
-      ...DEFAULT_VALUES,
-      phases: [
-        { name: 'go_go', startAge: 65, endAge: 75, annualSpending: 100000 },
-        { name: 'slow_go', startAge: 76, endAge: 85, annualSpending: 80000 },
-        { name: 'no_go', startAge: 86, endAge: 95, annualSpending: 60000 },
-      ],
-    };
-    
-    const result = runCompleteSimulation(inputs, rng);
-    
-    expect(result.success).toBe(false);
-    expect(result.ageOfDepletion).toBeDefined();
-  });
-});
+### 4.1 Unit Tests (Vitest)
 
-// tests/calculations/monteCarlo.test.ts
-describe('Monte Carlo Simulation', () => {
-  it('should calculate correct success rate', () => {
-    // Run with guaranteed success inputs
-    const results = runMonteCarloSimulation(successInputs, 100);
-    expect(results.successRate).toBeCloseTo(1.0, 1);
-  });
-  
-  it('should calculate percentiles correctly', () => {
-    const results = runMonteCarloSimulation(inputs, 1000);
-    expect(results.percentiles.p50).toBeGreaterThan(results.percentiles.p10);
-    expect(results.percentiles.p90).toBeGreaterThan(results.percentiles.p50);
-  });
-});
+```bash
+npm test           # run once (CI-style)
+npm run test:watch # watch mode
 ```
+
+Config lives in the `test` block of `vite.config.ts` (Node environment, discovers
+`src/**/*.test.ts`). Test files sit next to the code they cover, e.g.
+`src/lib/calculations/taxes.test.ts`. Current coverage (63 tests):
+
+| File | What it locks down |
+|------|--------------------|
+| `taxes.test.ts` | provisional-income SS taxability across all three tiers + user cap; standard-deduction floor (age-65 addition, OBBBA senior bonus, 2028 sunset, inflation indexing); gain-only brokerage tax; gross-up round-trip; Roth/HSA-non-medical handling in `calculateTotalTaxes` |
+| `rmd.test.ts` | age-73 start gate; Uniform Lifetime Table divisors; age-100 fallback for 101+ |
+| `socialSecurity.test.ts` | claiming-age factors (62→70), COLA compounding, earnings-test withholding |
+| `hsa.test.ts` | healthcare tax-free at any age; no non-medical use before 65; taxed non-medical after 65; balance caps |
+| `withdrawals.test.ts` | portfolio totals & `$100` depletion threshold; forced RMD from tax-deferred regardless of priority; shortfall reporting; HSA-first spending |
+| `random.test.ts` | seeded determinism; single shared market shock across accounts (correlation fix); 2-`rng()`-calls-per-year contract |
+| `yearlyProjection.test.ts` | the **success metric** — `success === (ageOfDepletion === null)`, failed runs report `$0` (guards the "$9 median" regression), deterministic for a fixed seed |
+
+> Not covered by unit tests: React components/UI, the Web Worker wrapper, and
+> localStorage persistence. The engine is the correctness-critical surface; the UI
+> is exercised manually and via the verification bundle.
 
 ### 4.2 Independent Verification (JSON bundle + verify_plan.py)
 
@@ -707,18 +676,16 @@ src/
 # Development
 npm run dev              # Start dev server (http://localhost:5175)
 
-# Testing (when implemented)
-npm run test             # Run unit tests
+# Testing
+npm test                 # Run the Vitest unit suite once
 npm run test:watch       # Watch mode
-npm run test:coverage    # Coverage report
 
 # Build
-npm run build            # Production build
+npm run build            # Production build (tsc && vite build)
 npm run preview          # Preview production build locally
 
-# Lint
-npm run lint             # ESLint
-npm run type-check       # TypeScript check (if configured)
+# Type-check
+npm run type-check       # TypeScript check, no emit
 ```
 
 ### 10.2 Important URLs

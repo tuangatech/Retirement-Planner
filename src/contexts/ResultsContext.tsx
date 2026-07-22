@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
-import type { SimulationResults } from '@/types'
+import type { SimulationResults, UserInputs } from '@/types'
 
 interface ResultsContextType {
     results: SimulationResults | null
@@ -10,7 +10,7 @@ interface ResultsContextType {
     setCalculationProgress: (progress: number) => void
     error: string | null
     setError: (error: string | null) => void
-    calculate: (inputs: any) => Promise<void>
+    calculate: (inputs: UserInputs) => Promise<void>
 }
 
 const ResultsContext = createContext<ResultsContextType | undefined>(undefined)
@@ -21,7 +21,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
     const [calculationProgress, setCalculationProgress] = useState(0)
     const [error, setError] = useState<string | null>(null)
 
-    const calculate = async (inputs: any) => {
+    const calculate = async (inputs: UserInputs) => {
         setIsCalculating(true)
         setCalculationProgress(0)
         setError(null)

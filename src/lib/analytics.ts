@@ -41,7 +41,7 @@ export interface AnalyticsEvent {
     | 'csv_export'
     | 'profile_save'
     | 'profile_load';
-    eventData: Record<string, any>;
+    eventData: Record<string, unknown>;
     sessionId: string;
 }
 
@@ -110,7 +110,7 @@ function getSessionId(): string {
  */
 export function trackEvent(
     eventType: AnalyticsEvent['eventType'],
-    eventData: Record<string, any> = {}
+    eventData: Record<string, unknown> = {}
 ): void {
     try {
         const event: AnalyticsEvent = {
@@ -150,7 +150,7 @@ export function trackEvent(
 /**
  * Track page view
  */
-export function trackPageView(page: string, additionalData?: Record<string, any>): void {
+export function trackPageView(page: string, additionalData?: Record<string, unknown>): void {
     trackEvent('page_view', {
         page,
         path: window.location.pathname,
