@@ -44,8 +44,25 @@ export function RetirementTimeline({
     const axisY = 54;
     const start = retirementAge;
     const end = Math.max(lifeExpectancy, retirementAge + 1);
-    const span = end - start;
-    const x = (age: number) => padL + ((age - start) / span) * (W - padL - padR);
+    const usable = W - padL - padR;
+
+    // Piecewise scale: nearly all the milestones fall between retirement and RMD age (73),
+    // while 73 → life expectancy is a long, empty stretch. Give the actionable pre-RMD
+    // window most of the width (PRE_FRAC) and compress the post-RMD years into the rest,
+    // so the dense left side gets room to breathe. Falls back to a plain linear scale when
+    // the break age is outside the window (e.g. retiring after 73).
+    const PRE_FRAC = 0.72;
+    const breakAge = rmdAge > start && rmdAge < end ? rmdAge : null;
+    const x = (age: number) => {
+        if (breakAge === null) {
+            return padL + ((age - start) / (end - start)) * usable;
+        }
+        const preW = usable * PRE_FRAC;
+        if (age <= breakAge) {
+            return padL + ((age - start) / (breakAge - start)) * preW;
+        }
+        return padL + preW + ((age - breakAge) / (end - breakAge)) * usable * (1 - PRE_FRAC);
+    };
     const axisEndX = x(end);
 
     // ---- markers within the retirement window, sorted by age ----

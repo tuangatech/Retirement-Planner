@@ -42,7 +42,7 @@ export default function ResultsPage() {
             if (scenario.results) {
                 setResults(scenario.results);
             } else {
-                navigate('/wizard/6');
+                navigate('/wizard/7');
             }
         } else if (!results && !isCalculating && !error) {
             navigate('/wizard/1');
@@ -102,7 +102,7 @@ export default function ResultsPage() {
                             <div className="space-y-2">
                                 <p className="font-medium">Calculation Error</p>
                                 <p>{error}</p>
-                                <Button onClick={() => navigate('/wizard/6')} variant="outline" size="sm" className="mt-2">
+                                <Button onClick={() => navigate('/wizard/7')} variant="outline" size="sm" className="mt-2">
                                     Return to Wizard
                                 </Button>
                             </div>

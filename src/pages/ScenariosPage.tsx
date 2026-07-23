@@ -175,7 +175,7 @@ export default function ScenariosPage() {
                     {/* Page-specific back button stays in content */}
                     <div className="mb-8">
                         <button
-                            onClick={() => navigate('/wizard/6')}
+                            onClick={() => navigate('/wizard/7')}
                             className="text-blue-600 hover:text-blue-800 mb-4 flex items-center gap-2"
                         >
                             <ArrowLeft className="w-5 h-5" />

@@ -132,7 +132,8 @@ export function Step7WithdrawalStrategy() {
                 <p className="text-sm text-gray-600 mb-3">
                     The “gap years” between retirement and age 73 are when a smart withdrawal order
                     saves the most tax — before Social Security and forced RMDs fill up your taxable income.
-                    This timeline reflects <strong>your</strong> retirement, Social Security, and life-expectancy ages.
+                    This timeline reflects <strong>your</strong> retirement, Social Security, and life-expectancy
+                    ages, and shows the years up to 73 wider since that’s your window to act.
                 </p>
                 <RetirementTimeline
                     retirementAge={inputs.personal.retirementAge}

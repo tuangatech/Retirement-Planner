@@ -276,7 +276,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                                     ? [`Includes required RMD of ${formatMoney(p.portfolio.rmdAmount)}`]
                                                     : []),
                                                 ...(p.portfolio.hsaForHealthcare > 0.5
-                                                    ? [`${formatMoney(p.portfolio.hsaForHealthcare)} of HSA used tax-free for healthcare`]
+                                                    ? ['HSA used tax-free for healthcare']
                                                     : []),
                                             ]}
                                         />
@@ -286,6 +286,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                             value={p.portfolio.balances.total}
                                             totalLabel="Total portfolio"
                                             emptyText="Portfolio depleted"
+                                            minValue={1000}
                                             className={`font-semibold ${p.portfolio.balances.total < 100000 ? 'text-red-600' :
                                                 p.portfolio.balances.total > 1000000 ? 'text-green-600' :
                                                     'text-gray-900'
@@ -385,6 +386,7 @@ function BreakdownCell({
     notes,
     emptyText,
     totalLabel = 'Total',
+    minValue = 0.5,
 }: {
     value: number;
     className: string;
@@ -392,8 +394,10 @@ function BreakdownCell({
     notes?: string[];
     emptyText?: string;
     totalLabel?: string;
+    // Line items with |value| below this are hidden (e.g. sub-$1,000 residual balances).
+    minValue?: number;
 }) {
-    const shown = lines.filter((l) => Math.abs(l.value) > 0.5);
+    const shown = lines.filter((l) => Math.abs(l.value) >= minValue);
 
     return (
         <td className={`px-4 py-3 text-right ${className}`}>
