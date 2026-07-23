@@ -2,6 +2,7 @@
 
 import { useInputs } from '@/contexts/InputsContext';
 import { Check, Info, Lock } from 'lucide-react';
+import { RetirementTimeline } from './RetirementTimeline';
 
 type StrategyKey = 'standard' | 'tax_smart' | 'roth_conversion';
 
@@ -46,18 +47,6 @@ const STRATEGIES: StrategyCard[] = [
         disabledNote: 'Coming soon',
     },
 ];
-
-// Illustrative retirement age 58. Kept in a <pre> so the alignment survives.
-const MILESTONE_DIAGRAM = `        58         63          65           67            70          73
-  ───────●──────────●───────────●────────────●─────────────●───────────●───────▶ life exp.
-      RETIRE     IRMAA       MEDICARE      SS at FRA      SS max       RMDs
-                lookback     Part B/D      (example       delay        BEGIN
-                year for     begins        claim age)                  (forced,
-                age-65                                                  fully taxed)
-
-  |<─────────────── GAP YEARS — you control taxable income ────────────────>|
-  |<──── pre-Medicare: ACA premium-subsidy cliff in play ────>|
-  |<─────────────── prime Roth-conversion runway ──────────────────>|`;
 
 export function Step7WithdrawalStrategy() {
     const { inputs, updateWithdrawalStrategy } = useInputs();
@@ -143,10 +132,13 @@ export function Step7WithdrawalStrategy() {
                 <p className="text-sm text-gray-600 mb-3">
                     The “gap years” between retirement and age 73 are when a smart withdrawal order
                     saves the most tax — before Social Security and forced RMDs fill up your taxable income.
+                    This timeline reflects <strong>your</strong> retirement, Social Security, and life-expectancy ages.
                 </p>
-                <pre className="text-[11px] leading-tight text-gray-700 overflow-x-auto bg-white border rounded p-3">
-{MILESTONE_DIAGRAM}
-                </pre>
+                <RetirementTimeline
+                    retirementAge={inputs.personal.retirementAge}
+                    lifeExpectancy={inputs.personal.lifeExpectancy}
+                    ssClaimingAge={inputs.income.socialSecurity.claimingAge}
+                />
                 <ul className="mt-3 text-sm text-gray-600 space-y-1.5">
                     <li>
                         <strong>Before 65 (Medicare):</strong> lowest-income years — the best time to
