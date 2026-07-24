@@ -149,7 +149,7 @@ export class ScenarioStorage {
             const availableSpace = (storageInfo.total * 0.95) - storageInfo.used;
             throw new StorageError(
                 'Storage quota will be exceeded',
-                `Your browser storage is nearly full. This scenario requires ${this.formatBytes(scenarioSize)} but only ${this.formatBytes(availableSpace)} is available. Try deleting old scenarios or reducing simulation runs to ${results ? '1,000-5,000' : 'N/A'} (currently ${results?.numberOfRuns.toLocaleString() || 'N/A'}).`,
+                `Your browser storage is nearly full. This scenario requires ${this.formatBytes(scenarioSize)} but only ${this.formatBytes(availableSpace)} is available. Try deleting old scenarios to free up space.`,
                 'QUOTA_EXCEEDED'
             );
         }

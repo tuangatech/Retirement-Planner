@@ -92,7 +92,7 @@ Users provide their **projected retirement balances**, and we model the **retire
 **For each account type, provide:**
 - **Balance at retirement** (projected amount when you retire, in retirement-year dollars)
 - **Expected annual return during retirement** (default: 7%, range: -10% to +20%)
-- **Expected standard deviation** (default: 18%, range: 5-30%, Advanced mode only)
+- **Expected standard deviation** (default: 17%, range: 5-30%, Advanced mode only)
 
 **Account Types:**
 
@@ -132,7 +132,7 @@ Users provide their **projected retirement balances**, and we model the **retire
   - Represents expected average return during retirement
   - Applied each simulation year
   
-- **Standard deviation:** 5-30% (default: 18%, Advanced mode only)
+- **Standard deviation:** 5-30% (default: 17%, Advanced mode only)
   - Represents volatility/uncertainty
   - Used in Monte Carlo to generate return sequences
 
@@ -145,7 +145,7 @@ Example: $400k @ 7% + $100k @ 5% = $28k + $5k = $33k / $500k = 6.6%
 
 **Implementation:**
 - Box-Muller transform generates normally distributed random returns
-- Independent returns per account (no correlation modeling - limitation disclosed)
+- All accounts share one market shock each year (perfectly correlated); no diversification benefit between accounts is modeled
 - Returns applied only during retirement years (age ≥ retirement age)
 - Negative returns possible (market losses)
 
@@ -467,7 +467,7 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 
 ### 7.1 Return Volatility
 
-**Standard deviation of returns:** Default 18% (range: 5-30%, Advanced mode only)
+**Standard deviation of returns:** Default 17% (range: 5-30%, Advanced mode only)
 
 **Purpose:** Models market uncertainty through Monte Carlo simulation.
 
@@ -475,7 +475,7 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 - Box-Muller transform generates normally distributed returns
 - Each Monte Carlo run uses different random return sequence
 - Seeded PRNG (Mulberry32) ensures reproducibility for same inputs
-- Same volatility applied to all accounts (correlation modeling future enhancement)
+- All accounts share one market shock and one volatility (std dev) each year (perfectly correlated); only the mean return differs per account
 
 ### 7.2 Inflation Rates
 
@@ -493,14 +493,10 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 
 ### 7.3 Number of Simulation Runs
 
-**Options:** 1,000 / 5,000 / 10,000 (default: 1,000, Advanced mode only)
+**Fixed at 10,000 runs** — not user-selectable. (The type still permits 1,000 / 5,000 for
+future use, but the app always runs 10,000 for smooth, reliable percentiles.)
 
 **Purpose:** More runs = smoother percentile curves, more reliable statistics.
-
-**Performance Targets:**
-- 1K runs: ~2 seconds
-- 5K runs: ~5 seconds  
-- 10K runs: ~10 seconds
 
 **Implementation:**
 - Runs in Web Worker (non-blocking UI)
@@ -548,7 +544,7 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 **Investment Assumptions:**
 - Returns: Independent normal distributions, no asset correlations
 - No fat-tail crash modeling (2008-style events understated)
-- Standard deviation user-specified (default 18%)
+- Standard deviation user-specified (default 17%)
 - No rebalancing between accounts
 
 **Tax Assumptions:**
@@ -621,17 +617,17 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
   - RMD start (73)
   - Phase transitions (Go-Go → Slow-Go → No-Go)
 
-**Monte Carlo Uncertainty Chart:**
-- 100-200 simulation paths (thin gray lines, low opacity)
-- Highlighted percentiles:
-  - 10th percentile (red dashed) - "Worst 10% of Outcomes"
-  - 50th percentile (green solid) - "Median Outcome"
-  - 90th percentile (blue dashed) - "Best 10% of Outcomes"
-- Confidence band shading (25th-75th percentile)
+**Monte Carlo Uncertainty Chart** (shipped as the simplified **3-line** version):
+- Three portfolio-balance trajectories over time — 10th, 50th (median), and 90th percentile runs:
+  - 10th percentile - "Worst 10% of Outcomes"
+  - 50th percentile - "Median Outcome"
+  - 90th percentile - "Best 10% of Outcomes"
 - ✅ **Improved terminology:** Statistical accuracy over assumption language
   - "Worst 10% of Outcomes" not "Pessimistic"
   - "Median Outcome" not "Expected"
   - "Best 10% of Outcomes" not "Optimistic"
+- *Note:* an earlier design drew ~200 faint individual simulation paths (a "spaghetti" chart);
+  the shipped chart uses only the three percentile lines for clarity.
 
 **Final Balance Distribution (Histogram):**
 - X-axis: Final portfolio balance
@@ -698,7 +694,7 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 **Basic/Advanced Toggle:**
 - Basic: ~50 core inputs (hides 5-7 technical settings)
 - Advanced: ~55 inputs (shows all Basic + technical options)
-- Defaults appropriate for most users (70% cost basis, 1K runs, 18% volatility, 5% healthcare inflation)
+- Defaults appropriate for most users (70% cost basis, 10K runs, 17% volatility, 5% healthcare inflation)
 
 ### 9.3 Results Dashboard
 
@@ -923,9 +919,7 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 ### 12.2 Performance Requirements
 
 **Calculation Speed:**
-- 1K simulations: <2 seconds
-- 5K simulations: <5 seconds
-- 10K simulations: <10 seconds
+- 10K simulations (fixed run count): a few seconds
 
 **UI Responsiveness:**
 - Web Worker prevents UI blocking during calculations
@@ -1128,7 +1122,7 @@ is a documented roadmap item (see `docs/2-tax-model.md`).
 
 **Financial Assumptions:**
 - Returns follow normal distribution (no fat tails)
-- All accounts share same volatility (no correlation modeling)
+- All accounts share one market shock each year (perfectly correlated; no diversification benefit)
 - Inflation rates constant (not variable)
 - Spending constant within each phase (no dynamic adjustment)
 

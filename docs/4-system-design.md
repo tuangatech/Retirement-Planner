@@ -43,7 +43,7 @@
 │  │  │                    │                              │   │ │
 │  │  │  ┌─────────────────▼────────────────────────┐     │   │ │
 │  │  │  │  Monte Carlo Engine (Web Worker)        │     │   │ │
-│  │  │  │  • Run 1000+ simulations                │     │   │ │
+│  │  │  │  • Run 10,000 simulations               │     │   │ │
 │  │  │  │  • Progress reporting                   │     │   │ │
 │  │  │  │  • Results aggregation                  │     │   │ │
 │  │  │  └──────────────────────────────────────────┘     │   │ │
@@ -143,7 +143,7 @@
 │  Module 9: Monte Carlo Web Worker                          │
 │  ┌────────────────────────────────┐                        │
 │  │  • runMonteCarloSimulation()    │◄───────────────────────┘
-│  │  • Calls Module 8 (1000+ runs) │
+│  │  • Calls Module 8 (10,000 runs)│
 │  │  • Aggregates percentiles       │
 │  └────────────────────────────────┘
 │     Depends: Module 1, Module 8
@@ -256,7 +256,7 @@ export interface TaxSettings {
 }
 
 export interface SimulationSettings {
-    numberOfRuns: 1000 | 5000 | 10000;  // Advanced mode
+    numberOfRuns: 1000 | 5000 | 10000;  // always 10000 in practice (not user-selectable)
     generalInflationRate: number;
     healthcareInflationRate: number;    // Advanced mode
     returnStdDeviation: number;         // Advanced mode
@@ -534,7 +534,7 @@ Create worker instance
 worker.postMessage({                   onmessage(event)
   type: 'START',                  →      if (event.data.type === 'START')
   inputs: UserInputs,                      runMonteCarloSimulation()
-  numberOfRuns: 1000                         ├─ Loop 1000 times
+  numberOfRuns: 10000                        ├─ Loop 10,000 times
 })                                           │   ├─ createSeededRNG(runId)
    ↓                                         │   ├─ runCompleteSimulation()
 worker.onmessage(event)            ←  postMessage({  │   └─ store result
@@ -628,7 +628,7 @@ Module 8: Yearly Projection Assembly
      ↓
 Module 9: Monte Carlo Web Worker
 ├─ runMonteCarloSimulation() → SimulationResults
-├─ Calls Module 8 (runCompleteSimulation) 1000+ times
+├─ Calls Module 8 (runCompleteSimulation) 10,000 times
 ├─ Aggregates results (success rate, percentiles)
 └─ Depends: Module 1 (Random), Module 8 (Yearly Projection)
 ```
@@ -1224,7 +1224,7 @@ Cost: Free tier sufficient for this project
 
 **Basic Mode (Default):** ~50 core inputs
 - Hides: Monte Carlo settings, cost basis %, IRMAA details, standard deviation, healthcare inflation, HSA non-medical toggle
-- Uses sensible defaults for hidden fields (70% cost basis, 1000 runs, 18% std dev, 5% healthcare inflation, HSA non-medical enabled)
+- Uses sensible defaults for hidden fields (70% cost basis, 10,000 runs, 18% std dev, 5% healthcare inflation, HSA non-medical enabled)
 
 **Advanced Mode:** ~55-57 inputs visible
 - Shows all Basic mode inputs PLUS 5-7 additional advanced settings
@@ -1242,7 +1242,7 @@ Cost: Free tier sufficient for this project
 | IRMAA surcharge | Hidden | Visible if checkbox enabled |
 | Healthcare inflation | Hidden (uses 5% default) | Visible, adjustable (0-15%) |
 | **Tax & Simulation** |
-| Number of runs | Hidden (uses 1,000) | Visible, selectable (1K/5K/10K) |
+| Number of runs | Fixed at 10,000 (not shown) | Fixed at 10,000 (not shown) |
 | Return std deviation | Hidden (uses 18%) | Visible, adjustable (5-30%) |
 
 **Toggle Behavior:**
@@ -1521,10 +1521,8 @@ Backgrounds:
 ### 14.1 Calculation Performance
 
 ```
-Monte Carlo Simulation (Web Worker):
-  1,000 runs:   ~2 seconds   (500 runs/sec)
-  5,000 runs:   ~5 seconds   (1000 runs/sec)
-  10,000 runs:  ~10 seconds  (1000 runs/sec)
+Monte Carlo Simulation (Web Worker), fixed at 10,000 runs:
+  10,000 runs:  1-2 seconds
 
 Single Simulation:
   30-year projection: ~2ms

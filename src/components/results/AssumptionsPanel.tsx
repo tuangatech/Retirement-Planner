@@ -67,7 +67,7 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                             Each simulation uses randomized investment returns based on:
                         </p>
                         <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-                            <li>Expected return: {(inputs.accounts.taxDeferred.expectedReturnRate * 100).toFixed(1)}% average</li>
+                            <li>Expected return: {(inputs.accounts.taxDeferred.expectedReturnRate * 100).toFixed(1)}% average (tax-deferred account; each account uses its own rate)</li>
                             <li>Volatility (std dev): {(inputs.simulation.returnStdDeviation * 100).toFixed(0)}% variation</li>
                             <li>This creates returns ranging from approximately -{(inputs.simulation.returnStdDeviation * 100 * 2).toFixed(0)}% to +{(inputs.simulation.returnStdDeviation * 100 * 2).toFixed(0)}% in any given year</li>
                         </ul>
@@ -103,7 +103,7 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                             </li>
                             <li>All accounts share one market shock each year (perfectly correlated) — no diversification benefit between accounts is modeled</li>
                             <li>Does not capture extreme market crashes or fat-tail events (e.g., 2008 financial crisis)</li>
-                            <li>Returns are capped at -50% to +50% per year to prevent extreme outliers (covers 99.1% of historical market scenarios)</li>
+                            <li>Returns are capped at -50% to +50% per year to prevent extreme outliers (covers the vast majority of realistic annual outcomes)</li>
                             <li>No modeling of transaction costs, management fees, or tax-loss harvesting</li>
                         </ul>
                     </AssumptionSection>
@@ -130,6 +130,17 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                             <li>No itemized deductions, tax credits, or state-specific exemptions (e.g., many states exempt Social Security and some retirement income)</li>
                             <li>IRMAA (Medicare surcharges) estimated by user, not calculated from precise MAGI</li>
                             <li>RMDs enforced starting at age 73 per current IRS rules</li>
+                            <li>
+                                Withdrawal order:{' '}
+                                <strong>
+                                    {(inputs.withdrawalStrategy.strategy ?? 'tax_smart') === 'standard'
+                                        ? 'Standard (taxable → tax-deferred → Roth)'
+                                        : (inputs.withdrawalStrategy.strategy ?? 'tax_smart') === 'roth_conversion'
+                                            ? 'Gap-year Roth conversions'
+                                            : 'Tax-smart sequencing (fills the standard deduction from tax-deferred in gap years)'}
+                                </strong>
+                                {' '}— assumes you follow this order in real life
+                            </li>
                         </ul>
                     </AssumptionSection>
 

@@ -80,7 +80,7 @@ export default function ResultsPage() {
                                 <Activity className="h-12 w-12 animate-spin mx-auto text-primary" />
                                 <p className="text-lg font-medium">Running Monte Carlo simulation...</p>
                                 <p className="text-sm text-muted-foreground">
-                                    This may take a moment as we analyze {inputs.simulation.numberOfRuns.toLocaleString() || '1,000'} scenarios
+                                    This may take a moment as we analyze {inputs.simulation.numberOfRuns.toLocaleString() || '10,000'} scenarios
                                 </p>
                             </div>
                         </CardContent>

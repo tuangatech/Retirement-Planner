@@ -20,7 +20,7 @@ This tool focuses exclusively on the retirement phase—no pre-retirement accumu
 
 ### Key Features
 
-- **🎲 Monte Carlo Simulation** — 1,000–10,000 runs with randomized market returns
+- **🎲 Monte Carlo Simulation** — 10,000 runs with randomized market returns
 - **📊 Probabilistic Results** — success rate and outcome distribution (10th/50th/90th percentiles)
 - **💰 HSA Integration** — tax-free healthcare coverage, with age-65+ flexibility
 - **🏥 Phase-Based Spending** — Go-Go, Slow-Go, and No-Go years
@@ -155,9 +155,9 @@ hsa.ts               HSA tax-advantaged withdrawal logic
 yearlyProjection.ts  Orchestrates all modules for one year
 ```
 
-The `monte-carlo.worker.ts` worker runs 1,000–10,000 full simulations and aggregates success rate, percentiles, and the p10/p50/p90 projections. A seeded PRNG makes results reproducible.
+The `monte-carlo.worker.ts` worker runs 10,000 full simulations and aggregates success rate, percentiles, and the p10/p50/p90 projections. A seeded PRNG makes results reproducible.
 
-**Performance:** ~0.5s (1K runs) · ~1s (5K) · ~2s (10K).
+**Performance:** 10,000 runs complete in a few seconds.
 
 ---
 
