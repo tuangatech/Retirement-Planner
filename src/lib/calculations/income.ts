@@ -10,8 +10,19 @@
  * - Rental income (with optional inflation adjustment)
  */
 
-import { calculateSocialSecurityWithEarningsTest } from './socialSecurity';
+import {
+    calculateSocialSecurityWithEarningsTest,
+    calculateSocialSecurityBenefit,
+} from './socialSecurity';
 import type { Pension, PartTimeWork, RentalIncome, SocialSecurity } from '@/types';
+
+/**
+ * Household Social Security for a year: the primary benefit (with earnings test)
+ * plus, for MFJ, the spouse's own benefit. Spouse SS gets no earnings test here —
+ * only the primary's part-time work is modeled in Phase 1. Both streams are summed
+ * before the provisional-income formula so SS taxability is computed on the couple's
+ * combined benefit.
+ */
 
 /**
  * Payroll tax rate for Social Security and Medicare (FICA).
@@ -218,7 +229,11 @@ export function calculateYearlyIncome(
     pensions: Pension[],
     partTimeWork: PartTimeWork,
     rentalIncome: RentalIncome,
-    generalInflationRate: number
+    generalInflationRate: number,
+    /** MFJ only: the spouse's own Social Security, summed into the household benefit. */
+    spouseSocialSecurity?: SocialSecurity,
+    /** MFJ only: the spouse's age this year (drives their claiming/COLA). */
+    spouseAge?: number
 ): {
     socialSecurity: number;
     socialSecurityFull: number;
@@ -243,6 +258,18 @@ export function calculateYearlyIncome(
         partTimeGross
     );
 
+    // Spouse Social Security (MFJ). No earnings test — the spouse's own work isn't
+    // modeled in Phase 1. Added to both the household and "full" benefit figures.
+    const spouseBenefit =
+        spouseSocialSecurity && spouseAge !== undefined
+            ? calculateSocialSecurityBenefit(
+                spouseAge,
+                spouseSocialSecurity.claimingAge,
+                spouseSocialSecurity.monthlyBenefitAtFRA,
+                spouseSocialSecurity.colaRate
+            )
+            : 0;
+
     // Pensions
     const pensionTotal = calculateTotalPensionIncome(currentAge, pensions);
 
@@ -257,13 +284,16 @@ export function calculateYearlyIncome(
         generalInflationRate
     );
 
+    // Household Social Security = primary (post-earnings-test) + spouse.
+    const householdSocialSecurity = ssResult.finalBenefit + spouseBenefit;
+
     // Total income before portfolio withdrawals
     const totalBeforeWithdrawals =
-        ssResult.finalBenefit + pensionTotal + partTimeIncome + rentalIncomeAmount;
+        householdSocialSecurity + pensionTotal + partTimeIncome + rentalIncomeAmount;
 
     return {
-        socialSecurity: ssResult.finalBenefit,
-        socialSecurityFull: ssResult.fullBenefit,
+        socialSecurity: householdSocialSecurity,
+        socialSecurityFull: ssResult.fullBenefit + spouseBenefit,
         socialSecurityReduction: ssResult.reduction,
         pensions: pensionTotal,
         partTimeWork: partTimeIncome,

@@ -71,6 +71,27 @@ describe('calculateStandardDeduction (tax-free floor)', () => {
     it('can exclude the senior bonus when asked', () => {
         expect(calculateStandardDeduction(65, 2026, 'single', 1, false)).toBeCloseTo(18150, 6);
     });
+
+    it('MFJ, both under 65: base joint deduction only', () => {
+        // spouseAge 60 → no second senior; primary 60 → no senior.
+        expect(calculateStandardDeduction(60, 2026, 'married_joint', 1, true, 60))
+            .toBe(TAX_RULES.standardDeduction.married_joint);
+    });
+
+    it('MFJ, one spouse 65+: counts a single senior addition + bonus', () => {
+        // 32,200 + 1,650 (one age-65) + 6,000 (one senior bonus) = 39,850.
+        expect(calculateStandardDeduction(65, 2026, 'married_joint', 1, true, 60)).toBeCloseTo(39850, 6);
+    });
+
+    it('MFJ, both 65+: counts two seniors (the "Zero Tax Bill" floor)', () => {
+        // 32,200 + 2·1,650 + 2·6,000 = 47,500.
+        expect(calculateStandardDeduction(66, 2026, 'married_joint', 1, true, 67)).toBeCloseTo(47500, 6);
+    });
+
+    it('single filer ignores spouseAge (no second senior)', () => {
+        // Even with a spouseAge passed, a single filer counts only its own senior.
+        expect(calculateStandardDeduction(66, 2026, 'single', 1, true, 70)).toBeCloseTo(24150, 6);
+    });
 });
 
 describe('calculateTaxOnTaxableWithdrawal (gain-only)', () => {

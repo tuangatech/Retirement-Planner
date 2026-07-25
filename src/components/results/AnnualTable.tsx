@@ -7,6 +7,7 @@ import type { UserInputs } from '@/types';
 import type { YearlyProjection } from '@/lib/calculations/yearlyProjection';
 import { formatMoney } from '@/lib/format';
 import { exportVerificationBundle } from '@/lib/exportVerification';
+import { RMD_START_AGE } from '@/lib/calculations/rmd';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 interface AnnualTableProps {
@@ -167,7 +168,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                 const isRetirement = p.age === inputs.personal.retirementAge;
                                 const isMedicare = p.age === 65;
                                 const isSSStart = p.age === inputs.income.socialSecurity.claimingAge;
-                                const isRMD = p.age === 73;
+                                const isRMD = p.age === RMD_START_AGE;
                                 const hasEvent = isRetirement || isMedicare || isSSStart || isRMD;
 
                                 return (
@@ -210,7 +211,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                                                 <TooltipTrigger asChild>
                                                                     <span className="inline-flex items-center gap-0.5 cursor-help">📊 RMDs</span>
                                                                 </TooltipTrigger>
-                                                                <TooltipContent>Required Minimum Distributions begin (age 73)</TooltipContent>
+                                                                <TooltipContent>Required Minimum Distributions begin (age {RMD_START_AGE})</TooltipContent>
                                                             </Tooltip>
                                                         )}
                                                     </div>
@@ -362,7 +363,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                     <div>🎂 = Retirement Begins</div>
                     <div>🏥 = Medicare Starts (Age 65)</div>
                     <div>💰 = Social Security Starts</div>
-                    <div>📊 = RMDs Begin (Age 73)</div>
+                    <div>📊 = RMDs Begin (Age {RMD_START_AGE})</div>
                     {inputs.accounts.hsa.balanceAtRetirement > 0 && (
                         <div>💊 = HSA Depleted (see CSV for details)</div>
                     )}
@@ -548,8 +549,8 @@ function generateInsights(projections: YearlyProjection[], inputs: UserInputs): 
         }
     }
 
-    // 4. RMD Start (Age 73)
-    const rmdIndex = projections.findIndex(p => p.age === 73);
+    // 4. RMD Start (age 75) — find the first year an RMD is actually forced.
+    const rmdIndex = projections.findIndex(p => p.portfolio.rmdAmount > 0.5);
     if (rmdIndex >= 0) {
         const rmdAmount = projections[rmdIndex].portfolio.rmdAmount;
         const rmdTax = projections[rmdIndex].taxes.onWithdrawals;
@@ -560,7 +561,7 @@ function generateInsights(projections: YearlyProjection[], inputs: UserInputs): 
                 type: 'warning',
                 icon: <AlertCircle className="w-5 h-5" />,
                 title: 'Required Minimum Distributions (RMDs) begin',
-                ageRange: 'Age 73+',
+                ageRange: `Age ${projections[rmdIndex].age}+`,
                 description: `The IRS requires you to withdraw at least ${(rmdAmount / 1000).toFixed(1)}K/year from tax-deferred accounts and pay approximately ${(rmdTax / 1000).toFixed(1)}K in taxes. ${withdrawal > rmdAmount * 1.1 ? 'You need additional withdrawals beyond the RMD to cover expenses.' : 'You don\'t need this money for expenses, so after-tax proceeds get reinvested to your taxable account.'}`
             });
         }

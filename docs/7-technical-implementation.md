@@ -219,7 +219,7 @@ Routes: `/` (landing) → `/wizard/:step` (7 steps) → `/results`; plus `/scena
 `/compare`.
 
 Docs: [1-requirements](1-requirements.md) · [2-tax-model](2-tax-model.md) ·
-[3-withdrawal-strategy](3-withdrawal-strategy.md) · [4-system-design](4-system-design.md).
+[3-withdrawal-strategy](3-withdrawal-strategy.md) · [4-married-filing-jointly](4-married-filing-jointly.md) · [6-system-design](6-system-design.md).
 
 ---
 

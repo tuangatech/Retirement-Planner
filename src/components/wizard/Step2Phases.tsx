@@ -13,7 +13,8 @@ const MIN_PHASE_SPENDING = 1000;
 export function Step2Phases() {
     const { inputs, updatePhases, addOneTimeExpense, removeOneTimeExpense, updateOneTimeExpense } = useInputs();
     const { phases, oneTimeExpenses } = inputs;
-    const { retirementAge, lifeExpectancy } = inputs.personal;
+    const { retirementAge, lifeExpectancy, filingStatus } = inputs.personal;
+    const isMFJ = filingStatus === 'married_joint';
 
     // Track which expense rows have been interacted with (onBlur)
     const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
@@ -129,7 +130,11 @@ export function Step2Phases() {
         <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold mb-2">Retirement Phases</h2>
-                <p className="text-gray-600">Define your spending for each phase of retirement</p>
+                <p className="text-gray-600">
+                    {isMFJ
+                        ? 'Define your household spending for each phase — phase boundaries follow your age'
+                        : 'Define your spending for each phase of retirement'}
+                </p>
             </div>
 
             {/* Educational Panel */}

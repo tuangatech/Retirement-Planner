@@ -1,7 +1,7 @@
 // src/components/wizard/Step4Income.tsx
 
 import { useInputs } from '@/contexts/InputsContext';
-import { DEFAULT_VALUES } from '@/lib/constants';
+import { DEFAULT_VALUES, DEFAULT_SPOUSE_SOCIAL_SECURITY } from '@/lib/constants';
 import { Trash2, AlertCircle } from 'lucide-react';
 import type { Pension } from '@/types';
 import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
@@ -12,13 +12,17 @@ export function Step4Income() {
     const {
         inputs,
         updateSocialSecurity,
+        updateSpouseSocialSecurity,
         addPension,
         removePension,
         updatePension,
         updatePartTimeWork,
         updateRentalIncome,
     } = useInputs();
-    const { income } = inputs;
+    const { income, personal } = inputs;
+
+    const isMFJ = personal.filingStatus === 'married_joint';
+    const spouseSS = income.spouseSocialSecurity ?? DEFAULT_SPOUSE_SOCIAL_SECURITY;
 
     const handlePensionChange = (id: string, field: keyof Pension, value: any) => {
         updatePension(id, { [field]: value });
@@ -293,6 +297,57 @@ export function Step4Income() {
                     </div>
                 )}
             </div>
+
+            {/* Spouse Social Security (MFJ only) */}
+            {isMFJ && (
+                <div className="border rounded-lg p-5 bg-gradient-to-r from-blue-50 to-white">
+                    <div className="mb-4">
+                        <h3 className="font-semibold text-lg">Spouse’s Social Security</h3>
+                        <p className="text-sm text-gray-600">
+                            Your spouse’s own benefit is added to yours before the IRS taxability
+                            formula. COLA and the taxable-percentage cap above are shared — they apply
+                            to both benefits.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">
+                                Monthly Benefit at Full Retirement Age (FRA)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                <input
+                                    type="number"
+                                    value={spouseSS.monthlyBenefitAtFRA}
+                                    onChange={(e) =>
+                                        updateSpouseSocialSecurity({ monthlyBenefitAtFRA: parseFloat(e.target.value) || 0 })
+                                    }
+                                    className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                    min="0"
+                                    step="50"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Their own benefit at full retirement age</p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Claiming Age</label>
+                            <input
+                                type="number"
+                                value={spouseSS.claimingAge}
+                                onChange={(e) =>
+                                    updateSpouseSocialSecurity({ claimingAge: parseInt(e.target.value) || 67 })
+                                }
+                                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                min="62"
+                                max="70"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Age 62–70 (FRA is typically 67)</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Pensions */}
             <div className="border rounded-lg p-5 bg-gradient-to-r from-green-50 to-white">

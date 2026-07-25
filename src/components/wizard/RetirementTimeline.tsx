@@ -10,7 +10,7 @@ interface RetirementTimelineProps {
     retirementAge: number;
     lifeExpectancy: number;
     ssClaimingAge: number;
-    /** The engine uses 73 for everyone; kept configurable for clarity. */
+    /** RMD start age. The tool models a flat 75 (SECURE 2.0, born 1960+). */
     rmdAge?: number;
 }
 
@@ -35,7 +35,7 @@ export function RetirementTimeline({
     retirementAge,
     lifeExpectancy,
     ssClaimingAge,
-    rmdAge = 73,
+    rmdAge = 75,
 }: RetirementTimelineProps) {
     // ---- geometry (viewBox units; the SVG scales to the container width) ----
     const W = 820;
@@ -46,11 +46,11 @@ export function RetirementTimeline({
     const end = Math.max(lifeExpectancy, retirementAge + 1);
     const usable = W - padL - padR;
 
-    // Piecewise scale: nearly all the milestones fall between retirement and RMD age (73),
-    // while 73 → life expectancy is a long, empty stretch. Give the actionable pre-RMD
+    // Piecewise scale: nearly all the milestones fall between retirement and the RMD age,
+    // while RMD age → life expectancy is a long, empty stretch. Give the actionable pre-RMD
     // window most of the width (PRE_FRAC) and compress the post-RMD years into the rest,
     // so the dense left side gets room to breathe. Falls back to a plain linear scale when
-    // the break age is outside the window (e.g. retiring after 73).
+    // the break age is outside the window (e.g. retiring after the RMD age).
     const PRE_FRAC = 0.72;
     const breakAge = rmdAge > start && rmdAge < end ? rmdAge : null;
     const x = (age: number) => {

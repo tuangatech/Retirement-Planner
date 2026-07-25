@@ -566,9 +566,10 @@ Module 1: Random Number Generation
      └─────────────────────────────────────────────────┐
                                                         │
 Module 2: RMD Calculations                             │
-├─ calculateRMD(age, balance) → number                 │
+├─ calculateRMD(age, balance, startAge) → number       │
 ├─ RMD_TABLE: { 73: 26.5, ..., 100: 6.4 }             │
-└─ Starting age 73 (SECURE Act 2.0)                    │
+├─ RMD_START_AGE = 75 (SECURE 2.0, born 1960+)         │
+└─ MFJ: pooled RMD, triggered by older spouse          │
      │                                                  │
      └──────────────────┐                              │
                         │                              │

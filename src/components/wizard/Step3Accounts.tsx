@@ -29,7 +29,7 @@ export function Step3Accounts() {
                     <p className="font-medium mb-1">Key rules:</p>
                     <ul className="list-disc ml-4 space-y-1 text-sm">
                         <li>All withdrawals taxed at your effective rate</li>
-                        <li>RMDs required starting at age 73</li>
+                        <li>RMDs required starting at age 75 (SECURE 2.0; born 1960+)</li>
                         <li>10% penalty for withdrawals before age 59½</li>
                     </ul>
                     <p className="mt-2 text-xs text-gray-600">💡 The largest account type for most retirees</p>

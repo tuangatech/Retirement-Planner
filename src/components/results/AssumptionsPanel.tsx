@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Info } from 'lucide-react';
 import type { UserInputs } from '@/types';
+import { RMD_START_AGE } from '@/lib/calculations/rmd';
 
 interface AssumptionsPanelProps {
     inputs: UserInputs;
@@ -121,6 +122,15 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                                 (base + age-65 additions + the 2025–2028 OBBBA senior bonus); assumes
                                 a {(inputs.personal.filingStatus ?? 'single').replace('_', ' ')} filer
                             </li>
+                            {inputs.personal.filingStatus === 'married_joint' && (
+                                <li>
+                                    <strong>Married filing jointly:</strong> both spouses' Social Security
+                                    benefits are combined for the provisional-income formula, and accounts
+                                    are <strong>pooled</strong> with one RMD start age (the older spouse's).
+                                    The survivor's penalty is <strong>not</strong> modeled — both spouses are
+                                    assumed to live to the shared life expectancy.
+                                </li>
+                            )}
                             <li>
                                 Social Security taxability uses the IRS provisional-income formula
                                 (0–85%), capped at your setting of {(inputs.income.socialSecurity.taxablePercentage * 100).toFixed(0)}%;
@@ -129,7 +139,7 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                             <li>Long-term capital gains taxed at the flat rate — the 0%/15%/20% brackets are NOT modeled</li>
                             <li>No itemized deductions, tax credits, or state-specific exemptions (e.g., many states exempt Social Security and some retirement income)</li>
                             <li>IRMAA (Medicare surcharges) estimated by user, not calculated from precise MAGI</li>
-                            <li>RMDs enforced starting at age 73 per current IRS rules</li>
+                            <li>RMDs enforced starting at age {RMD_START_AGE} (SECURE 2.0 start age for anyone born 1960+, which covers this tool's FIRE audience; born 1951–1959 would be 73){inputs.personal.filingStatus === 'married_joint' ? '. For couples, one household RMD on the pooled balance begins when the older spouse reaches 75' : ''}</li>
                             <li>
                                 Withdrawal order:{' '}
                                 <strong>
@@ -182,8 +192,17 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                                 (no probability distribution)
                             </li>
                             <li>50% of people live beyond average life expectancy - plan conservatively</li>
-                            <li>Does not model joint life expectancy for couples</li>
-                            <li>No survivor benefits or spousal Social Security strategies</li>
+                            {inputs.personal.filingStatus === 'married_joint' ? (
+                                <>
+                                    <li>Both spouses assumed to live to the shared life expectancy (age {inputs.personal.lifeExpectancy})</li>
+                                    <li><strong>Survivor's penalty not modeled</strong> — no switch to single filing on first death, and the smaller Social Security benefit is never dropped</li>
+                                </>
+                            ) : (
+                                <>
+                                    <li>Does not model joint life expectancy for couples</li>
+                                    <li>No survivor benefits or spousal Social Security strategies</li>
+                                </>
+                            )}
                         </ul>
                     </AssumptionSection>
                 </div>
@@ -213,7 +232,7 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                         <h4 className="font-semibold mb-2">Life Events:</h4>
                         <ul className="list-disc list-inside space-y-1">
                             <li><strong>Long-term care costs</strong> (major expense!)</li>
-                            <li>Couples planning and survivor benefits</li>
+                            <li>Survivor's penalty (surviving-spouse tax jump on first death)</li>
                             <li>Inheritance or windfalls</li>
                             <li>Major medical events</li>
                             <li>Divorce, remarriage, or family changes</li>
@@ -301,9 +320,12 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                     <div>
                         <h4 className="font-semibold mb-1">Q: Does this tool support married couples?</h4>
                         <p>
-                            Not currently. The tool is designed for <strong>single filers only</strong>. Supporting married
-                            couples requires modeling joint tax filing, survivor benefits, and coordinated withdrawal
-                            strategies - features planned for a future version.
+                            Yes — choose <strong>Married filing jointly</strong> in Step 1. The tool models both
+                            spouses' Social Security, the joint standard deduction (including per-spouse age-65
+                            additions), and the older spouse's RMD start age. For simplicity it <strong>pools</strong> your
+                            accounts and does <strong>not</strong> model the survivor's penalty — the higher tax a surviving
+                            spouse faces once filing switches to single. Coordinated per-spouse account strategies and
+                            that survivor transition are planned for a future version.
                         </p>
                     </div>
                 </div>

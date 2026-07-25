@@ -5,11 +5,29 @@ import { US_STATES, DEFAULT_VALUES } from '@/lib/constants';
 import type { USState } from '@/types';
 
 export function Step1PersonalInfo() {
-    const { inputs, updatePersonal } = useInputs();
-    const { personal } = inputs;
+    const { inputs, updatePersonal, updateSpouseSocialSecurity } = useInputs();
+    const { personal, income } = inputs;
 
     // Calculate retirement duration for display
     const retirementDuration = personal.lifeExpectancy - personal.retirementAge;
+
+    const isMFJ = personal.filingStatus === 'married_joint';
+
+    const handleFilingStatusChange = (value: 'single' | 'married_joint') => {
+        if (value === 'married_joint') {
+            // Seed a spouse age (default to the primary's retirement age) and spouse SS
+            // defaults so the couple starts from an editable baseline.
+            updatePersonal({
+                filingStatus: 'married_joint',
+                spouseAgeAtRetirement: personal.spouseAgeAtRetirement ?? personal.retirementAge,
+            });
+            if (!income.spouseSocialSecurity) {
+                updateSpouseSocialSecurity({});
+            }
+        } else {
+            updatePersonal({ filingStatus: 'single' });
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -80,15 +98,52 @@ export function Step1PersonalInfo() {
 
                 <div>
                     <label className="block text-sm font-medium mb-1">Tax Filing Status</label>
-                    <div className="px-3 py-2 bg-gray-50 border rounded-md text-gray-700">
-                        Single
-                    </div>
+                    <select
+                        value={personal.filingStatus ?? 'single'}
+                        onChange={(e) => handleFilingStatusChange(e.target.value as 'single' | 'married_joint')}
+                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        <option value="single">Single</option>
+                        <option value="married_joint">Married filing jointly</option>
+                    </select>
                     <p className="text-xs text-gray-500 mt-1">
-                        Single filers only at this time. Joint filing requires modeling combined tax
-                        brackets, Social Security survivor benefits, and coordinated account withdrawals.
+                        {isMFJ
+                            ? 'Models both Social Security benefits and the joint standard deduction. Accounts are pooled and the survivor’s penalty is not modeled — see Disclosures.'
+                            : 'Applies the single-filer standard deduction and Social Security thresholds.'}
                     </p>
                 </div>
             </div>
+
+            {/* Spouse inputs (MFJ only) */}
+            {isMFJ && (
+                <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50/40 space-y-4">
+                    <div>
+                        <h3 className="font-semibold text-blue-900">Your spouse</h3>
+                        <p className="text-xs text-blue-800">
+                            Their age drives the joint standard deduction (per-spouse age-65 additions),
+                            each spouse’s Medicare timing, and the required-minimum-distribution start age.
+                            Both spouses are assumed to live to the shared life expectancy. Enter your
+                            spouse’s Social Security in Step 4 (Income).
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Spouse’s Age at Your Retirement</label>
+                            <input
+                                type="number"
+                                value={personal.spouseAgeAtRetirement ?? personal.retirementAge}
+                                onChange={(e) => updatePersonal({ spouseAgeAtRetirement: parseInt(e.target.value) || 0 })}
+                                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                min="40"
+                                max="90"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                                Their age the year you retire (age {personal.retirementAge})
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Retirement duration summary */}
             <div className="bg-green-50 border border-green-300 rounded-lg p-4">

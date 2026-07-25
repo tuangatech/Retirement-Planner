@@ -1,6 +1,18 @@
 // src/lib/constants.ts - PHASE B: Add HSA Defaults
 
-import type { USState, UserInputs } from '@/types';
+import type { SocialSecurity, USState, UserInputs } from '@/types';
+
+/**
+ * Seed values for a spouse's Social Security, applied when the user first switches
+ * to married-filing-jointly. Mirrors the primary defaults so the couple starts from
+ * a sensible, editable baseline.
+ */
+export const DEFAULT_SPOUSE_SOCIAL_SECURITY: SocialSecurity = {
+    monthlyBenefitAtFRA: 1800,
+    claimingAge: 67,
+    colaRate: 0.030,
+    taxablePercentage: 0.85,
+};
 
 export const US_STATES: { value: USState; label: string }[] = [
     { value: 'AL', label: 'Alabama' },

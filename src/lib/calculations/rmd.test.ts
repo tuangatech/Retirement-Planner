@@ -1,11 +1,22 @@
 // src/lib/calculations/rmd.test.ts
 
 import { describe, it, expect } from 'vitest';
-import { calculateRMD, isRMDRequired, getRMDDivisor, RMD_TABLE } from './rmd';
+import { calculateRMD, isRMDRequired, getRMDDivisor, RMD_START_AGE, RMD_TABLE } from './rmd';
+
+describe('RMD_START_AGE', () => {
+    it('is a flat 75 (SECURE 2.0 for born 1960+, the FIRE audience)', () => {
+        expect(RMD_START_AGE).toBe(75);
+    });
+});
 
 describe('calculateRMD', () => {
-    it('is $0 before the RMD start age (73)', () => {
+    it('is $0 before the RMD start age (default 73)', () => {
         expect(calculateRMD(72, 1_000_000)).toBe(0);
+    });
+
+    it('respects a birth-year start age of 75 (born 1960+): $0 at 74, RMD at 75', () => {
+        expect(calculateRMD(74, 1_000_000, 75)).toBe(0);
+        expect(calculateRMD(75, 1_000_000, 75)).toBeCloseTo(1_000_000 / 24.6, 6);
     });
 
     it('uses the age-73 divisor (26.5) at the start age', () => {

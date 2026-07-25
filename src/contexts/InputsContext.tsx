@@ -17,7 +17,7 @@ import type {
     PreMedicareCosts,
     MedicareCosts,
 } from '@/types';
-import { DEFAULT_VALUES } from '@/lib/constants';
+import { DEFAULT_VALUES, DEFAULT_SPOUSE_SOCIAL_SECURITY } from '@/lib/constants';
 
 interface InputsContextType {
     inputs: UserInputs;
@@ -32,6 +32,7 @@ interface InputsContextType {
     updateAccount: (type: 'taxDeferred' | 'roth' | 'taxable', data: Partial<InvestmentAccount>) => void;
     updateHSA: (data: Partial<HSAAccount>) => void;
     updateSocialSecurity: (data: Partial<SocialSecurity>) => void;
+    updateSpouseSocialSecurity: (data: Partial<SocialSecurity>) => void;
     addPension: (pension: Pension) => void;
     removePension: (id: string) => void;
     updatePension: (id: string, data: Partial<Pension>) => void;
@@ -123,6 +124,21 @@ export function InputsProvider({ children }: { children: ReactNode }) {
             income: {
                 ...prev.income,
                 socialSecurity: { ...prev.income.socialSecurity, ...data },
+            },
+        }));
+    }, []);
+
+    // Spouse Social Security (MFJ). Seeds from the spouse defaults on first edit so a
+    // partial update never produces an incomplete SocialSecurity object.
+    const updateSpouseSocialSecurity = useCallback((data: Partial<SocialSecurity>) => {
+        setInputs((prev: UserInputs) => ({
+            ...prev,
+            income: {
+                ...prev.income,
+                spouseSocialSecurity: {
+                    ...(prev.income.spouseSocialSecurity ?? DEFAULT_SPOUSE_SOCIAL_SECURITY),
+                    ...data,
+                },
             },
         }));
     }, []);
@@ -241,6 +257,7 @@ export function InputsProvider({ children }: { children: ReactNode }) {
                 updateAccount,
                 updateHSA, 
                 updateSocialSecurity,
+                updateSpouseSocialSecurity,
                 addPension,
                 removePension,
                 updatePension,

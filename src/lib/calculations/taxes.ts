@@ -93,17 +93,22 @@ export function calculateTaxableSocialSecurity(
  * `inflationFactor` so it keeps pace with the simulation's inflated income; the
  * temporary senior bonus is applied flat.
  *
- * Single-filer assumption: one "senior" once age ≥ 65. (MFJ spouse ages are not
- * modeled — that's the Full-tier feature.)
+ * The age-65 addition and senior bonus are counted **per senior**: a single filer
+ * contributes one senior once age ≥ 65; for MFJ, pass the spouse's age via
+ * `spouseAge` so a second senior is counted once the spouse turns 65. (Pooled-couple
+ * simplification — see docs/2-tax-model.md.)
  */
 export function calculateStandardDeduction(
     currentAge: number,
     year: number,
     filingStatus: FilingStatus = 'single',
     inflationFactor: number = 1,
-    includeSeniorBonus: boolean = true
+    includeSeniorBonus: boolean = true,
+    spouseAge?: number
 ): number {
-    const seniors = currentAge >= 65 ? 1 : 0;
+    const seniors =
+        (currentAge >= 65 ? 1 : 0) +
+        (filingStatus === 'married_joint' && spouseAge !== undefined && spouseAge >= 65 ? 1 : 0);
 
     let deduction =
         TAX_RULES.standardDeduction[filingStatus] +
@@ -148,14 +153,16 @@ export function calculateTaxFreeTaxDeferredRoom(
     year: number,
     deductionInflationFactor: number = 1,
     filingStatus: FilingStatus = 'single',
-    includeSeniorBonus: boolean = true
+    includeSeniorBonus: boolean = true,
+    spouseAge?: number
 ): number {
     const deduction = calculateStandardDeduction(
         currentAge,
         year,
         filingStatus,
         deductionInflationFactor,
-        includeSeniorBonus
+        includeSeniorBonus,
+        spouseAge
     );
 
     const totalTaxableAt = (x: number): number =>
@@ -232,7 +239,8 @@ export function calculateTaxOnFixedIncome(
     year: number,
     deductionInflationFactor: number = 1,
     filingStatus: FilingStatus = 'single',
-    includeSeniorBonus: boolean = true
+    includeSeniorBonus: boolean = true,
+    spouseAge?: number
 ): number {
     // Taxable Social Security via the provisional-income formula (other fixed income
     // only — withdrawals are added in the final calculation). The user-specified
@@ -253,7 +261,8 @@ export function calculateTaxOnFixedIncome(
         year,
         filingStatus,
         deductionInflationFactor,
-        includeSeniorBonus
+        includeSeniorBonus,
+        spouseAge
     );
 
     return Math.max(0, taxableIncome - deduction) * effectiveTaxRate;
@@ -497,7 +506,8 @@ export function calculateTotalTaxes(
      */
     hsaNonMedicalWithdrawal: number = 0,
     filingStatus: FilingStatus = 'single',
-    includeSeniorBonus: boolean = true
+    includeSeniorBonus: boolean = true,
+    spouseAge?: number
 ): {
     onFixedIncome: number;
     onWithdrawals: number;
@@ -533,7 +543,8 @@ export function calculateTotalTaxes(
         year,
         filingStatus,
         deductionInflationFactor,
-        includeSeniorBonus
+        includeSeniorBonus,
+        spouseAge
     );
 
     const fixedTaxable = Math.max(0, fixedBase - deduction);

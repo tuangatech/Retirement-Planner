@@ -7,7 +7,10 @@
  * tax-deferred retirement accounts (Traditional 401k, Traditional IRA).
  * 
  * Key Rules (SECURE Act 2.0):
- * - RMDs begin at age 73 (changed from 72 in 2023)
+ * - This tool models RMDs beginning at age 75 (`RMD_START_AGE`). Under SECURE 2.0 the
+ *   start age is 75 for anyone born 1960 or later — which covers this tool's FIRE
+ *   audience (born 1951–1959 is 73, not modeled). Using a flat 75 keeps the tool
+ *   age-relative (no birth-year/calendar input). See docs/2-tax-model.md.
  * - Based on Uniform Lifetime Table
  * - RMD = Account Balance / Life Expectancy Factor
  * - Must be taken by December 31 each year
@@ -55,26 +58,35 @@ export const RMD_TABLE: Record<number, number> = {
 };
 
 /**
+ * RMD start age modeled by this tool. SECURE 2.0 sets the start age at 75 for anyone
+ * born 1960 or later; the FIRE audience is essentially all post-1960, so we use a flat
+ * 75 and stay age-relative (no birth-year/calendar input). For MFJ the pooled RMD is
+ * triggered when the OLDER spouse reaches this age. See docs/2-tax-model.md.
+ */
+export const RMD_START_AGE = 75;
+
+/**
  * Calculates the Required Minimum Distribution for a given age and balance.
- * 
+ *
  * RMD Rules:
- * - No RMD required before age 73
+ * - No RMD required before `startAge` (default 73; the app passes `RMD_START_AGE`, 75)
  * - RMD = Balance / Divisor from Uniform Lifetime Table
  * - Ages 101+ use the same divisor as age 100 (6.4)
- * 
+ *
  * @param age - Current age
  * @param balance - Tax-deferred account balance as of December 31 prior year
- * @returns RMD amount (0 if age < 73 or balance is 0)
- * 
+ * @param startAge - Age at which RMDs begin (default 73)
+ * @returns RMD amount (0 if age < startAge or balance is 0)
+ *
  * @example
- * calculateRMD(72, 1000000); // Returns 0 (too young)
- * calculateRMD(73, 1000000); // Returns 37,735.85 ($1M / 26.5)
- * calculateRMD(85, 500000);  // Returns 31,250 ($500K / 16.0)
- * calculateRMD(110, 200000); // Returns 31,250 ($200K / 6.4, uses age 100 factor)
+ * calculateRMD(72, 1000000);        // Returns 0 (too young)
+ * calculateRMD(73, 1000000);        // Returns 37,735.85 ($1M / 26.5)
+ * calculateRMD(74, 1000000, 75);    // Returns 0 (born 1960+, start age 75)
+ * calculateRMD(85, 500000);         // Returns 31,250 ($500K / 16.0)
  */
-export function calculateRMD(age: number, balance: number): number {
-    // No RMD required before age 73
-    if (age < 73) {
+export function calculateRMD(age: number, balance: number, startAge: number = 73): number {
+    // No RMD required before the start age
+    if (age < startAge) {
         return 0;
     }
 
@@ -99,10 +111,10 @@ export function calculateRMD(age: number, balance: number): number {
  * @example
  * isRMDRequired(72); // false
  * isRMDRequired(73); // true
- * isRMDRequired(85); // true
+ * isRMDRequired(74, 75); // false (born 1960+, start age 75)
  */
-export function isRMDRequired(age: number): boolean {
-    return age >= 73;
+export function isRMDRequired(age: number, startAge: number = 73): boolean {
+    return age >= startAge;
 }
 
 /**

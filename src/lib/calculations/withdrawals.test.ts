@@ -62,6 +62,18 @@ describe('executeWithdrawals', () => {
         expect(r.hsaForHealthcare).toBe(8_000);
         expect(r.updatedBalances.hsa).toBe(42_000);
     });
+
+    it('MFJ: forces the RMD off the older spouse (rmdAge) even when the primary is under 73', () => {
+        // Primary is 65 (no RMD of their own), but the older spouse is 75, so the pooled
+        // tax-deferred RMD must still come out — keyed to rmdAge = 75.
+        const balances: AccountBalances = { taxDeferred: 1_000_000, roth: 0, taxable: 500_000, hsa: 0 };
+        const r = executeWithdrawals(
+            65, 10_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7,
+            'standard', 2026, 1, 'married_joint', 75, 75,
+        );
+        expect(r.rmdAmount).toBeCloseTo(1_000_000 / 24.6, 4);
+        expect(r.withdrawals.taxDeferred).toBeCloseTo(r.rmdAmount, 4);
+    });
 });
 
 describe('executeWithdrawals — tax-smart sequencing', () => {

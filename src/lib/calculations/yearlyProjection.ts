@@ -12,6 +12,7 @@ import {
     type AccountBalances,
 } from '@/lib/calculations/withdrawals';
 import { generateAccountReturns } from '@/lib/calculations/random';
+import { RMD_START_AGE } from '@/lib/calculations/rmd';
 
 export interface YearlyProjection {
     age: number;
@@ -82,6 +83,26 @@ export function calculateYearlyProjection(
     // STEP 1: Determine phase
     const phase = determinePhase(currentAge, phases);
 
+    // Filing status + MFJ spouse context, needed by both the income and tax steps.
+    // The standard-deduction floor is scaled by the same inflation that grows income
+    // (deductions are inflation-indexed in reality); the SS provisional thresholds
+    // inside the tax module stay frozen (the "tax torpedo").
+    const filingStatus = personal.filingStatus ?? 'single';
+    const deductionInflationFactor = Math.pow(
+        1 + simulation.generalInflationRate,
+        Math.max(0, currentAge - personal.retirementAge)
+    );
+    // MFJ: the spouse's age this year, derived from their age at the primary's
+    // retirement (the loop is driven by the primary's age). Undefined for single.
+    const spouseAge =
+        filingStatus === 'married_joint' && personal.spouseAgeAtRetirement !== undefined
+            ? personal.spouseAgeAtRetirement + (currentAge - personal.retirementAge)
+            : undefined;
+    // Pooled accounts → one household RMD keyed to the OLDER spouse's age, beginning at
+    // the flat RMD_START_AGE (75; see rmd.ts). The older spouse drives the trigger so the
+    // pooled balance starts distributing no later than required.
+    const rmdAge = spouseAge !== undefined ? Math.max(currentAge, spouseAge) : currentAge;
+
     // STEP 2: Calculate income
     const incomeResult = calculateYearlyIncome(
         currentAge,
@@ -89,7 +110,9 @@ export function calculateYearlyProjection(
         income.pensions,
         income.partTimeWork,
         income.rentalIncome,
-        simulation.generalInflationRate
+        simulation.generalInflationRate,
+        income.spouseSocialSecurity,
+        spouseAge
     );
 
     // STEP 3: Calculate expenses
@@ -101,17 +124,8 @@ export function calculateYearlyProjection(
         healthcare.preMedicare,
         healthcare.medicare,
         simulation.generalInflationRate,
-        simulation.healthcareInflationRate
-    );
-
-    // Tax-model context shared by the initial and final tax calculations.
-    // The standard-deduction floor is scaled by the same inflation that grows
-    // income (deductions are inflation-indexed in reality); the SS provisional
-    // thresholds inside the tax module stay frozen (the "tax torpedo").
-    const filingStatus = personal.filingStatus ?? 'single';
-    const deductionInflationFactor = Math.pow(
-        1 + simulation.generalInflationRate,
-        Math.max(0, currentAge - personal.retirementAge)
+        simulation.healthcareInflationRate,
+        spouseAge
     );
 
     // STEP 4: Calculate initial taxes on fixed income
@@ -127,7 +141,9 @@ export function calculateYearlyProjection(
         currentAge,
         year,
         deductionInflationFactor,
-        filingStatus
+        filingStatus,
+        true,
+        spouseAge
     );
 
     // STEP 5: Determine cash flow gap
@@ -165,7 +181,10 @@ export function calculateYearlyProjection(
             inputs.withdrawalStrategy.strategy ?? 'tax_smart',
             year,
             deductionInflationFactor,
-            filingStatus
+            filingStatus,
+            spouseAge,
+            rmdAge,
+            RMD_START_AGE
         );
 
         // Deduct withdrawals from current balances
@@ -218,7 +237,9 @@ export function calculateYearlyProjection(
         year,
         deductionInflationFactor,
         hsaNonMedicalWithdrawal,
-        filingStatus
+        filingStatus,
+        true,
+        spouseAge
     );
 
     // Total withdrawals and net cash flow — computed here (before returns) so any

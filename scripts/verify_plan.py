@@ -16,8 +16,10 @@ What is verified (deterministic, derived from inputs):
   - Social Security  (FRA benefit x claiming-age factor x COLA, + earnings test)
   - Rental income    (base x general inflation from start age)
   - Living expenses   (phase spending x general inflation from retirement)
-  - Healthcare premiums   (pre-Medicare and Medicare, inflated correctly)
-  - Healthcare out-of-pocket (pre-Medicare and Medicare, inflated correctly)
+  - Healthcare premiums   (pre-Medicare and Medicare, inflated correctly;
+                      two per-person tracks summed for MFJ)
+  - Healthcare out-of-pocket (pre-Medicare and Medicare, inflated correctly;
+                      two per-person tracks summed for MFJ)
   - Income tax       (provisional-income SS formula + standard-deduction floor +
                       marginal rate) and payroll tax (7.65% of part-time work)
   - Component sums: Total Income / Expenses / Tax / Withdrawals
@@ -117,6 +119,9 @@ class Plan:
         self.eff_rate = inputs["tax"]["combinedEffectiveRate"]
         self.ss_cap = self.ss.get("taxablePercentage", TAX_RULES["ss_max_taxable_fraction"])
         self.cost_basis = inputs["accounts"]["taxable"].get("costBasisPercentage", 0.70)
+        # MFJ (Phase 1): spouse SS stream + spouse age for per-spouse deduction seniors.
+        self.spouse_ss = inputs["income"].get("spouseSocialSecurity")
+        self.spouse_age_at_ret = inputs["personal"].get("spouseAgeAtRetirement")
 
     # -- phase helpers --
     def get_phase(self, age: int) -> dict:
@@ -135,23 +140,37 @@ class Plan:
             return 0.0
         return w["annualIncome"]
 
-    def exp_ss(self, age: int) -> float:
-        s = self.ss
+    def spouse_age(self, age: int) -> int | None:
+        """Spouse's age this year (MFJ), derived from their age at the primary's retirement."""
+        if self.filing != "married_joint" or self.spouse_age_at_ret is None:
+            return None
+        return self.spouse_age_at_ret + (age - self.retirement_age)
+
+    def _ss_benefit(self, s: dict, own_age: int) -> float:
+        """Base SS benefit (claiming factor + COLA), no earnings test."""
         claiming = s["claimingAge"]
-        if age < claiming:
+        if own_age < claiming:
             return 0.0
         factor = SS_ADJUSTMENT_FACTORS.get(claiming, 1.0)
-        full = s["monthlyBenefitAtFRA"] * 12 * factor * (1 + s["colaRate"]) ** (age - claiming)
+        return s["monthlyBenefitAtFRA"] * 12 * factor * (1 + s["colaRate"]) ** (own_age - claiming)
 
-        # Earnings test (only before FRA, only if working).
+    def exp_ss(self, age: int) -> float:
+        # Primary benefit with the earnings test.
+        primary = self._ss_benefit(self.ss, age)
         earnings = self.part_time_income(age)
-        if age >= FULL_RETIREMENT_AGE or earnings == 0:
-            return full
-        if age == FULL_RETIREMENT_AGE:
-            over = max(0.0, earnings - EARNINGS_TEST_IN_FRA_YEAR)
-            return max(0.0, full - over / 3)
-        over = max(0.0, earnings - EARNINGS_TEST_BEFORE_FRA)
-        return max(0.0, full - over / 2)
+        if age < FULL_RETIREMENT_AGE and earnings > 0:
+            if age == FULL_RETIREMENT_AGE:
+                over = max(0.0, earnings - EARNINGS_TEST_IN_FRA_YEAR)
+                primary = max(0.0, primary - over / 3)
+            else:
+                over = max(0.0, earnings - EARNINGS_TEST_BEFORE_FRA)
+                primary = max(0.0, primary - over / 2)
+
+        # Spouse benefit (MFJ, no earnings test) → household total.
+        sp_age = self.spouse_age(age)
+        spouse = (self._ss_benefit(self.spouse_ss, sp_age)
+                  if self.spouse_ss is not None and sp_age is not None else 0.0)
+        return primary + spouse
 
     def exp_pensions(self, age: int) -> float:
         total = 0.0
@@ -179,13 +198,14 @@ class Plan:
         phase = self.get_phase(age)
         return phase["annualSpending"] * (1 + self.gen_infl) ** self.yrs_from_retirement(age)
 
-    def exp_hc_premiums(self, age: int) -> float:
-        if age < self.retirement_age:
-            return 0.0
-        if age < MEDICARE_AGE:
-            yrs = age - self.retirement_age
-            return self.pre_med["monthlyPremium"] * 12 * (1 + self.hc_infl) ** yrs
-        yrs = age - MEDICARE_AGE
+    # Healthcare is per-person: pre-Medicare inflates by calendar years since retirement
+    # (same for both spouses — they retire the same year); Medicare inflates from each
+    # person's own 65. MFJ sums two tracks (equal per-person costs); the Medicare OOP
+    # phase is keyed to your age.
+    def _person_hc_premiums(self, person_age: int, yrs_since_ret: int) -> float:
+        if person_age < MEDICARE_AGE:
+            return self.pre_med["monthlyPremium"] * 12 * (1 + self.hc_infl) ** yrs_since_ret
+        yrs = person_age - MEDICARE_AGE
         monthly = (
             self.med["partBStandardPremium"]
             + self.med["partDPremium"]
@@ -194,19 +214,36 @@ class Plan:
         )
         return monthly * 12 * (1 + self.hc_infl) ** yrs
 
-    def exp_hc_oop(self, age: int) -> float:
-        if age < self.retirement_age:
-            return 0.0
-        if age < MEDICARE_AGE:
-            yrs = age - self.retirement_age
-            return self.pre_med["annualOutOfPocket"] * (1 + self.hc_infl) ** yrs
-        yrs = age - MEDICARE_AGE
-        phase = self.get_phase(age)["name"]
+    def _person_hc_oop(self, person_age: int, yrs_since_ret: int, phase_name: str) -> float:
+        if person_age < MEDICARE_AGE:
+            return self.pre_med["annualOutOfPocket"] * (1 + self.hc_infl) ** yrs_since_ret
+        yrs = person_age - MEDICARE_AGE
         oop_by_phase = self.med["outOfPocketByPhase"]
         base = {"go_go": oop_by_phase["phase1"],
                 "slow_go": oop_by_phase["phase2"],
-                "no_go": oop_by_phase["phase3"]}.get(phase, 0)
+                "no_go": oop_by_phase["phase3"]}.get(phase_name, 0)
         return base * (1 + self.hc_infl) ** yrs
+
+    def exp_hc_premiums(self, age: int) -> float:
+        if age < self.retirement_age:
+            return 0.0
+        yrs_since_ret = age - self.retirement_age
+        total = self._person_hc_premiums(age, yrs_since_ret)
+        sp_age = self.spouse_age(age)
+        if sp_age is not None:
+            total += self._person_hc_premiums(sp_age, yrs_since_ret)
+        return total
+
+    def exp_hc_oop(self, age: int) -> float:
+        if age < self.retirement_age:
+            return 0.0
+        yrs_since_ret = age - self.retirement_age
+        phase_name = self.get_phase(age)["name"]
+        total = self._person_hc_oop(age, yrs_since_ret, phase_name)
+        sp_age = self.spouse_age(age)
+        if sp_age is not None:
+            total += self._person_hc_oop(sp_age, yrs_since_ret, phase_name)
+        return total
 
     # -- taxes --
     def taxable_social_security(self, ss_benefit: float, other_income: float) -> float:
@@ -226,7 +263,8 @@ class Plan:
         return min(taxable, self.ss_cap * ss_benefit)
 
     def standard_deduction(self, age: int, year: int) -> float:
-        seniors = 1 if age >= 65 else 0
+        sp_age = self.spouse_age(age)
+        seniors = (1 if age >= 65 else 0) + (1 if sp_age is not None and sp_age >= 65 else 0)
         infl = (1 + self.gen_infl) ** max(0, age - self.retirement_age)
         ded = (TAX_RULES["standard_deduction"][self.filing]
                + TAX_RULES["additional_65"][self.filing] * seniors) * infl

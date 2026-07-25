@@ -2,7 +2,7 @@
 
 This is the single reference for how the simulator models taxes, the constants it uses
 (and where they come from), what it deliberately does **not** model, and the roadmap for
-married-filing-jointly (MFJ) support.
+**married-filing-jointly (MFJ)** and **per-state income-tax** support.
 
 Implementation lives in [`src/lib/calculations/taxes.ts`](../src/lib/calculations/taxes.ts)
 and is applied per year in [`yearlyProjection.ts`](../src/lib/calculations/yearlyProjection.ts).
@@ -87,31 +87,115 @@ requires MFJ support (below).
 - Full 10–37% progressive brackets — a single flat marginal rate is used above the floor.
 - 0% / 15% / 20% long-term capital-gains brackets — brokerage gains are taxed at the flat rate.
 - Itemized deductions, tax credits, and the OBBBA senior-bonus MAGI phase-out.
-- State-specific rules (SS exemptions, retirement-income exclusions). The flat rate is the
-  user's approximation of combined federal + state.
-- **Filing status: single only.** See the MFJ roadmap below.
+- State-specific rules (SS exemptions, retirement-income exclusions) — the flat rate is the
+  user's approximation of combined federal + state. **Per-state modules (FL/TX/GA first) are
+  on the roadmap below.**
+- **Filing status: single only** today. **Two-person MFJ is the next phase** — see the roadmap.
 
-## Roadmap: married filing jointly (MFJ)
+## Roadmap
 
-MFJ is a multi-part feature, not a filing-status dropdown. It requires:
+The model is expanding along two axes decided in planning: **married-filing-jointly (MFJ)**
+as a first-class filing status, and **per-state income-tax modules** (starting with Georgia).
+Both are sequenced below.
 
-- **Two people** — separate ages, life expectancies, Social Security benefits and claiming
-  ages (plus survivor-benefit rules), and separate tax-deferred accounts with **per-spouse
-  RMD ages** keyed to each birth year (73 vs 75 under SECURE 2.0).
-- **MFJ tax parameters** — doubled standard deduction, per-spouse age-65 addition and
-  senior bonus, and MFJ SS thresholds ($32k/$44k). This part is straightforward and
-  already parameterized by `filingStatus` in `taxes.ts`.
-- **The survivor's ("widow's") penalty — the hard part.** On the first spouse's death,
-  filing switches **MFJ → single** the following year: the standard deduction roughly
-  halves, brackets compress, IRMAA thresholds nearly halve, and one Social Security
-  benefit stops (the survivor keeps the larger of the two). Household income falls while
-  the tax rate rises — a large, real late-retirement effect that a couples model must
-  capture. It interacts directly with the mortality assumption (which spouse dies, and when).
+### Locked-in scope (planning decisions)
 
-Likely touch points if built: the wizard (spouse inputs + filing status),
-`income.ts` (two SS streams + survivor benefit), `withdrawals.ts` / `rmd.ts` (per-spouse
-RMDs), `yearlyProjection.ts` (filing-status transition on first death), and a
-mortality / first-death model. Treat as a multi-phase effort.
+- **MFJ = two-person, no survivor penalty.** Model a spouse's age and Social Security plus
+  the MFJ tax parameters, and assume **both spouses are alive through the shared
+  life-expectancy horizon**. The survivor's penalty is deferred to Phase 3.
+- **Accounts are pooled.** One combined set of accounts and **one representative RMD age (the
+  older spouse's)** — spouses do not hold separately tracked balances. Documented as a
+  simplification both here and on the Disclosures page.
+- **State scope: FL, TX, GA first.** NY/CA deferred — their graduated bracket tables (per
+  filing status, per year) are the real maintenance cost. Every other state keeps today's
+  manual "fold state into your marginal rate" behavior.
+
+### Phase 1 — Two-person MFJ (federal)
+
+The federal MFJ *constants* already exist in `TAX_RULES` (doubled standard deduction,
+`$32k/$44k` SS thresholds, per-spouse senior bonus) and `filingStatus` is already threaded
+through `taxes.ts` → `withdrawals.ts` → `yearlyProjection.ts`. What's missing is modeling
+the *second person*:
+
+- **Filing-status + spouse inputs** in the wizard (Step 1): a Single/MFJ selector; when MFJ,
+  a spouse age and spouse Social Security (benefit at FRA, claiming age, COLA).
+- **Two SS streams.** `income.ts` computes the spouse's benefit from the spouse's age and
+  claiming age and sums both benefits before the provisional-income formula (one combined
+  `taxablePercentage` cap). The earnings test applies to the working spouse only.
+- **Per-spouse senior additions.** `calculateStandardDeduction` takes a senior *count* (0/1/2)
+  derived from the two ages, so the age-65 addition and OBBBA senior bonus phase in per spouse.
+- **RMD.** RMDs are modeled to begin at a **flat age 75** (`RMD_START_AGE` in `rmd.ts`).
+  Under SECURE 2.0 the start age is 75 for anyone **born 1960 or later**; this tool's
+  audience is the **FIRE community**, who are essentially all born after 1960, so we use a
+  flat 75 rather than asking for a birth year — which keeps the tool **age-relative** (it
+  cares only about your retirement age and balances, not the calendar). Born 1951–1959 would
+  be age 73; that cohort is largely already retired and outside the audience, so it is not
+  modeled. For a couple, accounts are **pooled**: there is one combined tax-deferred balance
+  and **one household RMD**, triggered when the **older spouse** reaches 75, applying that
+  age's Uniform-Lifetime divisor to the whole pool. This slightly **over-distributes** during
+  a large spousal age gap (the younger spouse's share is forced out before their own age 75)
+  — a small, conservative bias (taxable income pulled forward; the excess is reinvested to the
+  taxable account). Accurate per-spouse RMD timing would require separate per-spouse balances
+  (deferred with the rest of the pooled-account simplification).
+- **Disclosures + docs.** Surface the pooled-accounts / one-RMD-age and no-survivor-penalty
+  simplifications, and make the "single filer only" copy conditional on the selected status.
+
+Simplifications (disclosed): pooled accounts with one RMD age; both spouses assumed alive to
+the shared horizon (no survivor penalty, no mortality model); the spouse has no separate
+part-time, pension, or HSA inputs in this phase.
+
+### Phase 2 — Per-state income-tax modules (FL / TX / GA)
+
+State taxation of retirees varies along six axes — this is the maintenance surface:
+
+1. **Whether there is an income tax at all** (FL, TX: none).
+2. **Rate structure** — flat (GA) vs graduated brackets that differ by filing status (NY, CA).
+3. **Social Security treatment** — GA/NY/CA all exempt it, but ~9 states tax some.
+4. **Retirement-income exclusion** — amount, per-person vs per-return, age threshold, and
+   source-dependence (NY splits government vs private pensions; GA lumps most together; CA
+   excludes nothing).
+5. **State standard deduction / exemptions.**
+6. **Capital-gains treatment** — CA taxes long-term gains as ordinary income.
+
+| State | Income tax | SS | Retirement exclusion | Rate (2026) | Effort |
+|---|---|---|---|---|---|
+| FL | none | — | — | 0% | trivial |
+| TX | none | — | — | 0% | trivial |
+| GA | flat | exempt | $65k/person 65+ ($35k 62–64) | 4.99% (HB 463) | low |
+| NY | graduated | exempt | govt pension 100%; private/IRA $20k/person 59½+ | 4–10.9% | high (deferred) |
+| CA | graduated | exempt | none | 1–13.3% | high (deferred) |
+
+**Architecture:** a small registry under `src/lib/calculations/stateTax/`, one file per modeled
+state, with a common signature `computeStateTax(components, ages, filingStatus, year) →
+{ tax, modeled }`. FL/TX return `0`; GA implements the SS exemption + per-person
+retirement-income exclusion + GA standard deduction + flat rate. Unmodeled states fall back to
+the manual-rate behavior, so we never maintain all 50. Each module carries a
+`// review annually (YYYY law)` note and is mirrored in `verify_plan.py`. When a module is
+active, the Step 6 rate is treated as **federal-only** and the state guidance changes to
+"computed automatically."
+
+**New per-year output:** a `taxes.stateTax` field kept separate from federal tax for
+transparency in the Annual Breakdown. Touch points: `yearlyProjection.ts`, the
+`YearlyProjection.taxes` shape, `AnnualTable`, the cash-flow chart, `exportVerification.ts`,
+`verify_plan.py`, and tests.
+
+**Disclosures:** show the selected state's modeled rules in the existing Disclosures/Assumptions
+panel (not a new page) — GA renders "SS exempt / $65k per person 65+ / 4.99% flat (2026 GA law,
+review annually)"; FL/TX render "no state income tax"; unmodeled states keep the manual-rate note.
+
+GA 2026 sources: [HB 463 — 4.99% flat](https://www.countrytaxcalc.com/tax-calculator/usa/georgia/),
+[retirement-income exclusion](https://brevy.com/financial/georgia/retirement-income-tax),
+[Georgia DoR](https://dor.georgia.gov/retirement-income-exclusion).
+
+### Phase 3 — Survivor's ("widow's") penalty (deferred)
+
+The hard part, and why MFJ is multi-phase. On the first spouse's death, filing switches
+**MFJ → single** the following year: the standard deduction roughly halves, brackets compress,
+IRMAA thresholds nearly halve, and one Social Security benefit stops (the survivor keeps the
+larger of the two). Household income falls while the tax rate rises — a large, real
+late-retirement effect that requires a **mortality / first-death model** to place in time.
+Touch points: `yearlyProjection.ts` (filing-status transition on first death), `income.ts`
+(survivor benefit), and the mortality model.
 
 References: [CNBC — survivor's penalty](https://www.cnbc.com/2026/05/15/survivors-penalty-spouse-dies.html),
 [Hartford Funds](https://www.hartfordfunds.com/practice-management/client-conversations/financial-planning/when-a-spouse-dies-the-surviving-partner-may-face-a-surprise-tax-penalty.html).

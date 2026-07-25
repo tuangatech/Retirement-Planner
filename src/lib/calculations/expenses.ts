@@ -247,14 +247,68 @@ export function calculateMedicareCosts(
 }
 
 /**
- * Calculates total healthcare costs for a given year.
- * 
- * @param currentAge - Person's current age
+ * Healthcare (premiums + out-of-pocket) for ONE person in a given year.
+ *
+ * Pre-Medicare (age < 65): premium + out-of-pocket, inflated by calendar years since
+ * retirement. Medicare (age >= 65): premiums built from the actual components (Part B +
+ * Part D + Medigap + optional IRMAA) and out-of-pocket from the phase-specific base, each
+ * inflated from this person's own 65. (Building the premium from components — rather than a
+ * fabricated 60/40 split of a total — is what stopped the reported premium jumping at every
+ * phase change.) Cost inputs are per-person amounts; MFJ sums two of these tracks.
+ */
+function calculatePersonHealthcare(
+    personAge: number,
+    yearsSinceRetirement: number,
+    preMedicare: PreMedicareCosts,
+    medicare: MedicareCosts,
+    phase: 'working' | 'go_go' | 'slow_go' | 'no_go',
+    healthcareInflationRate: number
+): { premiums: number; outOfPocket: number } {
+    if (personAge < MEDICARE_AGE) {
+        const inflation = Math.pow(1 + healthcareInflationRate, yearsSinceRetirement);
+        return {
+            premiums: preMedicare.monthlyPremium * 12 * inflation,
+            outOfPocket: preMedicare.annualOutOfPocket * inflation,
+        };
+    }
+
+    const inflation = Math.pow(1 + healthcareInflationRate, personAge - MEDICARE_AGE);
+
+    const monthlyPremium =
+        medicare.partBStandardPremium +
+        medicare.partDPremium +
+        medicare.medigapPremium +
+        (medicare.expectIRMAA ? medicare.irmaaSurcharge : 0);
+
+    let baseOutOfPocket = 0;
+    if (phase === 'go_go') {
+        baseOutOfPocket = medicare.outOfPocketByPhase.phase1;
+    } else if (phase === 'slow_go') {
+        baseOutOfPocket = medicare.outOfPocketByPhase.phase2;
+    } else if (phase === 'no_go') {
+        baseOutOfPocket = medicare.outOfPocketByPhase.phase3;
+    }
+
+    return {
+        premiums: monthlyPremium * 12 * inflation,
+        outOfPocket: baseOutOfPocket * inflation,
+    };
+}
+
+/**
+ * Calculates total household healthcare costs for a given year.
+ *
+ * Single filer: one track (you). MFJ: two tracks summed — each spouse pre-Medicare until
+ * their own 65, then Medicare — assuming equal per-person costs. The phase (which sets the
+ * Medicare out-of-pocket base) is keyed to YOUR age, matching the household spending phases.
+ *
+ * @param currentAge - Your current age
  * @param retirementAge - Age when retirement begins
- * @param preMedicare - Pre-Medicare costs
- * @param medicare - Medicare costs
+ * @param preMedicare - Pre-Medicare costs (per person)
+ * @param medicare - Medicare costs (per person)
  * @param phases - Retirement phases (for phase determination)
  * @param healthcareInflationRate - Healthcare inflation rate
+ * @param spouseAge - MFJ only: the spouse's age this year (adds a second per-person track)
  * @returns Total annual healthcare costs
  */
 export function calculateHealthcareCosts(
@@ -263,60 +317,39 @@ export function calculateHealthcareCosts(
     preMedicare: PreMedicareCosts,
     medicare: MedicareCosts,
     phases: [RetirementPhase, RetirementPhase, RetirementPhase],
-    healthcareInflationRate: number
+    healthcareInflationRate: number,
+    spouseAge?: number
 ): {
     premiums: number;
     outOfPocket: number;
     total: number;
 } {
-    const phase = determinePhase(currentAge, phases);
-
     // Not yet retired: no healthcare costs modeled.
     if (currentAge < retirementAge) {
         return { premiums: 0, outOfPocket: 0, total: 0 };
     }
 
-    if (currentAge < MEDICARE_AGE) {
-        // Pre-Medicare: inflate premiums and out-of-pocket independently from the
-        // retirement start year. (Previously the `premiums` field was reported as a
-        // flat, un-inflated monthlyPremium*12 and `outOfPocket` absorbed all premium
-        // inflation — the totals were correct but the split shown to the user was not.)
-        const yearsSinceRetirement = currentAge - retirementAge;
-        const inflation = Math.pow(1 + healthcareInflationRate, yearsSinceRetirement);
+    // Phase (Medicare out-of-pocket base) is keyed to your age — the household phase.
+    const phase = determinePhase(currentAge, phases);
+    // Both spouses retire the same calendar year, so pre-Medicare inflation (calendar
+    // years since retirement) is identical for each; only their Medicare timing differs.
+    const yearsSinceRetirement = currentAge - retirementAge;
 
-        const premiums = preMedicare.monthlyPremium * 12 * inflation;
-        const outOfPocket = preMedicare.annualOutOfPocket * inflation;
+    const you = calculatePersonHealthcare(
+        currentAge, yearsSinceRetirement, preMedicare, medicare, phase, healthcareInflationRate
+    );
+    let premiums = you.premiums;
+    let outOfPocket = you.outOfPocket;
 
-        return { premiums, outOfPocket, total: premiums + outOfPocket };
-    } else {
-        // Medicare: build premiums from the actual components (Part B + Part D +
-        // Medigap + optional IRMAA) and out-of-pocket from the phase-specific base,
-        // each inflated from age 65. (Previously the split was a fabricated 60/40 of
-        // the total, which is why the reported premium jumped at every phase change.)
-        const yearsSinceMedicare = currentAge - MEDICARE_AGE;
-        const inflation = Math.pow(1 + healthcareInflationRate, yearsSinceMedicare);
-
-        const monthlyPremium =
-            medicare.partBStandardPremium +
-            medicare.partDPremium +
-            medicare.medigapPremium +
-            (medicare.expectIRMAA ? medicare.irmaaSurcharge : 0);
-
-        const premiums = monthlyPremium * 12 * inflation;
-
-        let baseOutOfPocket = 0;
-        if (phase === 'go_go') {
-            baseOutOfPocket = medicare.outOfPocketByPhase.phase1;
-        } else if (phase === 'slow_go') {
-            baseOutOfPocket = medicare.outOfPocketByPhase.phase2;
-        } else if (phase === 'no_go') {
-            baseOutOfPocket = medicare.outOfPocketByPhase.phase3;
-        }
-
-        const outOfPocket = baseOutOfPocket * inflation;
-
-        return { premiums, outOfPocket, total: premiums + outOfPocket };
+    if (spouseAge !== undefined) {
+        const spouse = calculatePersonHealthcare(
+            spouseAge, yearsSinceRetirement, preMedicare, medicare, phase, healthcareInflationRate
+        );
+        premiums += spouse.premiums;
+        outOfPocket += spouse.outOfPocket;
     }
+
+    return { premiums, outOfPocket, total: premiums + outOfPocket };
 }
 
 /**
@@ -383,7 +416,9 @@ export function calculateYearlyExpenses(
     preMedicare: PreMedicareCosts,
     medicare: MedicareCosts,
     generalInflationRate: number,
-    healthcareInflationRate: number
+    healthcareInflationRate: number,
+    /** MFJ only: the spouse's age this year — adds a second per-person healthcare track. */
+    spouseAge?: number
 ): {
     living: number;
     healthcarePremiums: number;
@@ -404,7 +439,8 @@ export function calculateYearlyExpenses(
         preMedicare,
         medicare,
         phases,
-        healthcareInflationRate
+        healthcareInflationRate,
+        spouseAge
     );
 
     const oneTime = calculateOneTimeExpenses(

@@ -12,9 +12,15 @@ export interface PersonalInfo {
     retirementAge: number;
     lifeExpectancy: number;
     state: USState;
-    // Optional; the tax model defaults to 'single' when unset. (A filing-status
-    // selector in the wizard is a future enhancement.)
+    // Optional; the tax model defaults to 'single' when unset.
     filingStatus?: 'single' | 'married_joint';
+    // MFJ only: the spouse's age in the year the primary retires. The simulation
+    // is driven by the primary's age, so each year the spouse's age is derived as
+    // spouseAgeAtRetirement + (currentAge − retirementAge). Used for per-spouse
+    // age-65 deduction additions and the (older-spouse) RMD trigger. Phase 1 models
+    // a couple as pooled accounts, one shared life expectancy, and no survivor
+    // penalty — see docs/2-tax-model.md.
+    spouseAgeAtRetirement?: number;
 }
 
 export interface RetirementPhase {
@@ -134,6 +140,10 @@ export interface UserInputs {
     };
     income: {
         socialSecurity: SocialSecurity;
+        // MFJ only: the spouse's own Social Security. Summed with the primary's
+        // benefit into a single household SS stream before the provisional-income
+        // formula. Absent for single filers.
+        spouseSocialSecurity?: SocialSecurity;
         pensions: Pension[];
         partTimeWork: PartTimeWork;
         rentalIncome: RentalIncome;

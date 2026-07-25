@@ -14,7 +14,7 @@ work, rental) is applied, the tool covers the remaining cash-flow gap
 
 1. **HSA first, for healthcare** — tax-free at any age. If `allowNonMedicalAfter65` is on,
    HSA can also cover general expenses after 65 (taxed as ordinary income).
-2. **RMDs (age 73+)** — the required amount is forced out of the tax-deferred account even
+2. **RMDs (age 75)** — the required amount is forced out of the tax-deferred account even
    if not needed; any after-tax excess is reinvested into the taxable account.
 3. **Tax-smart fill** *(when strategy ≠ `standard`)* — draw tax-deferred up to the
    standard-deduction floor (≈ tax-free), capped by the spending need. This uses the free
@@ -64,7 +64,7 @@ Split into things a **user** can do with today's tool and things the **app** cou
 
 ### For users, with the tool as-is
 
-- **Use the "gap years."** Between retirement and RMD age (73/75) — often 5–12 years —
+- **Use the "gap years."** Between retirement and RMD age (75) — often 5–12 years —
   taxable income is usually low. This is the sweet spot to realize tax-deferred income
   cheaply ([Fourthought](https://fourthought.com/roth-conversions-before-rmds-using-the-gap-years-wisely/)).
   You can approximate this by setting the withdrawal order to **tax-deferred first** during

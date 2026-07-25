@@ -105,7 +105,7 @@ python3 scripts/verify_plan.py --percentile p10   # check the worst-case run
 python3 scripts/verify_plan.py --json path/to/file.json --tolerance 0.03
 ```
 
-It re-derives income, expenses, healthcare premiums/out-of-pocket, taxes, and the cash-flow identity from the inputs, and exits non-zero if any deterministic check fails. Downloaded bundles are git-ignored. See `docs/5-technical-implementation.md` §4.2 for details.
+It re-derives income, expenses, healthcare premiums/out-of-pocket, taxes, and the cash-flow identity from the inputs, and exits non-zero if any deterministic check fails. Downloaded bundles are git-ignored. See `docs/7-technical-implementation.md` §4.2 for details.
 
 ---
 
@@ -189,8 +189,10 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 - **[1-requirements.md](docs/1-requirements.md)** — product requirements
 - **[2-tax-model.md](docs/2-tax-model.md)** — tax logic, constants/sources, and MFJ roadmap
 - **[3-withdrawal-strategy.md](docs/3-withdrawal-strategy.md)** — withdrawal order and tax-efficiency suggestions
-- **[4-system-design.md](docs/4-system-design.md)** — architecture and design
-- **[5-technical-implementation.md](docs/5-technical-implementation.md)** — implementation guide (incl. verification workflow)
+- **[4-married-filing-jointly.md](docs/4-married-filing-jointly.md)** — married-filing-jointly (couples) model and roadmap
+- *5- — reserved for the per-state tax model (FL/TX/GA)*
+- **[6-system-design.md](docs/6-system-design.md)** — architecture and design
+- **[7-technical-implementation.md](docs/7-technical-implementation.md)** — implementation guide (incl. verification workflow)
 
 ### Key Design Decisions
 

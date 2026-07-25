@@ -50,7 +50,7 @@ export interface WithdrawalResult {
  * WITHDRAWAL ORDER:
  * 1. HSA for healthcare (tax-free, any age)
  * 2. HSA for general expenses (age 65+, taxed)
- * 3. RMDs from tax-deferred (age 73+)
+ * 3. RMDs from tax-deferred (age 75; see RMD_START_AGE)
  * 4. Tax-smart fill (strategy !== 'standard'): draw tax-deferred up to the
  *    standard-deduction floor (~tax-free), then fall through to priority order
  * 5. Regular accounts by priority order
@@ -70,6 +70,10 @@ export interface WithdrawalResult {
  * @param year - Calendar year (for the senior-bonus deduction sunset)
  * @param deductionInflationFactor - Inflation scaling applied to the deduction floor
  * @param filingStatus - Filing status for the deduction and SS thresholds
+ * @param spouseAge - MFJ only: spouse's age this year (for the per-spouse age-65 deduction)
+ * @param rmdAge - Age governing the RMD trigger; for MFJ pooled accounts this is the
+ *   older spouse's age so RMDs start no later than required. Defaults to currentAge.
+ * @param rmdStartAge - Age at which RMDs begin (this tool passes RMD_START_AGE = 75). Default 73.
  */
 export function executeWithdrawals(
     currentAge: number,
@@ -85,7 +89,10 @@ export function executeWithdrawals(
     strategy: 'standard' | 'tax_smart' | 'roth_conversion' = 'standard',
     year: number = 2026,
     deductionInflationFactor: number = 1,
-    filingStatus: FilingStatus = 'single'
+    filingStatus: FilingStatus = 'single',
+    spouseAge?: number,
+    rmdAge: number = currentAge,
+    rmdStartAge: number = 73
 ): WithdrawalResult {
     const balances = { ...currentBalances };
 
@@ -141,9 +148,11 @@ export function executeWithdrawals(
         balances.hsa = hsaResult.remainingBalance;
     }
 
-    // STEP 1: Handle RMDs (age >= 73)
-    if (currentAge >= 73) {
-        rmdAmount = calculateRMD(currentAge, balances.taxDeferred);
+    // STEP 1: Handle RMDs, beginning at rmdStartAge (the app models a flat 75). For MFJ
+    // pooled accounts the trigger uses the older spouse's age (rmdAge), so distributions
+    // start no later than required.
+    if (rmdAge >= rmdStartAge) {
+        rmdAmount = calculateRMD(rmdAge, balances.taxDeferred, rmdStartAge);
 
         if (rmdAmount > 0) {
             const actualRMD = Math.min(rmdAmount, balances.taxDeferred);
@@ -197,7 +206,9 @@ export function executeWithdrawals(
                 currentAge,
                 year,
                 deductionInflationFactor,
-                filingStatus
+                filingStatus,
+                true,
+                spouseAge
             );
 
             const fillAmount = Math.min(cashFlowGap, room, availableTaxDeferred);

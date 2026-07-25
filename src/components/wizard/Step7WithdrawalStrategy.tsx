@@ -3,6 +3,7 @@
 import { useInputs } from '@/contexts/InputsContext';
 import { Check, Info, Lock } from 'lucide-react';
 import { RetirementTimeline } from './RetirementTimeline';
+import { RMD_START_AGE } from '@/lib/calculations/rmd';
 
 type StrategyKey = 'standard' | 'tax_smart' | 'roth_conversion';
 
@@ -130,15 +131,16 @@ export function Step7WithdrawalStrategy() {
             <div className="border rounded-lg p-5 bg-gradient-to-r from-blue-50 to-white">
                 <h3 className="font-semibold text-lg mb-1">Your retirement timeline</h3>
                 <p className="text-sm text-gray-600 mb-3">
-                    The “gap years” between retirement and age 73 are when a smart withdrawal order
+                    The “gap years” between retirement and age {RMD_START_AGE} are when a smart withdrawal order
                     saves the most tax — before Social Security and forced RMDs fill up your taxable income.
                     This timeline reflects <strong>your</strong> retirement, Social Security, and life-expectancy
-                    ages, and shows the years up to 73 wider since that’s your window to act.
+                    ages, and shows the years up to {RMD_START_AGE} wider since that’s your window to act.
                 </p>
                 <RetirementTimeline
                     retirementAge={inputs.personal.retirementAge}
                     lifeExpectancy={inputs.personal.lifeExpectancy}
                     ssClaimingAge={inputs.income.socialSecurity.claimingAge}
+                    rmdAge={RMD_START_AGE}
                 />
                 <ul className="mt-3 text-sm text-gray-600 space-y-1.5">
                     <li>
