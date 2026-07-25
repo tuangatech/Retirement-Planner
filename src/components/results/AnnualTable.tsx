@@ -31,6 +31,15 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
     // Generate smart insights
     const insights = useMemo(() => generateInsights(projections, inputs), [projections, inputs]);
 
+    // Age at which the (funded) HSA first depletes — drives the 💊 marker. Mirrors the
+    // HSA-depletion insight: only for an HSA that started funded, and not the very first year.
+    const hsaFunded = inputs.accounts.hsa.balanceAtRetirement > 0;
+    const hsaDepletionAge = useMemo(() => {
+        if (!hsaFunded) return null;
+        const idx = projections.findIndex(p => p.portfolio.balances.hsa < 100);
+        return idx > 0 ? projections[idx].age : null;
+    }, [projections, hsaFunded]);
+
     const exportToCSV = () => {
         // ✅ COMPREHENSIVE CSV: All account details for spreadsheet analysis
         const headers = [
@@ -169,7 +178,8 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                 const isMedicare = p.age === 65;
                                 const isSSStart = p.age === inputs.income.socialSecurity.claimingAge;
                                 const isRMD = p.age === RMD_START_AGE;
-                                const hasEvent = isRetirement || isMedicare || isSSStart || isRMD;
+                                const isHSADepleted = hsaDepletionAge !== null && p.age === hsaDepletionAge;
+                                const hasEvent = isRetirement || isMedicare || isSSStart || isRMD || isHSADepleted;
 
                                 return (
                                     <tr
@@ -212,6 +222,14 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                                                     <span className="inline-flex items-center gap-0.5 cursor-help">📊 RMDs</span>
                                                                 </TooltipTrigger>
                                                                 <TooltipContent>Required Minimum Distributions begin (age {RMD_START_AGE})</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                        {isHSADepleted && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="inline-flex items-center gap-0.5 cursor-help">💊 Depleted</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>HSA depleted (age {hsaDepletionAge}) — healthcare costs now come from your other accounts (and are taxed)</TooltipContent>
                                                             </Tooltip>
                                                         )}
                                                     </div>
