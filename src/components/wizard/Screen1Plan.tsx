@@ -5,7 +5,7 @@
 // so the phase table updates live as the timeline changes (see the sync effect below).
 
 import { useInputs } from '@/contexts/InputsContext';
-import { US_STATES } from '@/lib/constants';
+import { US_STATES, DEFAULT_SPOUSE_AGE_AT_RETIREMENT } from '@/lib/constants';
 import type { USState, RetirementPhase, OneTimeExpense } from '@/types';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
@@ -35,7 +35,7 @@ export function Screen1Plan() {
         if (value === 'married_joint') {
             updatePersonal({
                 filingStatus: 'married_joint',
-                spouseAgeAtRetirement: personal.spouseAgeAtRetirement ?? retirementAge - 2,
+                spouseAgeAtRetirement: personal.spouseAgeAtRetirement ?? DEFAULT_SPOUSE_AGE_AT_RETIREMENT,
             });
             if (!income.spouseSocialSecurity) {
                 updateSpouseSocialSecurity({});
@@ -189,7 +189,7 @@ export function Screen1Plan() {
                             <label className="block text-sm font-medium mb-1">Spouse’s Age at Retirement</label>
                             <input
                                 type="number"
-                                value={personal.spouseAgeAtRetirement ?? retirementAge - 2}
+                                value={personal.spouseAgeAtRetirement ?? DEFAULT_SPOUSE_AGE_AT_RETIREMENT}
                                 onChange={(e) => updatePersonal({ spouseAgeAtRetirement: parseInt(e.target.value) || 0 })}
                                 className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                                 min="40"

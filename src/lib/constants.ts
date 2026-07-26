@@ -8,11 +8,15 @@ import type { SocialSecurity, USState, UserInputs } from '@/types';
  * a sensible, editable baseline.
  */
 export const DEFAULT_SPOUSE_SOCIAL_SECURITY: SocialSecurity = {
-    monthlyBenefitAtFRA: 1800,
+    monthlyBenefitAtFRA: 1200,
     claimingAge: 67,
     colaRate: 0.030,
     taxablePercentage: 0.85,
 };
+
+/** Spouse's age the year the primary retires, seeded when the user first switches to
+ *  married-filing-jointly. A sensible, editable baseline (spouse a couple years younger). */
+export const DEFAULT_SPOUSE_AGE_AT_RETIREMENT = 56;
 
 export const US_STATES: { value: USState; label: string }[] = [
     { value: 'AL', label: 'Alabama' },
@@ -70,20 +74,20 @@ export const US_STATES: { value: USState; label: string }[] = [
 
 export const DEFAULT_VALUES: UserInputs = {
     personal: {
-        retirementAge: 60,
+        retirementAge: 58,
         lifeExpectancy: 90,
         state: 'GA',
         filingStatus: 'single',
     },
     phases: [
-        { name: 'go_go', startAge: 60, endAge: 74, annualSpending: 50000 },
+        { name: 'go_go', startAge: 58, endAge: 74, annualSpending: 50000 },
         { name: 'slow_go', startAge: 75, endAge: 85, annualSpending: 40000 },
         { name: 'no_go', startAge: 86, endAge: 90, annualSpending: 36000 },
     ],
     oneTimeExpenses: [],
     accounts: {
         taxDeferred: {  // e.g., Traditional IRA, 401(k)
-            balanceAtRetirement: 400000,
+            balanceAtRetirement: 300000,
             expectedReturnRate: 0.07,
         },
         roth: {         // e.g., Roth IRA, Roth 401(k)
@@ -91,7 +95,7 @@ export const DEFAULT_VALUES: UserInputs = {
             expectedReturnRate: 0.08,
         },
         taxable: {      // e.g., Brokerage Account
-            balanceAtRetirement: 100000,
+            balanceAtRetirement: 200000,
             expectedReturnRate: 0.08,
             costBasisPercentage: 0.70,
         },        
@@ -110,7 +114,7 @@ export const DEFAULT_VALUES: UserInputs = {
     },
     income: {
         socialSecurity: {
-            monthlyBenefitAtFRA: 2500,
+            monthlyBenefitAtFRA: 2400,
             claimingAge: 67,
             colaRate: 0.030,
             taxablePercentage: 0.85,
