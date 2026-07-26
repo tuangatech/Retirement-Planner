@@ -20,18 +20,14 @@ export function Screen3Healthcare() {
             <div>
                 <h2 className="text-2xl font-bold mb-2">Healthcare Costs</h2>
                 <p className="text-gray-600">Estimate your healthcare expenses before and during Medicare</p>
-            </div>
-
-            {isMFJ && (
-                <div className="bg-blue-50 border border-blue-300 rounded-lg p-4">
-                    <p className="text-sm text-blue-800">
-                        Enter these as <strong>per-person</strong> costs. The simulator applies them to
-                        both spouses on their <strong>own</strong> Medicare timelines — each is pre-Medicare
-                        until their own 65, then on Medicare — and sums the two tracks. Both spouses are
-                        assumed to have equal per-person costs.
+                {isMFJ && (
+                    <p className="text-sm text-gray-500 mt-2">
+                        Enter these as <strong>per-person</strong> costs — applied to each spouse on their own
+                        Medicare timeline (pre-Medicare until their own 65, then Medicare) and summed. Both spouses
+                        are assumed to have equal per-person costs.
                     </p>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Educational Overview */}
             <CollapsibleHelpPanel

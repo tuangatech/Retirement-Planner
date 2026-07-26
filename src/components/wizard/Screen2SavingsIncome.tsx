@@ -74,7 +74,10 @@ export function Screen2SavingsIncome() {
             </div>
 
             {/* ---- Accounts ---- */}
-            <h3 className="text-xl font-bold">Investment Accounts</h3>
+            <div>
+                <h3 className="text-xl font-bold">Investment Accounts</h3>
+                <p className="text-sm text-gray-500">Expected-return guide: stocks ~8%, bonds ~4% — blend for your mix.</p>
+            </div>
             {accountTypes.map(({ key, label, subtitle, color, help }) => (
                 <div key={key} className={`border rounded-lg p-5 bg-gradient-to-r ${color}`}>
                     <div className="mb-3">
@@ -102,7 +105,6 @@ export function Screen2SavingsIncome() {
                                     className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="0.1" min="-5" max="20" />
                                 <span className="absolute right-3 top-2 text-gray-500">%</span>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">Stocks ~8%, bonds ~4%</p>
                         </div>
                         {key === 'taxable' && isAdvanced && (
                             <div className="md:col-span-2">

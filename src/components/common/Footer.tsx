@@ -11,12 +11,23 @@ export function Footer() {
             <div className="max-w-6xl mx-auto px-4">
                 <div className="flex flex-col items-center justify-center text-center space-y-4">
                     <p className="text-sm max-w-2xl">
-                        For educational purposes only. Not financial, tax, legal, or investment advice.
-                        Projections use actuarial models with documented assumptions. Consult a qualified professional before making retirement decisions.
+                        Not financial, tax, legal, or investment advice. Projections use documented assumptions —
+                        consult a qualified professional before making retirement decisions.
                     </p>
                     <div className="flex items-center gap-2 text-xs">
                         <Heart className="w-4 h-4 text-red-400" />
-                        <span>Built with transparency • © {currentYear}</span>
+                        <span>
+                            Open source for the FIRE community ·{' '}
+                            <a
+                                href="https://github.com/tuangatech/retirement-planner"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline hover:text-slate-200"
+                            >
+                                Contribute on GitHub
+                            </a>
+                            {' '}· © {currentYear}
+                        </span>
                     </div>
                 </div>
             </div>
