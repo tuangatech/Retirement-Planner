@@ -15,6 +15,17 @@ interface AnnualTableProps {
     inputs: UserInputs;
 }
 
+// Visual styling for each retirement phase. Color encodes activity/spending level
+// (Go-Go highest → No-Go lowest). The leftmost column is a thin colored "spine": one
+// merged rowSpan cell per contiguous phase. The color is the only cue in the table, so
+// a legend + hover tooltip carry the meaning (accessibility). Order: green → amber → slate.
+const PHASE_META: Record<string, { label: string; rail: string }> = {
+    working: { label: 'Working', rail: 'bg-slate-400' },
+    go_go: { label: 'Go-Go', rail: 'bg-green-400' },
+    slow_go: { label: 'Slow-Go', rail: 'bg-amber-400' },
+    no_go: { label: 'No-Go', rail: 'bg-slate-300' },
+};
+
 interface Insight {
     type: 'positive' | 'info' | 'warning' | 'event';
     icon: React.ReactNode;
@@ -39,6 +50,25 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
         const idx = projections.findIndex(p => p.portfolio.balances.hsa < 100);
         return idx > 0 ? projections[idx].age : null;
     }, [projections, hsaFunded]);
+
+    // MFJ shows the spouse's age alongside the primary's (derived: spouse ages in
+    // lockstep with the primary). Events are keyed to the primary's age only.
+    const isMFJ = inputs.personal.filingStatus === 'married_joint';
+    const spouseAgeAtRetirement = inputs.personal.spouseAgeAtRetirement;
+
+    // Contiguous phase groups for the merged Phase column: startIndex → number of rows
+    // to span. Each phase renders as one tinted band with a single centered label.
+    const phaseGroupSpan = useMemo(() => {
+        const spans: Record<number, number> = {};
+        let i = 0;
+        while (i < projections.length) {
+            let j = i + 1;
+            while (j < projections.length && projections[j].phase === projections[i].phase) j++;
+            spans[i] = j - i;
+            i = j;
+        }
+        return spans;
+    }, [projections]);
 
     const exportToCSV = () => {
         // ✅ COMPREHENSIVE CSV: All account details for spreadsheet analysis
@@ -160,11 +190,34 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                 {/* ✅ CLEAN TABLE: 8 columns for easy scanning */}
                 <TooltipProvider delayDuration={100}>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm table-fixed">
+                        {/* Thin phase spine + Age; the 5 money columns share the rest equally */}
+                        <colgroup>
+                            <col className="w-[5px]" />
+                            <col className="w-[13%]" />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                            <col />
+                        </colgroup>
                         <thead className="bg-gray-50 border-b-2 border-gray-200">
                             <tr>
-                                <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left font-semibold">Age</th>
-                                <th className="px-4 py-3 text-left font-semibold">Phase</th>
+                                <th className="sticky left-0 bg-gray-50 p-0" aria-label="Life phase" />
+                                <th className="sticky left-[5px] bg-gray-50 px-4 py-3 text-left font-semibold">
+                                    {isMFJ && spouseAgeAtRetirement != null ? (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <span className="inline-flex items-center gap-1 cursor-help underline decoration-dotted decoration-gray-400/60 underline-offset-4">
+                                                    Age
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-[16rem]">
+                                                Your age | your spouse&apos;s age. At retirement you&apos;re {inputs.personal.retirementAge} and your spouse is {spouseAgeAtRetirement}. Event markers below follow your (primary) age.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    ) : 'Age'}
+                                </th>
                                 <th className="px-4 py-3 text-right font-semibold">Income</th>
                                 <th className="px-4 py-3 text-right font-semibold">Expenses</th>
                                 <th className="px-4 py-3 text-right font-semibold">Taxes</th>
@@ -181,14 +234,33 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                 const isHSADepleted = hsaDepletionAge !== null && p.age === hsaDepletionAge;
                                 const hasEvent = isRetirement || isMedicare || isSSStart || isRMD || isHSADepleted;
 
+                                const zebra = index % 2 === 1 ? 'bg-gray-50' : 'bg-white';
+                                const phaseMeta = PHASE_META[p.phase] ?? PHASE_META.go_go;
+                                const phaseSpan = phaseGroupSpan[index]; // set only on a group's first row
+
                                 return (
                                     <tr
                                         key={index}
-                                        className={`hover:bg-gray-50 ${hasEvent ? 'bg-blue-50' : ''}`}
+                                        className={`${zebra} hover:bg-blue-50/40`}
                                     >
+                                        {/* Phase spine — thin colored bar, one merged cell per contiguous phase */}
+                                        {phaseSpan && (
+                                            <td rowSpan={phaseSpan} className={`sticky left-0 p-0 relative ${phaseMeta.rail}`}>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button type="button" aria-label={`${phaseMeta.label} phase`} className="absolute inset-0 w-full h-full cursor-help" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="right">{phaseMeta.label}</TooltipContent>
+                                                </Tooltip>
+                                            </td>
+                                        )}
+
                                         {/* Age with event markers */}
-                                        <td className="sticky left-0 bg-white px-4 py-3 font-medium">
+                                        <td className={`sticky left-[5px] px-4 py-3 font-medium ${zebra}`}>
                                             {p.age}
+                                            {isMFJ && spouseAgeAtRetirement != null && (
+                                                <span className="text-gray-400 font-normal"> | {spouseAgeAtRetirement + (p.age - inputs.personal.retirementAge)}</span>
+                                            )}
                                             {hasEvent && (
                                                 <TooltipProvider delayDuration={100}>
                                                     <div className="text-xs text-blue-600 font-normal flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
@@ -213,7 +285,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                                                 <TooltipTrigger asChild>
                                                                     <span className="inline-flex items-center gap-0.5 cursor-help">💰 SS</span>
                                                                 </TooltipTrigger>
-                                                                <TooltipContent>Social Security starts (claiming age {inputs.income.socialSecurity.claimingAge})</TooltipContent>
+                                                                <TooltipContent>Social Security starts (age {inputs.income.socialSecurity.claimingAge})</TooltipContent>
                                                             </Tooltip>
                                                         )}
                                                         {isRMD && (
@@ -229,17 +301,12 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                                                 <TooltipTrigger asChild>
                                                                     <span className="inline-flex items-center gap-0.5 cursor-help">💊 Depleted</span>
                                                                 </TooltipTrigger>
-                                                                <TooltipContent>HSA depleted (age {hsaDepletionAge}) — healthcare costs now come from your other accounts (and are taxed)</TooltipContent>
+                                                                <TooltipContent>HSA depleted (age {hsaDepletionAge})</TooltipContent>
                                                             </Tooltip>
                                                         )}
                                                     </div>
                                                 </TooltipProvider>
                                             )}
-                                        </td>
-
-                                        {/* Phase */}
-                                        <td className="px-4 py-3 capitalize text-gray-700">
-                                            {p.phase.replace('_', '-')}
                                         </td>
 
                                         {/* Income */}
@@ -374,6 +441,16 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                 </div>
             )}
 
+            {/* Phase Legend — decodes the left color spine */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-2 text-sm">Life Phases (left color bar):</h4>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
+                    <span className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-sm bg-green-400" />Go-Go — active early years</span>
+                    <span className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-sm bg-amber-400" />Slow-Go — slowing down</span>
+                    <span className="flex items-center gap-2"><span className="inline-block w-3 h-3 rounded-sm bg-slate-300" />No-Go — later years</span>
+                </div>
+            </div>
+
             {/* Event Legend */}
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-900 mb-2 text-sm">Event Markers in Table:</h4>
@@ -383,9 +460,12 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                     <div>💰 = Social Security Starts</div>
                     <div>📊 = RMDs Begin (Age {RMD_START_AGE})</div>
                     {inputs.accounts.hsa.balanceAtRetirement > 0 && (
-                        <div>💊 = HSA Depleted (see CSV for details)</div>
+                        <div>💊 = HSA Depleted</div>
                     )}
                 </div>
+                {isMFJ && (
+                    <p className="text-xs text-gray-500 mt-2">Event markers follow your (primary) age, not your spouse&apos;s.</p>
+                )}
             </div>
         </div>
     );
