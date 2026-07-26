@@ -15,19 +15,31 @@ export function WizardProgress({
     stepTitles,
     onStepClick = () => {},
 }: WizardProgressProps) {
+    // "Alternative label" stepper: circles sit at their column centers (evenly spread
+    // full-width), labels centered beneath each. The connector is one continuous track
+    // behind the circles, spanning the first→last circle centers, with a blue fill up to
+    // the current step. Insetting circles at column centers keeps centered labels from
+    // clipping at the edges.
+    const inset = `${50 / totalSteps}%`;
+    const fillWidth = `${(currentStep / totalSteps) * 100}%`;
+
     return (
         <div className="mb-8">
-            <div className="flex items-center justify-between mb-1">
-                {Array.from({ length: totalSteps }).map((_, index) => {
+            <div className="relative flex">
+                {/* Connector track + progress fill (behind the circles) */}
+                <div className="absolute top-5 h-1 bg-gray-300 z-0" style={{ left: inset, right: inset }} />
+                <div className="absolute top-5 h-1 bg-blue-600 z-0 transition-all" style={{ left: inset, width: fillWidth }} />
+
+                {stepTitles.map((title, index) => {
                     const isVisited = index <= currentStep;
                     const isPast = index < currentStep;
 
                     return (
-                        <div key={index} className="flex items-center flex-1">
+                        <div key={index} className="relative z-10 flex flex-1 flex-col items-center">
                             <button
                                 onClick={() => onStepClick(index)}
                                 disabled={!isPast}
-                                title={isPast ? `Go to ${stepTitles[index]}` : undefined}
+                                title={isPast ? `Go to ${title}` : undefined}
                                 className={cn(
                                     'w-10 h-10 rounded-full flex items-center justify-center font-medium transition-colors',
                                     isVisited
@@ -40,40 +52,22 @@ export function WizardProgress({
                             >
                                 {index + 1}
                             </button>
-                            {index < totalSteps - 1 && (
-                                <div
-                                    className={cn(
-                                        'flex-1 h-1 transition-colors',
-                                        index < currentStep ? 'bg-blue-600' : 'bg-gray-300'
-                                    )}
-                                />
-                            )}
+                            <button
+                                onClick={() => onStepClick(index)}
+                                disabled={!isPast}
+                                className={cn(
+                                    'mt-2 max-w-full px-1 text-sm leading-tight text-center transition-colors',
+                                    isVisited
+                                        ? 'text-blue-600 font-medium'
+                                        : 'text-gray-500',
+                                    isPast
+                                        ? 'hover:underline cursor-pointer'
+                                        : 'cursor-default'
+                                )}
+                            >
+                                {title}
+                            </button>
                         </div>
-                    );
-                })}
-            </div>
-            <div className="flex justify-between">
-                {stepTitles.map((title, index) => {
-                    const isVisited = index <= currentStep;
-                    const isPast = index < currentStep;
-
-                    return (
-                        <button
-                            key={index}
-                            onClick={() => onStepClick(index)}
-                            disabled={!isPast}
-                            className={cn(
-                                'text-sm transition-colors flex-1 text-left',
-                                isVisited
-                                    ? 'text-blue-600 font-medium'
-                                    : 'text-gray-500',
-                                isPast
-                                    ? 'hover:underline cursor-pointer'
-                                    : 'cursor-default'
-                            )}
-                        >
-                            {title}
-                        </button>
                     );
                 })}
             </div>
