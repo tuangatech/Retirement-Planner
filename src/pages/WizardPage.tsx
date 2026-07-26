@@ -14,6 +14,8 @@ import { Screen4Assumptions } from '@/components/wizard/Screen4Assumptions';
 import { useResults } from '@/contexts/ResultsContext';
 import { useInputs } from '@/contexts/InputsContext';
 import { trackPageView, trackWizardStep, trackCalculationStart } from '@/lib/analytics';
+import AssumptionsPanel from '@/components/results/AssumptionsPanel';
+import { Info, X } from 'lucide-react';
 
 
 const STEPS = [
@@ -35,6 +37,7 @@ export default function WizardPage() {
 
     const { calculate, isCalculating, calculationProgress } = useResults();
     const { inputs } = useInputs();
+    const [showDisclosures, setShowDisclosures] = useState(false);
 
     // Track step changes for analytics
     const [stepStartTime, setStepStartTime] = useState<number>(Date.now());
@@ -122,7 +125,14 @@ export default function WizardPage() {
                 )}
 
                 {/* Step Content */}
-                <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+                <div className="relative bg-white rounded-xl shadow-lg p-8 mb-8">
+                    <button
+                        type="button"
+                        onClick={() => setShowDisclosures(true)}
+                        className="absolute top-8 right-8 inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                        <Info className="w-4 h-4" /> Disclosures
+                    </button>
                     <CurrentStepComponent />
                 </div>
 
@@ -139,6 +149,33 @@ export default function WizardPage() {
 
             {/* ✅ NEW: Footer on all pages */}
             <Footer />
+
+            {/* Disclosures modal — reuses AssumptionsPanel so there's one source of truth */}
+            {showDisclosures && (
+                <div
+                    className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto"
+                    onClick={() => setShowDisclosures(false)}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full my-8" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between border-b px-6 py-4 sticky top-0 bg-white rounded-t-xl">
+                            <h3 className="text-lg font-semibold">Assumptions &amp; Limitations</h3>
+                            <button
+                                type="button"
+                                onClick={() => setShowDisclosures(false)}
+                                className="text-gray-500 hover:text-gray-700 p-1"
+                                aria-label="Close disclosures"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <AssumptionsPanel inputs={inputs} />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

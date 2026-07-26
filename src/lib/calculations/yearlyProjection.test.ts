@@ -74,6 +74,10 @@ describe('runCompleteSimulation — tax-smart vs standard sequencing', () => {
     const SS_CLAIM_AGE = 70;
     function gapYearPlan(strategy: 'standard' | 'tax_smart'): UserInputs {
         const inputs = makeInputs();
+        // Pin the gap length so the scenario doesn't inherit (and break with) the mutable
+        // DEFAULT_VALUES.retirementAge: a fixed 10-year gap (60 → SS at 70) keeps the taxable
+        // buffer sufficient to cover the whole gap under 'standard' sequencing.
+        inputs.personal.retirementAge = 60;
         inputs.accounts.taxDeferred.balanceAtRetirement = 900_000;
         inputs.accounts.taxable.balanceAtRetirement = 600_000;
         inputs.accounts.roth.balanceAtRetirement = 100_000;
