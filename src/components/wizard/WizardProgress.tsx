@@ -17,7 +17,7 @@ export function WizardProgress({
 }: WizardProgressProps) {
     return (
         <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1">
                 {Array.from({ length: totalSteps }).map((_, index) => {
                     const isVisited = index <= currentStep;
                     const isPast = index < currentStep;
@@ -63,7 +63,7 @@ export function WizardProgress({
                             onClick={() => onStepClick(index)}
                             disabled={!isPast}
                             className={cn(
-                                'text-sm transition-colors flex-1 text-center',
+                                'text-sm transition-colors flex-1 text-left',
                                 isVisited
                                     ? 'text-blue-600 font-medium'
                                     : 'text-gray-500',

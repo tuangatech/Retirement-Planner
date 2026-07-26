@@ -7,26 +7,20 @@ import { Header } from '@/components/common/Header';
 import { Footer } from '@/components/common/Footer';
 import { WizardProgress } from '@/components/wizard/WizardProgress';
 import { WizardNavigation } from '@/components/wizard/WizardNavigation';
-import { Step1PersonalInfo } from '@/components/wizard/Step1PersonalInfo';
-import { Step2Phases } from '@/components/wizard/Step2Phases';
-import { Step3Accounts } from '@/components/wizard/Step3Accounts';
-import { Step4Income } from '@/components/wizard/Step4Income';
-import { Step5Healthcare } from '@/components/wizard/Step5Healthcare';
-import { Step6TaxSettings } from '@/components/wizard/Step6TaxSettings';
-import { Step7WithdrawalStrategy } from '@/components/wizard/Step7WithdrawalStrategy';
+import { Screen1Plan } from '@/components/wizard/Screen1Plan';
+import { Screen2SavingsIncome } from '@/components/wizard/Screen2SavingsIncome';
+import { Screen3Healthcare } from '@/components/wizard/Screen3Healthcare';
+import { Screen4Assumptions } from '@/components/wizard/Screen4Assumptions';
 import { useResults } from '@/contexts/ResultsContext';
 import { useInputs } from '@/contexts/InputsContext';
 import { trackPageView, trackWizardStep, trackCalculationStart } from '@/lib/analytics';
 
 
 const STEPS = [
-    { component: Step1PersonalInfo, title: 'Personal Info' },
-    { component: Step2Phases, title: 'Retirement Phases' },
-    { component: Step3Accounts, title: 'Investment Accounts' },
-    { component: Step4Income, title: 'Income Sources' },
-    { component: Step5Healthcare, title: 'Healthcare' },
-    { component: Step6TaxSettings, title: 'Tax & Simulation' },
-    { component: Step7WithdrawalStrategy, title: 'Withdrawal Strategy' },
+    { component: Screen1Plan, title: 'Your Plan' },
+    { component: Screen2SavingsIncome, title: 'Savings & Income' },
+    { component: Screen3Healthcare, title: 'Healthcare' },
+    { component: Screen4Assumptions, title: 'Assumptions & Strategy' },
 ];
 
 export default function WizardPage() {

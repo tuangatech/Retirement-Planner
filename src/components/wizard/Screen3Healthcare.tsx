@@ -1,4 +1,4 @@
-// src/components/wizard/Step5Healthcare.tsx
+// src/components/wizard/Screen3Healthcare.tsx
 
 import { useInputs } from '@/contexts/InputsContext';
 import { DEFAULT_VALUES } from '@/lib/constants';
@@ -7,7 +7,7 @@ import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
 import { HelpPopover } from '@/components/common/HelpPopover';
 import { InlineGuidance } from '@/components/common/InlineGuidance';
 
-export function Step5Healthcare() {
+export function Screen3Healthcare() {
     const { inputs, updateHealthcare } = useInputs();
     const { healthcare, mode, personal } = inputs;
 
@@ -180,7 +180,7 @@ export function Step5Healthcare() {
                     <p className="text-sm text-gray-600">Comprehensive coverage with multiple parts</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
                         <label className="flex items-center gap-2 text-sm font-medium mb-1">
                             Part B Standard Premium

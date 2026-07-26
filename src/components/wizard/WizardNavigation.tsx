@@ -25,7 +25,7 @@ export function WizardNavigation({
 
     // Validate current step before allowing next
     const canProceed = () => {
-        if (currentStep === 1) { // Step 2 - Phases
+        if (currentStep === 0) { // Screen 1 — phases live here now
             const phases = inputs.phases;
             // Only check what can't be prevented by the UI
             if (phases[0].endAge >= phases[1].startAge) return false;

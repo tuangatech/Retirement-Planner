@@ -1,0 +1,482 @@
+// src/components/wizard/Screen2SavingsIncome.tsx
+// Screen 2 of 4 — "Savings & Income": account balances at retirement + income sources.
+// Merges the former Investment Accounts and Income Sources steps. Basic mode shows the
+// core fields (balances/returns, Social Security, HSA); Advanced reveals cost basis, the
+// HSA non-medical policy, and Pensions (rare for the FIRE audience). Optional income
+// sources (Pension, Part-Time, Rental) use a compact "+ Add" pattern to save vertical space.
+
+import { useInputs } from '@/contexts/InputsContext';
+import { DEFAULT_VALUES, DEFAULT_SPOUSE_SOCIAL_SECURITY } from '@/lib/constants';
+import { Trash2, AlertCircle } from 'lucide-react';
+import type { Pension } from '@/types';
+import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
+import { HelpPopover } from '@/components/common/HelpPopover';
+import { InlineGuidance } from '@/components/common/InlineGuidance';
+
+export function Screen2SavingsIncome() {
+    const {
+        inputs,
+        updateAccount,
+        updateHSA,
+        updateSocialSecurity,
+        updateSpouseSocialSecurity,
+        addPension,
+        removePension,
+        updatePension,
+        updatePartTimeWork,
+        updateRentalIncome,
+    } = useInputs();
+    const { accounts, income, personal, mode } = inputs;
+    const isAdvanced = mode === 'advanced';
+    const isMFJ = personal.filingStatus === 'married_joint';
+
+    // HSA example figures, derived from the default tax rate so they never drift.
+    const defaultTaxRate = DEFAULT_VALUES.tax.combinedEffectiveRate;
+    const afterTaxDollar = (1 - defaultTaxRate).toFixed(2);
+    const taxRatePct = (defaultTaxRate * 100).toFixed(0);
+    const hsaEfficiencyPct = (defaultTaxRate / (1 - defaultTaxRate) * 100).toFixed(0);
+    const defaultCostBasisPct = ((DEFAULT_VALUES.accounts.taxable.costBasisPercentage ?? 0.7) * 100).toFixed(0);
+
+    const spouseSS = income.spouseSocialSecurity ?? DEFAULT_SPOUSE_SOCIAL_SECURITY;
+
+    const claimingFactors: Record<number, number> = {
+        62: 0.70, 63: 0.75, 64: 0.80, 65: 0.867, 66: 0.933, 67: 1.0, 68: 1.08, 69: 1.16, 70: 1.24,
+    };
+    const estimatedMonthlyBenefit =
+        income.socialSecurity.monthlyBenefitAtFRA * (claimingFactors[income.socialSecurity.claimingAge] || 1.0);
+    const taxPct = income.socialSecurity.taxablePercentage * 100;
+    const hasEarningsTestIssue =
+        income.socialSecurity.claimingAge < 67 && income.partTimeWork.enabled && income.partTimeWork.startAge < 67;
+
+    const handlePensionChange = (id: string, field: keyof Pension, value: any) => updatePension(id, { [field]: value });
+
+    const accountTypes = [
+        { key: 'taxDeferred' as const, label: 'Tax-Deferred', subtitle: 'Traditional 401(k), 403(b), IRA', color: 'from-blue-50 to-white',
+          help: <><p className="mb-2">Withdrawals taxed as ordinary income; RMDs at 75 (SECURE 2.0, born 1960+); 10% penalty before 59½.</p></> },
+        { key: 'roth' as const, label: 'Roth', subtitle: 'Roth 401(k), Roth IRA', color: 'from-green-50 to-white',
+          help: <><p className="mb-2">After-tax contributions; qualified withdrawals tax-free; no lifetime RMDs.</p></> },
+        { key: 'taxable' as const, label: 'Taxable Brokerage', subtitle: 'Regular investment accounts', color: 'from-purple-50 to-white',
+          help: <><p className="mb-2">Only the gain portion is taxed on withdrawal; no contribution limits or age penalties.</p></> },
+    ];
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-2xl font-bold mb-2">Savings &amp; Income</h2>
+                <p className="text-gray-600">What you’ll have saved at retirement, and the income you’ll receive</p>
+            </div>
+
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-1">💡 Enter “at retirement” balances</h3>
+                <p className="text-sm text-blue-800">
+                    Enter what you expect to have saved <strong>by retirement age</strong>, not today’s balances.
+                </p>
+            </div>
+
+            {/* ---- Accounts ---- */}
+            <h3 className="text-xl font-bold">Investment Accounts</h3>
+            {accountTypes.map(({ key, label, subtitle, color, help }) => (
+                <div key={key} className={`border rounded-lg p-5 bg-gradient-to-r ${color}`}>
+                    <div className="mb-3">
+                        <h4 className="font-semibold text-lg flex items-center gap-2">
+                            {label}
+                            <HelpPopover title={label}>{help}</HelpPopover>
+                        </h4>
+                        <p className="text-sm text-gray-600">{subtitle}</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Balance at Retirement</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                <input type="number" value={accounts[key].balanceAtRetirement}
+                                    onChange={(e) => updateAccount(key, { balanceAtRetirement: parseFloat(e.target.value) || 0 })}
+                                    className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="1000" min="0" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Expected Annual Return</label>
+                            <div className="relative">
+                                <input type="number" value={(accounts[key].expectedReturnRate * 100).toFixed(1)}
+                                    onChange={(e) => updateAccount(key, { expectedReturnRate: parseFloat(e.target.value) / 100 || 0 })}
+                                    className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="0.1" min="-5" max="20" />
+                                <span className="absolute right-3 top-2 text-gray-500">%</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Stocks ~8%, bonds ~4%</p>
+                        </div>
+                        {key === 'taxable' && isAdvanced && (
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium mb-1">Cost Basis Percentage</label>
+                                <div className="relative max-w-xs">
+                                    <input type="number" value={((accounts[key].costBasisPercentage || 0.7) * 100).toFixed(0)}
+                                        onChange={(e) => updateAccount(key, { costBasisPercentage: parseFloat(e.target.value) / 100 || 0.7 })}
+                                        className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="5" min="0" max="100" />
+                                    <span className="absolute right-3 top-2 text-gray-500">%</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">Portion that is original investment (not gains). Default {defaultCostBasisPct}%</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
+
+            {/* HSA — stays in Basic; help panel collapsed by default */}
+            <div className="border-2 border-teal-300 rounded-lg p-5 bg-gradient-to-r from-teal-50 to-white">
+                <div className="mb-3">
+                    <h4 className="font-semibold text-lg flex items-center gap-2">
+                        Health Savings Account (HSA)
+                        <span className="text-xs font-normal bg-teal-100 text-teal-800 px-2 py-0.5 rounded">Special</span>
+                    </h4>
+                    <p className="text-sm text-gray-600">Triple tax-advantaged — used tax-free for healthcare</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Balance at Retirement</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-2 text-gray-500">$</span>
+                            <input type="number" value={accounts.hsa.balanceAtRetirement}
+                                onChange={(e) => updateHSA({ balanceAtRetirement: parseFloat(e.target.value) || 0 })}
+                                className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-teal-500" step="1000" min="0" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Expected Annual Return</label>
+                        <div className="relative">
+                            <input type="number" value={(accounts.hsa.expectedReturnRate * 100).toFixed(1)}
+                                onChange={(e) => updateHSA({ expectedReturnRate: parseFloat(e.target.value) / 100 || 0 })}
+                                className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-teal-500" step="0.1" min="-5" max="20" />
+                            <span className="absolute right-3 top-2 text-gray-500">%</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Conservative growth (5-7%)</p>
+                    </div>
+                    {isAdvanced && (
+                        <div className="md:col-span-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={accounts.hsa.allowNonMedicalAfter65}
+                                    onChange={(e) => updateHSA({ allowNonMedicalAfter65: e.target.checked })}
+                                    className="w-4 h-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded" />
+                                <span className="text-sm font-medium">Allow general withdrawals after age 65 (taxed as ordinary income)</span>
+                            </label>
+                            <p className="text-xs text-gray-500 mt-1 ml-6">
+                                Unchecked (default) = HSA used only for healthcare, the most tax-efficient use.
+                            </p>
+                        </div>
+                    )}
+                </div>
+                <div className="mt-4">
+                    <CollapsibleHelpPanel title="How HSA Works in This Simulator" variant="info" defaultOpen={false}>
+                        <div className="text-sm space-y-2">
+                            <p><strong>Tax-free healthcare:</strong> the HSA automatically pays healthcare (premiums + out-of-pocket) tax-free, protecting your other accounts.</p>
+                            <p>💡 A $1 tax-deferred withdrawal is worth about ${afterTaxDollar} after income tax (at {taxRatePct}%), so the HSA stretches roughly {hsaEfficiencyPct}% further for healthcare.</p>
+                        </div>
+                    </CollapsibleHelpPanel>
+                </div>
+            </div>
+
+            {/* Total portfolio summary */}
+            <div className="bg-green-50 border border-green-300 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-green-900">Total Starting Portfolio</p>
+                        <p className="text-xs text-green-700">Combined balance at retirement (all accounts)</p>
+                    </div>
+                    <p className="text-3xl font-bold text-green-900">
+                        ${((accounts.taxDeferred.balanceAtRetirement + accounts.roth.balanceAtRetirement +
+                            accounts.taxable.balanceAtRetirement + accounts.hsa.balanceAtRetirement) / 1000).toFixed(0)}K
+                    </p>
+                </div>
+            </div>
+
+            {/* ---- Income ---- */}
+            <div className="border-t pt-6">
+                <h3 className="text-xl font-bold mb-4">Income Sources</h3>
+
+                {/* Social Security */}
+                <div className="border rounded-lg p-5 bg-gradient-to-r from-blue-50 to-white">
+                    <div className="mb-3">
+                        <h4 className="font-semibold text-lg flex items-center gap-2">
+                            Social Security
+                            <HelpPopover title="Getting Your Benefit Estimate">
+                                <p className="mb-2">Based on your highest 35 years of earnings. Get your figure at ssa.gov/myaccount → your FRA benefit.</p>
+                            </HelpPopover>
+                        </h4>
+                        <p className="text-sm text-gray-600">Most Americans’ primary retirement income</p>
+                    </div>
+
+                    <CollapsibleHelpPanel title="Understanding Social Security Claiming Strategies" variant="info" className="mb-4" defaultOpen={false}>
+                        <div className="space-y-2 text-sm">
+                            <p>Each year you delay (up to 70) raises your benefit ~8%. Claiming at 62 pays 70% of FRA; 70 pays 124%. Break-even is usually age 78–80.</p>
+                        </div>
+                    </CollapsibleHelpPanel>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="flex items-center gap-2 text-sm font-medium mb-1">
+                                Monthly Benefit at FRA
+                                <HelpPopover><p>Baseline amount before early/delayed claiming adjustments (FRA is 67 for those born 1960+).</p></HelpPopover>
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                <input type="number" value={income.socialSecurity.monthlyBenefitAtFRA}
+                                    onChange={(e) => updateSocialSecurity({ monthlyBenefitAtFRA: parseFloat(e.target.value) || 0 })}
+                                    className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">From ssa.gov/myaccount</p>
+                        </div>
+                        <div>
+                            <label className="flex items-center gap-2 text-sm font-medium mb-1">
+                                Annual COLA Rate
+                                <HelpPopover><p>Cost-of-living adjustment. 10-year average ≈ 3.0%.</p></HelpPopover>
+                            </label>
+                            <div className="relative">
+                                <input type="number" value={(income.socialSecurity.colaRate * 100).toFixed(1)}
+                                    onChange={(e) => updateSocialSecurity({ colaRate: parseFloat(e.target.value) / 100 || 0 })}
+                                    className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="0.1" />
+                                <span className="absolute right-3 top-2 text-gray-500">%</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Default {(DEFAULT_VALUES.income.socialSecurity.colaRate * 100).toFixed(1)}%</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Claiming Age</label>
+                            <input type="number" value={income.socialSecurity.claimingAge}
+                                onChange={(e) => updateSocialSecurity({ claimingAge: parseInt(e.target.value) || 67 })}
+                                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" min="62" max="70" />
+                            <InlineGuidance variant="example" className="mt-2">
+                                <strong>At age {income.socialSecurity.claimingAge}:</strong> ${estimatedMonthlyBenefit.toFixed(0)}/mo (${(estimatedMonthlyBenefit * 12).toLocaleString()}/yr)
+                            </InlineGuidance>
+                        </div>
+                        <div>
+                            <label className="flex items-center gap-2 text-sm font-medium mb-1">
+                                SS Taxable Percentage
+                                <HelpPopover title="How Much of SS is Taxable?">
+                                    <p>A <strong>cap</strong>, not a fixed rate. The tool applies the IRS provisional-income formula each year and taxes less (down to 0%) when income is low. 85% is the statutory max.</p>
+                                </HelpPopover>
+                            </label>
+                            <div className="relative">
+                                <input type="number" value={(income.socialSecurity.taxablePercentage * 100).toFixed(0)}
+                                    onChange={(e) => updateSocialSecurity({ taxablePercentage: parseFloat(e.target.value) / 100 || 0 })}
+                                    className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="5" min="0" max="85" />
+                                <span className="absolute right-3 top-2 text-gray-500">%</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                {taxPct >= 85 ? 'Cap at the 85% max — actual share computed each year' : `Caps taxable SS at ${taxPct}%`}
+                            </p>
+                        </div>
+                    </div>
+
+                    {hasEarningsTestIssue && (
+                        <div className="mt-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 flex items-start gap-3">
+                            <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm text-yellow-800">
+                                <p className="font-semibold text-yellow-900 mb-1">⚠️ Earnings test applies</p>
+                                <p>Claiming before FRA (67) while working can temporarily reduce benefits ($1 withheld per $2 earned above $23,400/yr in 2025). The simulator applies this.</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Spouse SS (MFJ) */}
+                {isMFJ && (
+                    <div className="border rounded-lg p-5 bg-gradient-to-r from-blue-50 to-white mt-4">
+                        <div className="mb-3">
+                            <h4 className="font-semibold text-lg">Spouse’s Social Security</h4>
+                            <p className="text-sm text-gray-600">Added to yours before the IRS taxability formula. COLA and taxable-% above are shared.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Monthly Benefit at FRA</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                    <input type="number" value={spouseSS.monthlyBenefitAtFRA}
+                                        onChange={(e) => updateSpouseSocialSecurity({ monthlyBenefitAtFRA: parseFloat(e.target.value) || 0 })}
+                                        className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" min="0" step="50" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Claiming Age</label>
+                                <input type="number" value={spouseSS.claimingAge}
+                                    onChange={(e) => updateSpouseSocialSecurity({ claimingAge: parseInt(e.target.value) || 67 })}
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" min="62" max="70" />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Optional income sources — compact "+ Add" pattern */}
+                <div className="mt-4 space-y-3">
+                    {/* Pensions (Advanced only) */}
+                    {isAdvanced ? (
+                        <div className="border rounded-lg p-4 bg-gradient-to-r from-green-50 to-white">
+                            <div className="flex justify-between items-center mb-3">
+                                <h4 className="font-semibold text-lg flex items-center gap-2">
+                                    Pensions
+                                    <HelpPopover title="Pensions"><p>Defined-benefit income for life. Private: usually 0% COLA; government: often 2–3%.</p></HelpPopover>
+                                </h4>
+                                <button
+                                    onClick={() => addPension({ id: Date.now().toString(), name: 'New Pension', monthlyAmount: 1000, startAge: personal.retirementAge, colaRate: 0 })}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors whitespace-nowrap">
+                                    + Add Pension
+                                </button>
+                            </div>
+                            {income.pensions.length > 0 ? (
+                                <div className="space-y-3">
+                                    {income.pensions.map((pension) => (
+                                        <div key={pension.id} className="bg-white p-4 rounded-md border">
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium mb-1">Name</label>
+                                                    <input type="text" value={pension.name}
+                                                        onChange={(e) => handlePensionChange(pension.id, 'name', e.target.value)}
+                                                        placeholder="e.g., State Pension" className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" maxLength={50} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium mb-1">Monthly</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
+                                                        <input type="number" value={pension.monthlyAmount}
+                                                            onChange={(e) => handlePensionChange(pension.id, 'monthlyAmount', parseFloat(e.target.value) || 0)}
+                                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="100" min="0" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1">
+                                                        <label className="block text-xs font-medium mb-1">Start Age</label>
+                                                        <input type="number" value={pension.startAge}
+                                                            onChange={(e) => handlePensionChange(pension.id, 'startAge', parseInt(e.target.value) || personal.retirementAge)}
+                                                            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" min={personal.retirementAge} max={personal.lifeExpectancy} />
+                                                    </div>
+                                                    <div className="w-24">
+                                                        <label className="block text-xs font-medium mb-1">COLA</label>
+                                                        <div className="relative">
+                                                            <input type="number" value={(pension.colaRate * 100).toFixed(1)}
+                                                                onChange={(e) => handlePensionChange(pension.id, 'colaRate', parseFloat(e.target.value) / 100 || 0)}
+                                                                className="w-full pr-6 pl-2 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="0.1" min="0" max="10" />
+                                                            <span className="absolute right-2 top-2 text-gray-500 text-sm">%</span>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => removePension(pension.id)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-md self-end" title="Remove pension">
+                                                        <Trash2 className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : (
+                        <p className="text-xs text-gray-500 italic">
+                            Have a pension? Switch to <strong>Advanced</strong> (top right) to add it — most early retirees don’t have one.
+                        </p>
+                    )}
+
+                    {/* Part-Time Work — + Add pattern */}
+                    {income.partTimeWork.enabled ? (
+                        <div className="border rounded-lg p-4 bg-gradient-to-r from-purple-50 to-white">
+                            <div className="flex justify-between items-center mb-3">
+                                <h4 className="font-semibold text-lg flex items-center gap-2">
+                                    Part-Time Work
+                                    <HelpPopover title="Part-Time Work"><p>Subject to 7.65% payroll tax and income tax; may trigger the SS earnings test if claiming before 67.</p></HelpPopover>
+                                </h4>
+                                <button onClick={() => updatePartTimeWork({ enabled: false })}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Remove part-time work"><Trash2 className="w-5 h-5" /></button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Annual Gross Income</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                        <input type="number" value={income.partTimeWork.annualIncome}
+                                            onChange={(e) => updatePartTimeWork({ annualIncome: parseFloat(e.target.value) || 0 })}
+                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Start Age</label>
+                                    <input type="number" value={income.partTimeWork.startAge}
+                                        onChange={(e) => updatePartTimeWork({ startAge: parseInt(e.target.value) || 0 })}
+                                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">End Age</label>
+                                    <input type="number" value={income.partTimeWork.endAge}
+                                        onChange={(e) => updatePartTimeWork({ endAge: parseInt(e.target.value) || 0 })}
+                                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex justify-between items-center border rounded-lg p-4 bg-gray-50">
+                            <div>
+                                <span className="font-medium">Part-Time Work</span>
+                                <span className="text-sm text-gray-500 ml-2">Optional income from working in retirement</span>
+                            </div>
+                            <button onClick={() => updatePartTimeWork({ enabled: true })}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors whitespace-nowrap">+ Add Part-Time Work</button>
+                        </div>
+                    )}
+
+                    {/* Rental Income — + Add pattern */}
+                    {income.rentalIncome.enabled ? (
+                        <div className="border rounded-lg p-4 bg-gradient-to-r from-orange-50 to-white">
+                            <div className="flex justify-between items-center mb-3">
+                                <h4 className="font-semibold text-lg flex items-center gap-2">
+                                    Rental Income
+                                    <HelpPopover title="Rental Income"><p>Enter NET income after mortgage, taxes, insurance, maintenance, management, and vacancy.</p></HelpPopover>
+                                </h4>
+                                <button onClick={() => updateRentalIncome({ enabled: false })}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Remove rental income"><Trash2 className="w-5 h-5" /></button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Annual Net Income</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                        <input type="number" value={income.rentalIncome.annualNetIncome}
+                                            onChange={(e) => updateRentalIncome({ annualNetIncome: parseFloat(e.target.value) || 0 })}
+                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Start Age</label>
+                                    <input type="number" value={income.rentalIncome.startAge}
+                                        onChange={(e) => updateRentalIncome({ startAge: parseInt(e.target.value) || 0 })}
+                                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">End Age</label>
+                                    <input type="number" value={income.rentalIncome.endAge ?? ''}
+                                        disabled={income.rentalIncome.endAge === null} placeholder="e.g. 85"
+                                        onChange={(e) => updateRentalIncome({ endAge: parseInt(e.target.value) || null })}
+                                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 ${income.rentalIncome.endAge === null ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
+                                    <label className="flex items-center mt-1.5 text-xs text-gray-500">
+                                        <input type="checkbox" checked={income.rentalIncome.endAge === null}
+                                            onChange={(e) => updateRentalIncome({ endAge: e.target.checked ? null : 85 })}
+                                            className="w-3 h-3 text-blue-600 rounded mr-1.5" />
+                                        No end date (ongoing)
+                                    </label>
+                                </div>
+                            </div>
+                            <label className="flex items-center mt-3 text-sm">
+                                <input type="checkbox" checked={income.rentalIncome.inflationAdjusted}
+                                    onChange={(e) => updateRentalIncome({ inflationAdjusted: e.target.checked })}
+                                    className="w-4 h-4 text-blue-600 rounded mr-2" />
+                                Adjust for inflation
+                            </label>
+                        </div>
+                    ) : (
+                        <div className="flex justify-between items-center border rounded-lg p-4 bg-gray-50">
+                            <div>
+                                <span className="font-medium">Rental Income</span>
+                                <span className="text-sm text-gray-500 ml-2">Optional net income from rental properties</span>
+                            </div>
+                            <button onClick={() => updateRentalIncome({ enabled: true })}
+                                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors whitespace-nowrap">+ Add Rental Income</button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
