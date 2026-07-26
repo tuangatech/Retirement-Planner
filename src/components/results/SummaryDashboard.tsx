@@ -288,10 +288,12 @@ function MetricCard({ icon, title, value, subtitle, color }: MetricCardProps) {
 
     return (
         <div className="bg-white rounded-xl border-2 border-gray-200 p-6">
-            <div className={`inline-flex p-3 rounded-lg ${colorClasses[color]} mb-3`}>
-                {icon}
+            <div className="flex items-center gap-3 mb-3">
+                <div className={`inline-flex p-3 rounded-lg ${colorClasses[color]}`}>
+                    {icon}
+                </div>
+                <h4 className="text-base font-semibold text-gray-800">{title}</h4>
             </div>
-            <h4 className="text-base font-semibold text-gray-800 mb-3">{title}</h4>
             <div className="text-2xl font-bold text-gray-900 mb-1">
                 {typeof value === 'string' || typeof value === 'number' ? value : value}
             </div>

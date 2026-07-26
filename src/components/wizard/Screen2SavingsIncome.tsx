@@ -125,7 +125,6 @@ export function Screen2SavingsIncome() {
                 <div className="mb-3">
                     <h4 className="font-semibold text-lg flex items-center gap-2">
                         Health Savings Account (HSA)
-                        <span className="text-xs font-normal bg-teal-100 text-teal-800 px-2 py-0.5 rounded">Special</span>
                     </h4>
                     <p className="text-sm text-gray-600">Triple tax-advantaged — used tax-free for healthcare</p>
                 </div>

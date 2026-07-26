@@ -57,7 +57,6 @@ export function Screen4Assumptions() {
     const { inputs, updateTax, updateSimulation, updateWithdrawalStrategy } = useInputs();
     const { tax, simulation, mode, personal, income } = inputs;
     const isAdvanced = mode === 'advanced';
-    const retirementDuration = personal.lifeExpectancy - personal.retirementAge;
     const isNoTaxState = NO_TAX_STATES.includes(personal.state);
     const selected: StrategyKey = inputs.withdrawalStrategy.strategy ?? 'tax_smart';
 
@@ -144,10 +143,6 @@ export function Screen4Assumptions() {
                         The tool models the standard deduction (incl. age-65 and 2025–2028 senior bonus) and the IRS SS provisional-income formula, then applies this marginal rate. It does <strong>not</strong> model full brackets, itemized deductions, the 0% LTCG bracket, or state-specific rules.
                     </p>
                 </div>
-
-                <p className="text-xs text-gray-500 mt-3">
-                    Runs <strong>{simulation.numberOfRuns.toLocaleString()}</strong> Monte Carlo simulations over <strong>{retirementDuration} years</strong> (a few seconds).
-                </p>
             </div>
 
             {/* Withdrawal strategy */}

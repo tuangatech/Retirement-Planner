@@ -201,33 +201,28 @@ export default function ResultsPage() {
 
                 {/* Visualizations Tabs */}
                 <Tabs defaultValue="summary" className="space-y-4">
-                    <div>
-                        <p className="text-sm font-medium text-gray-600 mb-2">
-                            Explore your results across <span className="text-blue-600 font-semibold">5 views</span> — click to switch:
-                        </p>
-                        <TabsList className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto gap-1.5 p-1.5 bg-blue-50 border-2 border-blue-200 rounded-xl">
-                            <TabsTrigger value="summary" className="flex-col gap-1 h-auto py-2.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
-                                <Gauge className="w-5 h-5" />
-                                <span>Summary</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="monte-carlo" className="flex-col gap-1 h-auto py-2.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
-                                <LineChart className="w-5 h-5" />
-                                <span>Monte Carlo</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="cash-flow" className="flex-col gap-1 h-auto py-2.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
-                                <BarChart3 className="w-5 h-5" />
-                                <span>Cash Flow</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="breakdown" className="flex-col gap-1 h-auto py-2.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
-                                <Table2 className="w-5 h-5" />
-                                <span>Annual Breakdown</span>
-                            </TabsTrigger>
-                            <TabsTrigger value="assumptions" className="flex-col gap-1 h-auto py-2.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
-                                <ShieldCheck className="w-5 h-5" />
-                                <span>Disclosures</span>
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
+                    <TabsList className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto gap-1.5 p-1.5 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                        <TabsTrigger value="summary" className="gap-2 h-auto py-1.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                            <Gauge className="w-4 h-4" />
+                            <span>Summary</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="monte-carlo" className="gap-2 h-auto py-1.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                            <LineChart className="w-4 h-4" />
+                            <span>Monte Carlo</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="cash-flow" className="gap-2 h-auto py-1.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                            <BarChart3 className="w-4 h-4" />
+                            <span>Cash Flow</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="breakdown" className="gap-2 h-auto py-1.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                            <Table2 className="w-4 h-4" />
+                            <span>Annual Breakdown</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="assumptions" className="gap-2 h-auto py-1.5 rounded-lg text-gray-700 border border-transparent hover:border-blue-300 hover:bg-white/70 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md">
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>Disclosures</span>
+                        </TabsTrigger>
+                    </TabsList>
 
                     <TabsContent value="summary" className="space-y-4">
                         <SummaryDashboard results={results} inputs={inputs} />
