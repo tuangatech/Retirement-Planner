@@ -16,6 +16,7 @@ import {
 import type { SimulationResults } from '@/types'
 import type { UserInputs } from '@/types';
 import { formatMoney } from '@/lib/format';
+import { RMD_START_AGE } from '@/lib/calculations/rmd';
 
 interface CashFlowChartProps {
     results: SimulationResults;
@@ -67,7 +68,7 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
             isRetirement: projection.age === inputs.personal.retirementAge,
             isMedicare: projection.age === 65,
             isSocialSecurity: projection.age === inputs.income.socialSecurity.claimingAge,
-            isRMD: projection.age === 73,
+            isRMD: projection.age === RMD_START_AGE,
         }));
     }, [results, inputs]);
 
@@ -232,7 +233,7 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
                         <Bar yAxisId="left" dataKey="taxes" stackId="expenses" fill="#fb923c" name="Taxes" />
                         <Bar yAxisId="left" dataKey="oneTime" stackId="expenses" fill="#facc15" name="One-Time" />
 
-                        {/* Portfolio balance lines with NEW TERMINOLOGY and FADED P10/P90 */}
+                        {/* Portfolio balance — median only; the P10/P90 spread stays available on hover */}
                         <Line
                             yAxisId="right"
                             type="monotone"
@@ -241,28 +242,6 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
                             strokeWidth={3}
                             dot={false}
                             name="Typical (Median)"
-                            opacity={1.0}
-                        />
-                        <Line
-                            yAxisId="right"
-                            type="monotone"
-                            dataKey="balanceP10"
-                            stroke="#ef4444"
-                            strokeWidth={3}
-                            strokeDasharray="5 5"
-                            dot={false}
-                            name="Unlucky (10%)"
-                            opacity={1.0}
-                        />
-                        <Line
-                            yAxisId="right"
-                            type="monotone"
-                            dataKey="balanceP90"
-                            stroke="#10b981"
-                            strokeWidth={3}
-                            strokeDasharray="5 5"
-                            dot={false}
-                            name="Lucky (90%)"
                             opacity={1.0}
                         />
 
@@ -289,7 +268,7 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
                     <div className="text-sm text-blue-800 space-y-2">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
-                                <span className="font-semibold">Typical Scenario (Green Line):</span>
+                                <span className="font-semibold">Typical Scenario (Blue Line):</span>
                                 <p className="mt-1">
                                     Depletes at age{' '}
                                     {results.selectedRuns.p50.projections.find(p => p.portfolioDepleted)?.age ||
@@ -317,7 +296,7 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
                     <div>🎂 Retirement: Age {inputs.personal.retirementAge}</div>
                     <div>🥼 Medicare: Age 65</div>
                     <div>💰 Social Security: Age {inputs.income.socialSecurity.claimingAge}</div>
-                    <div>📊 RMDs Begin: Age 73</div>
+                    <div>📊 RMDs Begin: Age {RMD_START_AGE}</div>
                 </div>
             </div>
 

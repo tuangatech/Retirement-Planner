@@ -128,16 +128,8 @@ export default function ResultsPage() {
                     <Alert variant="destructive" className="border-2">
                         <AlertCircle className="h-5 w-5" />
                         <AlertDescription>
-                            <p className="font-semibold mb-1">
-                                ⚠️ CRITICAL: Your plan has a {successRate.toFixed(1)}% success rate ({results.failedRuns.count.toLocaleString()} of {results.numberOfRuns.toLocaleString()} scenarios failed)
-                            </p>
-                            <p className="text-sm">
-                                Your portfolio runs out of money in {(100 - successRate).toFixed(1)}% of scenarios.
-                                {results.failedRuns.medianAgeOfDepletion && (
-                                    <> The median depletion age is <strong>age {results.failedRuns.medianAgeOfDepletion}</strong>,
-                                        leaving you {inputs.personal.lifeExpectancy - results.failedRuns.medianAgeOfDepletion} years underfunded.</>
-                                )}
-                                {' '}Major adjustments are needed: consider delaying retirement, reducing expenses, or increasing savings.
+                            <p className="font-semibold">
+                                ⚠️ CRITICAL: Your plan has a {successRate.toFixed(1)}% success rate ({results.failedRuns.count.toLocaleString()} of {results.numberOfRuns.toLocaleString()} scenarios failed). See the tabs below for detail.
                             </p>
                         </AlertDescription>
                     </Alert>
@@ -147,15 +139,8 @@ export default function ResultsPage() {
                     <Alert className="border-2 border-yellow-500">
                         <AlertCircle className="h-5 w-5" />
                         <AlertDescription>
-                            <p className="font-semibold mb-1">
-                                ⚡ HIGH RISK: Your plan has a {successRate.toFixed(1)}% success rate
-                            </p>
-                            <p className="text-sm">
-                                {(100 - successRate).toFixed(1)}% chance of portfolio depletion.
-                                {results.failedRuns.medianAgeOfDepletion && (
-                                    <> Failed scenarios typically deplete at age {results.failedRuns.medianAgeOfDepletion}.</>
-                                )}
-                                {' '}Consider adjustments to improve your plan's viability.
+                            <p className="font-semibold">
+                                ⚡ HIGH RISK: Your plan has a {successRate.toFixed(1)}% success rate. See the tabs below for detail.
                             </p>
                         </AlertDescription>
                     </Alert>

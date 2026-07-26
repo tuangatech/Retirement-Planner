@@ -4,6 +4,7 @@ import { TrendingUp, Calendar, DollarSign, Clock, AlertTriangle, CheckCircle } f
 import type { SimulationResults } from '@/types'
 import type { UserInputs } from '@/types';
 import { formatMoney } from '@/lib/format';
+import { RMD_START_AGE } from '@/lib/calculations/rmd';
 
 interface SummaryDashboardProps {
     results: SimulationResults;
@@ -259,7 +260,7 @@ export function SummaryDashboard({ results, inputs }: SummaryDashboardProps) {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">RMDs Begin:</span>
-                                <span className="font-semibold">Age 73</span>
+                                <span className="font-semibold">Age {RMD_START_AGE}</span>
                             </div>
                         </div>
                     }

@@ -38,6 +38,18 @@ export default function MonteCarloChart({ results, inputs }: MonteCarloChartProp
         }));
     }, [results]);
 
+    // Cap the y-axis to the median's range (plus headroom) so the rare "Lucky" upside
+    // doesn't squash the Typical/Unlucky lines that actually tell the story on a failing
+    // plan. The Lucky line clips above the cap; a note below discloses it.
+    const yDomainMax = useMemo(() => {
+        if (chartData.length === 0) return 0;
+        const start = chartData[0].median;
+        const medianPeak = Math.max(...chartData.map(d => d.median));
+        const base = Math.max(start, medianPeak, 1);
+        return Math.ceil((base * 1.6) / 500_000) * 500_000;
+    }, [chartData]);
+    const p90ExceedsCap = yDomainMax > 0 && chartData.some(d => d.p90 > yDomainMax);
+
     const CustomTooltip = ({ active, payload }: any) => {
         if (!active || !payload || payload.length === 0) return null;
 
@@ -100,6 +112,8 @@ export default function MonteCarloChart({ results, inputs }: MonteCarloChartProp
                             />
 
                             <YAxis
+                                domain={[0, yDomainMax || 'auto']}
+                                allowDataOverflow
                                 tickFormatter={formatMoney}
                                 label={{ value: 'Portfolio Balance', angle: -90, position: 'insideLeft' }}
                                 tick={{ fontSize: 12 }}
@@ -175,6 +189,13 @@ export default function MonteCarloChart({ results, inputs }: MonteCarloChartProp
                             Median depletion age ({results.failedRuns.medianAgeOfDepletion}) marks when half of failed scenarios ran out of money
                         </span>
                     </div>
+                )}
+
+                {/* Disclose the y-axis cap so the clipped Lucky line isn't misread */}
+                {p90ExceedsCap && (
+                    <p className="mt-2 text-xs text-gray-500">
+                        Chart top is capped at {formatMoney(yDomainMax)} for readability — the “Lucky (90%)” line rises above this in the best scenarios.
+                    </p>
                 )}
             </div>
 

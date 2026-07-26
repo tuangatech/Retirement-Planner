@@ -233,6 +233,9 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                 const isRMD = p.age === RMD_START_AGE;
                                 const isHSADepleted = hsaDepletionAge !== null && p.age === hsaDepletionAge;
                                 const hasEvent = isRetirement || isMedicare || isSSStart || isRMD || isHSADepleted;
+                                // Once the portfolio is depleted, expenses beyond income are unfunded — surface
+                                // the gap so the table doesn't look like it silently keeps paying the bills.
+                                const hasShortfall = p.shortfall > 0.5;
 
                                 const zebra = index % 2 === 1 ? 'bg-gray-50' : 'bg-white';
                                 const phaseMeta = PHASE_META[p.phase] ?? PHASE_META.go_go;
@@ -261,7 +264,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                             {isMFJ && spouseAgeAtRetirement != null && (
                                                 <span className="text-gray-400 font-normal"> | {spouseAgeAtRetirement + (p.age - inputs.personal.retirementAge)}</span>
                                             )}
-                                            {hasEvent && (
+                                            {(hasEvent || hasShortfall) && (
                                                 <TooltipProvider delayDuration={100}>
                                                     <div className="text-xs text-blue-600 font-normal flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
                                                         {isRetirement && (
@@ -302,6 +305,14 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                                                     <span className="inline-flex items-center gap-0.5 cursor-help">💊 Depleted</span>
                                                                 </TooltipTrigger>
                                                                 <TooltipContent>HSA depleted (age {hsaDepletionAge})</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                        {hasShortfall && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="inline-flex items-center gap-0.5 cursor-help text-red-600 font-medium">⚠️ Underfunded</span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Expenses exceed income by {formatMoney(p.shortfall)} and the portfolio is depleted — this year is unfunded.</TooltipContent>
                                                             </Tooltip>
                                                         )}
                                                     </div>
@@ -367,9 +378,10 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                             ]}
                                         />
 
-                                        {/* Portfolio Balance */}
+                                        {/* Portfolio Balance — show a clean $0 once depleted (sub-dollar
+                                            residuals otherwise round up to a misleading "$1"). */}
                                         <BreakdownCell
-                                            value={p.portfolio.balances.total}
+                                            value={p.portfolioDepleted ? 0 : p.portfolio.balances.total}
                                             totalLabel="Total portfolio"
                                             emptyText="Portfolio depleted"
                                             minValue={1000}
