@@ -15,6 +15,12 @@ spouse-aware only where it materially changes the math. We call the two people *
 **"Your spouse"** — neutral, inclusive of all marriages, and matching the model's asymmetry
 (You anchor the timeline).
 
+Because You anchor the timeline, the **event markers** in the results (🎂 Retire, 🏥 Medicare,
+💰 Social Security, 📊 RMDs, 💊 HSA depleted) follow **your (primary) age**, not the spouse's.
+The Annual Breakdown shows the spouse's age next to yours (`you | spouse`) for context, but the
+markers are your milestones. (Healthcare *costs* still switch each spouse to Medicare at their
+own 65 internally — that's the two-track cost model, separate from the primary-age markers.)
+
 ## Decisions
 
 | # | Matter | Decision |
