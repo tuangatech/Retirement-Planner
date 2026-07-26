@@ -5,7 +5,7 @@
 // so the phase table updates live as the timeline changes (see the sync effect below).
 
 import { useInputs } from '@/contexts/InputsContext';
-import { US_STATES, DEFAULT_VALUES } from '@/lib/constants';
+import { US_STATES } from '@/lib/constants';
 import type { USState, RetirementPhase, OneTimeExpense } from '@/types';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { useRef, useState, useEffect } from 'react';
@@ -35,7 +35,7 @@ export function Screen1Plan() {
         if (value === 'married_joint') {
             updatePersonal({
                 filingStatus: 'married_joint',
-                spouseAgeAtRetirement: personal.spouseAgeAtRetirement ?? retirementAge,
+                spouseAgeAtRetirement: personal.spouseAgeAtRetirement ?? retirementAge - 2,
             });
             if (!income.spouseSocialSecurity) {
                 updateSpouseSocialSecurity({});
@@ -151,23 +151,6 @@ export function Screen1Plan() {
                         ? 'Models both spouses’ Social Security and the joint standard deduction. Accounts are pooled; the survivor’s penalty is not modeled — see Disclosures.'
                         : 'Applies the single-filer standard deduction and Social Security thresholds.'}
                 </p>
-
-                {isMFJ && (
-                    <div className="mt-3 max-w-xs">
-                        <label className="block text-sm font-medium mb-1">Spouse’s Age at Your Retirement</label>
-                        <input
-                            type="number"
-                            value={personal.spouseAgeAtRetirement ?? retirementAge}
-                            onChange={(e) => updatePersonal({ spouseAgeAtRetirement: parseInt(e.target.value) || 0 })}
-                            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                            min="40"
-                            max="90"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                            Their age the year you retire. Enter spouse Social Security in Step 2.
-                        </p>
-                    </div>
-                )}
             </div>
 
             {/* How this tool works */}
@@ -177,68 +160,92 @@ export function Screen1Plan() {
                     The simulator starts <strong>at your retirement age</strong> and projects to life expectancy.
                     Enter what you expect to have saved <strong>when you retire</strong>, not what you have today.
                 </p>
+                {isMFJ && (
+                    <p className="text-sm text-blue-800 mt-2">
+                        For couples, the projection follows <strong>your</strong> age. <strong>Life Expectancy</strong> is a
+                        single shared horizon — both of you are assumed alive until then (the survivor’s penalty isn’t modeled).
+                        Set your spouse’s age below so their Social Security and Medicare line up on your timeline.
+                    </p>
+                )}
             </div>
 
             {/* Timeline */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label className="block text-sm font-medium mb-1">Retirement Age</label>
-                    <input
-                        type="number"
-                        value={retirementAge}
-                        onChange={(e) => updatePersonal({ retirementAge: parseInt(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                        min="50"
-                        max="75"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">When you stop working (50-75)</p>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1">Life Expectancy</label>
-                    <input
-                        type="number"
-                        value={lifeExpectancy}
-                        onChange={(e) => updatePersonal({ lifeExpectancy: parseInt(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                        min="70"
-                        max="110"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">How long money must last (default {DEFAULT_VALUES.personal.lifeExpectancy})</p>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1">State</label>
-                    <select
-                        value={personal.state}
-                        onChange={(e) => updatePersonal({ state: e.target.value as USState })}
-                        className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                    >
-                        {US_STATES.map(state => (
-                            <option key={state.value} value={state.value}>{state.label}</option>
-                        ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">Tax guidance only; state rules aren’t modeled</p>
-                </div>
-            </div>
-
-            {/* Retirement duration summary */}
-            <div className="bg-green-50 border border-green-300 rounded-lg p-4">
-                <div className="flex items-center justify-between">
+            <div className="border rounded-lg p-5 space-y-4">
+                <div className={`grid grid-cols-1 md:grid-cols-2 ${isMFJ ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
                     <div>
-                        <p className="text-sm font-medium text-green-900">Retirement Duration</p>
-                        <p className="text-xs text-green-700">How long your portfolio needs to last</p>
+                        <label className="block text-sm font-medium mb-1">Retirement Age</label>
+                        <input
+                            type="number"
+                            value={retirementAge}
+                            onChange={(e) => updatePersonal({ retirementAge: parseInt(e.target.value) || 0 })}
+                            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                            min="50"
+                            max="75"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">When you stop working (50-75)</p>
                     </div>
-                    <div className="text-right">
-                        <p className="text-3xl font-bold text-green-900">{retirementDuration}</p>
-                        <p className="text-xs text-green-700">years</p>
+                    {isMFJ && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Spouse’s Age at Retirement</label>
+                            <input
+                                type="number"
+                                value={personal.spouseAgeAtRetirement ?? retirementAge - 2}
+                                onChange={(e) => updatePersonal({ spouseAgeAtRetirement: parseInt(e.target.value) || 0 })}
+                                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                min="40"
+                                max="90"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Their age the year you retire</p>
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Life Expectancy</label>
+                        <input
+                            type="number"
+                            value={lifeExpectancy}
+                            onChange={(e) => updatePersonal({ lifeExpectancy: parseInt(e.target.value) || 0 })}
+                            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                            min="70"
+                            max="110"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">How long money must last</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">State</label>
+                        <select
+                            value={personal.state}
+                            onChange={(e) => updatePersonal({ state: e.target.value as USState })}
+                            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                        >
+                            {US_STATES.map(state => (
+                                <option key={state.value} value={state.value}>{state.label}</option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">Tax guidance only; state rules aren’t modeled</p>
                     </div>
                 </div>
-            </div>
 
-            {personal.lifeExpectancy <= personal.retirementAge && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                    <p className="text-sm text-yellow-800">⚠️ Life expectancy must be greater than retirement age</p>
-                </div>
-            )}
+                {/* Resulting duration — or a validation warning when the span is invalid.
+                    Neutral color (a computed span, not a "good"/"bad" signal). */}
+                {lifeExpectancy > retirementAge ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-slate-800">Retirement Duration</p>
+                                <p className="text-xs text-slate-500">How long your portfolio needs to last</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-3xl font-bold text-slate-900">{retirementDuration}</p>
+                                <p className="text-xs text-slate-500">years</p>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                        <p className="text-sm text-yellow-800">⚠️ Life expectancy must be greater than retirement age</p>
+                    </div>
+                )}
+            </div>
 
             {/* ---- Retirement Phases ---- */}
             <div className="border-t pt-6">
@@ -267,9 +274,10 @@ export function Screen1Plan() {
                     {phases.map((phase, index) => (
                         <div key={phase.name} className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-white">
                             <div className="mb-3">
-                                <h4 className="font-semibold text-lg mb-1 flex items-center gap-2">
+                                <h4 className="font-semibold text-lg flex items-center gap-2">
                                     {phaseLabels[index].title}
                                     <HelpPopover title={`${phaseLabels[index].title} Guidelines`}>
+                                        <p className="mb-2 text-gray-500">{phaseLabels[index].subtitle} · {phaseLabels[index].typicalAges}</p>
                                         <p className="mb-2">{phaseLabels[index].description}</p>
                                         <p className="font-medium">Typical expenses to include:</p>
                                         <ul className="list-disc ml-4 mt-2 space-y-1">
@@ -279,7 +287,6 @@ export function Screen1Plan() {
                                         </ul>
                                     </HelpPopover>
                                 </h4>
-                                <p className="text-xs text-gray-500">{phaseLabels[index].subtitle} • {phaseLabels[index].typicalAges}</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

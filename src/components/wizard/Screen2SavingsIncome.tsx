@@ -121,12 +121,13 @@ export function Screen2SavingsIncome() {
             ))}
 
             {/* HSA — stays in Basic; help panel collapsed by default */}
-            <div className="border-2 border-teal-300 rounded-lg p-5 bg-gradient-to-r from-teal-50 to-white">
+            <div className="border rounded-lg p-5 bg-gradient-to-r from-teal-50 to-white">
                 <div className="mb-3">
                     <h4 className="font-semibold text-lg flex items-center gap-2">
                         Health Savings Account (HSA)
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">Triple tax-advantaged</span>
                     </h4>
-                    <p className="text-sm text-gray-600">Triple tax-advantaged — used tax-free for healthcare</p>
+                    <p className="text-sm text-gray-600">Used tax-free for healthcare</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -172,14 +173,14 @@ export function Screen2SavingsIncome() {
                 </div>
             </div>
 
-            {/* Total portfolio summary */}
-            <div className="bg-green-50 border border-green-300 rounded-lg p-4">
+            {/* Total portfolio summary — neutral (a sum, not a "good"/"bad" signal) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-sm font-medium text-green-900">Total Starting Portfolio</p>
-                        <p className="text-xs text-green-700">Combined balance at retirement (all accounts)</p>
+                        <p className="text-sm font-medium text-slate-800">Total Starting Portfolio</p>
+                        <p className="text-xs text-slate-500">Combined balance at retirement (all accounts)</p>
                     </div>
-                    <p className="text-3xl font-bold text-green-900">
+                    <p className="text-3xl font-bold text-slate-900">
                         ${((accounts.taxDeferred.balanceAtRetirement + accounts.roth.balanceAtRetirement +
                             accounts.taxable.balanceAtRetirement + accounts.hsa.balanceAtRetirement) / 1000).toFixed(0)}K
                     </p>
@@ -313,7 +314,7 @@ export function Screen2SavingsIncome() {
                                 </h4>
                                 <button
                                     onClick={() => addPension({ id: Date.now().toString(), name: 'New Pension', monthlyAmount: 1000, startAge: personal.retirementAge, colaRate: 0 })}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors whitespace-nowrap">
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">
                                     + Add Pension
                                 </button>
                             </div>
@@ -412,7 +413,7 @@ export function Screen2SavingsIncome() {
                                 <span className="text-sm text-gray-500 ml-2">Optional income from working in retirement</span>
                             </div>
                             <button onClick={() => updatePartTimeWork({ enabled: true })}
-                                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors whitespace-nowrap">+ Add Part-Time Work</button>
+                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">+ Add Part-Time Work</button>
                         </div>
                     )}
 
@@ -471,7 +472,7 @@ export function Screen2SavingsIncome() {
                                 <span className="text-sm text-gray-500 ml-2">Optional net income from rental properties</span>
                             </div>
                             <button onClick={() => updateRentalIncome({ enabled: true })}
-                                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors whitespace-nowrap">+ Add Rental Income</button>
+                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">+ Add Rental Income</button>
                         </div>
                     )}
                 </div>

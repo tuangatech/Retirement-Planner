@@ -197,6 +197,7 @@ export function Screen4Assumptions() {
                         lifeExpectancy={personal.lifeExpectancy}
                         ssClaimingAge={income.socialSecurity.claimingAge}
                         rmdAge={RMD_START_AGE}
+                        showIrmaa={isAdvanced}
                     />
                 </div>
 

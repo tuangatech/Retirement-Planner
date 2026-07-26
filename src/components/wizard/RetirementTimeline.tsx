@@ -12,6 +12,9 @@ interface RetirementTimelineProps {
     ssClaimingAge: number;
     /** RMD start age. The tool models a flat 75 (SECURE 2.0, born 1960+). */
     rmdAge?: number;
+    /** Show the IRMAA 2-yr lookback marker (age 63). Only actionable for Roth
+     *  conversions, so it's hidden in Basic mode to declutter the 63/65/67 cluster. */
+    showIrmaa?: boolean;
 }
 
 interface Marker {
@@ -36,6 +39,7 @@ export function RetirementTimeline({
     lifeExpectancy,
     ssClaimingAge,
     rmdAge = 75,
+    showIrmaa = false,
 }: RetirementTimelineProps) {
     // ---- geometry (viewBox units; the SVG scales to the container width) ----
     const W = 820;
@@ -68,7 +72,7 @@ export function RetirementTimeline({
     // ---- markers within the retirement window, sorted by age ----
     const markers: Marker[] = [
         { age: retirementAge, label: 'Retire' },
-        { age: IRMAA_LOOKBACK_AGE, label: 'IRMAA lookback' },
+        ...(showIrmaa ? [{ age: IRMAA_LOOKBACK_AGE, label: 'IRMAA lookback' }] : []),
         { age: MEDICARE_AGE, label: 'Medicare' },
         { age: ssClaimingAge, label: 'Social Security' },
         { age: rmdAge, label: 'RMDs' },
