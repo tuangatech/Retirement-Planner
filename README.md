@@ -63,8 +63,8 @@ Early retirees, the FIRE community, and DIY planners who want transparent, stati
 ### Installation
 
 ```bash
-git clone https://github.com/tuangatech/Retirement-Planner.git
-cd Retirement-Planner
+git clone https://github.com/tuangatech/retirement-planner.git
+cd retirement-planner
 npm install
 npm run dev
 ```
@@ -112,7 +112,7 @@ It re-derives income, expenses, healthcare premiums/out-of-pocket, taxes, and th
 ## 📦 Project Structure
 
 ```
-Retirement-Planner/
+retirement-planner/
 ├── src/
 │   ├── components/        # UI: ui/ (shadcn), common/, wizard/, results/,
 │   │                      #     scenarios/, comparison/
