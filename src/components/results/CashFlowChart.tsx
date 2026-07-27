@@ -23,6 +23,25 @@ interface CashFlowChartProps {
     inputs: UserInputs;
 }
 
+// Legend order is pinned here rather than inherited from Recharts' `payload`. That order is
+// an internal detail: Recharts 2 emitted series-declaration order, v3 emits it alphabetised,
+// which silently demoted Social Security — the largest income line — to last place. Pinning
+// keeps the legend reading in the same order the bars stack.
+const LEGEND_ORDER = [
+    'Social Security', 'Pensions', 'Part-Time Work', 'Rental Income',
+    'Living Expenses', 'Healthcare', 'Taxes', 'One-Time', 'Typical (Median)', 'HSA Balance',
+];
+
+const INCOME_SERIES = ['Social Security', 'Pensions', 'Part-Time Work', 'Rental Income'];
+
+const byLegendOrder = (a: { value: string }, b: { value: string }) => {
+    const rank = (v: string) => {
+        const i = LEGEND_ORDER.indexOf(v);
+        return i === -1 ? Number.MAX_SAFE_INTEGER : i;  // unknown series sort last
+    };
+    return rank(a.value) - rank(b.value);
+};
+
 export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
     const successRate = results.successRate * 100;
 
@@ -76,14 +95,14 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
     const renderLegend = (props: any) => {
         const { payload } = props;
 
-        // Split legend items into two categories
-        const incomeItems = payload.filter((entry: any) =>
-            ['Social Security', 'Pensions', 'Part-Time Work', 'Rental Income'].includes(entry.value)
-        );
+        // Split legend items into two categories, each in the pinned display order.
+        const incomeItems = payload
+            .filter((entry: any) => INCOME_SERIES.includes(entry.value))
+            .sort(byLegendOrder);
 
-        const expensePortfolioItems = payload.filter((entry: any) =>
-            !incomeItems.includes(entry)
-        );
+        const expensePortfolioItems = payload
+            .filter((entry: any) => !INCOME_SERIES.includes(entry.value))
+            .sort(byLegendOrder);
 
         return (
             <div className="flex flex-col items-center gap-3 mt-4 px-4">
