@@ -1,0 +1,68 @@
+name: 💡 Feature or model improvement
+description: Suggest a new capability, or something the simulator should model that it doesn't
+labels: [enhancement]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Before filing, two things worth knowing about this project's boundaries:
+
+              - It models the **retirement phase only** — no pre-retirement accumulation.
+              - It's **client-side only** — no backend, accounts, analytics, or cloud sync.
+
+              Requests that cross those lines will be declined, not because they're bad ideas but
+              because they're different products. Everything else is fair game — see the
+              known-gaps list in
+              [CONTRIBUTING.md](https://github.com/tuangatech/retirement-planner/blob/main/CONTRIBUTING.md#-scope).
+
+    - type: textarea
+      id: problem
+      attributes:
+          label: What problem would this solve?
+          description: Describe the planning question you can't currently answer.
+          placeholder: |
+              I'm retiring to Georgia, which exempts most retirement income. The tool applies one
+              federal-only rate, so it understates my after-tax income by several thousand a year.
+      validations:
+          required: true
+
+    - type: textarea
+      id: proposal
+      attributes:
+          label: What would you like it to do?
+      validations:
+          required: true
+
+    - type: dropdown
+      id: kind
+      attributes:
+          label: What kind of change is this?
+          options:
+              - Model accuracy (the math should account for something)
+              - New input or setting
+              - Results / visualization
+              - UX or wording
+              - Export, verification, or docs
+              - Developer experience
+      validations:
+          required: true
+
+    - type: textarea
+      id: sources
+      attributes:
+          label: Sources
+          description: |
+              For anything touching tax, Social Security, or Medicare rules, link the primary
+              source (IRS publication, SSA page, CMS rate table). This is usually the hard part of
+              the work, so it's genuinely valuable even without code.
+
+    - type: dropdown
+      id: help
+      attributes:
+          label: Would you like to implement it?
+          options:
+              - "Yes, I'd like to work on this"
+              - "Maybe, with guidance"
+              - "No, just suggesting"
+      validations:
+          required: true

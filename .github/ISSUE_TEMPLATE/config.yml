@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+    - name: 🚀 Try the live demo
+      url: https://retirement-planner-blond.vercel.app/
+      about: Reproduce the problem in the hosted app before filing, if you can.
+    - name: 📖 What the simulator does NOT model
+      url: https://github.com/tuangatech/retirement-planner/blob/main/docs/1-requirements.md
+      about: Many "wrong number" reports are documented simplifications. Check here first.
+    - name: 🧮 How the tax model works
+      url: https://github.com/tuangatech/retirement-planner/blob/main/docs/2-tax-model.md
+      about: Single marginal rate, provisional-income Social Security, year-specific constants.

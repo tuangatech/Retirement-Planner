@@ -4,11 +4,17 @@
 
 A privacy-first, Monte Carlo simulation-based retirement planning tool that helps individuals determine if their retirement plan will work. Built with transparency and statistical accuracy in mind, this tool honestly discloses its limitations rather than creating false confidence.
 
+[![CI](https://github.com/tuangatech/retirement-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/tuangatech/retirement-planner/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.2-blue)](https://reactjs.org/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 ### 👉 [**Try the live demo**](https://retirement-planner-blond.vercel.app/) — no install, runs entirely in your browser
+
+<!-- TODO: add a screenshot or GIF of the Results dashboard here. For a visual app this is the
+     single biggest thing that converts a repo visitor into a user. Save it to public/ and embed:
+     ![Results dashboard](public/screenshot.png) -->
 
 ---
 
@@ -34,6 +40,32 @@ This tool focuses exclusively on the retirement phase—no pre-retirement accumu
 ### Target Audience
 
 Early retirees, the FIRE community, and DIY planners who want transparent, statistically honest projections.
+
+### Scope & Limitations
+
+Read this before trusting a number. The app's **Disclosures** tab shows the same list with your own
+figures filled in — none of it is buried in a footnote.
+
+**What it models** — US federal taxes for **single** and **married filing jointly** filers ·
+Social Security (claiming age, COLA, earnings test, provisional-income taxability) ·
+RMDs from age 75 · Medicare premiums and IRMAA · pre-Medicare healthcare · HSA (incl. age-65+
+flexibility) · pensions, part-time work, and rental income · phase-based spending (Go-Go /
+Slow-Go / No-Go) · three withdrawal strategies, including gap-year Roth conversions.
+
+**What it deliberately does *not* model** — pre-retirement accumulation · **state income tax** ·
+ACA subsidies for pre-Medicare coverage · **long-term care** (often the largest single retirement
+risk) · the survivor's penalty for couples · per-spouse accounts (couples' balances are pooled) ·
+variable inflation · dynamic spending guardrails · fat-tail crashes · fees and transaction costs ·
+home equity, mortgages, and property taxes.
+
+**Key simplifications** — one marginal rate above the standard deduction rather than the full
+10–37% brackets · long-term capital gains taxed at that same flat rate (no 0/15/20% brackets) ·
+fixed life expectancy, not a mortality distribution · all accounts share one market shock per year
+(perfectly correlated) · annual returns capped at ±50% · IRMAA estimated by you rather than
+derived from MAGI.
+
+Several of these gaps are open, well-scoped contribution opportunities — see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -113,6 +145,7 @@ It re-derives income, expenses, healthcare premiums/out-of-pocket, taxes, and th
 
 ```
 retirement-planner/
+├── .github/               # CI workflow, issue/PR templates, Dependabot
 ├── src/
 │   ├── components/        # UI: ui/ (shadcn), common/, wizard/, results/,
 │   │                      #     scenarios/, comparison/
@@ -131,6 +164,7 @@ retirement-planner/
 ├── scripts/               # verify_plan.py + downloaded verification bundles
 ├── docs/                  # requirements, system-design, technical-implementation, tax-model
 ├── public/                # Static assets
+├── CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, LICENSE
 ├── vite.config.ts, tsconfig.json, tailwind.config.js, components.json
 └── package.json
 ```
@@ -166,7 +200,7 @@ The `monte-carlo.worker.ts` worker runs 10,000 full simulations and aggregates s
 The app is a static SPA—no backend or environment variables.
 
 1. Import the GitHub repo into Vercel once. Vercel auto-detects the **Vite** preset and runs the build for you (output `dist`) — you don't build locally.
-2. **Every push to `master` triggers a production deploy**; other branches and PRs get preview deploys. That's the whole workflow—just push.
+2. **Every push to `main` triggers a production deploy**; other branches and PRs get preview deploys. That's the whole workflow—just push.
 
 A **`vercel.json`** at the repo root rewrites all paths to `index.html`, so deep links and page refreshes (e.g. `/results`) don't 404 under the app's client-side routing. It's already included—no action needed.
 
@@ -194,6 +228,9 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 - **[6-system-design.md](docs/6-system-design.md)** — architecture and design
 - **[7-technical-implementation.md](docs/7-technical-implementation.md)** — implementation guide (incl. verification workflow)
 
+For contributors: **[CONTRIBUTING.md](CONTRIBUTING.md)** ·
+**[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** · **[SECURITY.md](SECURITY.md)**
+
 ### Key Design Decisions
 
 1. **No pre-retirement modeling** — focuses only on the retirement phase.
@@ -204,9 +241,37 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 
 ---
 
+## 🤝 Contributing
+
+Contributions are welcome — including from people who don't write code.
+
+- **Use it and report what's wrong.** Run the [live demo](https://retirement-planner-blond.vercel.app/)
+  with a plausible plan and file anything confusing or incorrect.
+- **Check the math.** Export the JSON bundle and run `python3 scripts/verify_plan.py`. If it
+  disagrees with the app, that's a great bug report.
+- **Challenge an assumption.** If you know the tax, Medicare, or Social Security rules better than
+  the code does, cite the source and we'll fix it or document the simplification.
+- **Close a known gap.** State income tax, ACA subsidies, and the survivor's penalty are all
+  documented, unbuilt, and well-scoped.
+
+Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first — the engine has hard invariants (seeded RNG,
+exactly two `rng()` calls per simulated year, pure calculation modules) that are easy to break by
+accident. Issues labeled **`good first issue`** are safe entry points.
+
+> 🔒 **Never post your real financial data in an issue.** Use rounded or synthetic numbers — the
+> exported JSON bundle contains every figure you entered.
+
+By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+
 ## 📝 License
 
 MIT — see [LICENSE](LICENSE).
+
+Educational projections only; not financial, tax, legal, or investment advice. The software is
+provided "as is", without warranty of any kind. Consult a qualified professional before making
+retirement decisions.
 
 ---
 

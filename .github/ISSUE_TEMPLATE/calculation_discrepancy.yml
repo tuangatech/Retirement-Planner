@@ -1,0 +1,103 @@
+name: 🧮 Calculation discrepancy
+description: A projected number looks wrong — taxes, RMDs, Social Security, healthcare, withdrawals
+labels: [calculation, needs-verification]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              This project ships an independent Python cross-check of its own math. Using it turns
+              "this number looks off" into a reproducible bug, so please try it first:
+
+              1. Run your simulation → **Annual Breakdown** tab → **JSON** to download the bundle.
+              2. Move the file into `scripts/`.
+              3. Run `python3 scripts/verify_plan.py` (add `--percentile p10` for the worst case).
+
+              > 🔒 **The exported bundle contains every number you entered.** Before attaching it,
+              > replace your balances and income with rounded or synthetic values and re-run — a
+              > synthetic scenario that shows the same discrepancy is just as useful to us and
+              > keeps your finances private. Issues here are public and permanent.
+
+    - type: dropdown
+      id: area
+      attributes:
+          label: Which part of the model?
+          options:
+              - Federal income tax
+              - Social Security (benefit, COLA, or earnings test)
+              - Social Security taxability (provisional income)
+              - RMDs
+              - Healthcare — Medicare premiums / IRMAA
+              - Healthcare — pre-Medicare premiums or out-of-pocket
+              - Withdrawal sequencing / order
+              - Roth conversions
+              - HSA
+              - Phase-based spending or inflation
+              - Monte Carlo aggregation (success rate, percentiles)
+              - Cash-flow identity / balances don't add up
+              - Something else
+      validations:
+          required: true
+
+    - type: textarea
+      id: discrepancy
+      attributes:
+          label: The number, and what you expected
+          description: Which year/age, which figure, what the app shows, what you believe is correct.
+          placeholder: |
+              Age 67, "Federal tax" column shows $4,200.
+              I calculate $3,150: taxable income after the standard deduction is $15,000 × 21% = $3,150.
+      validations:
+          required: true
+
+    - type: textarea
+      id: basis
+      attributes:
+          label: What's your expectation based on?
+          description: |
+              An IRS/SSA/CMS publication, another calculator, a hand calculation, or your CPA.
+              Links to primary sources are the fastest path to a fix.
+      validations:
+          required: true
+
+    - type: textarea
+      id: verifier
+      attributes:
+          label: verify_plan.py output
+          description: Paste the relevant part of the output (pass or fail — both are informative).
+          render: text
+
+    - type: dropdown
+      id: percentile
+      attributes:
+          label: Which percentile run?
+          options:
+              - p50 (median)
+              - p10 (worst case)
+              - p90 (best case)
+              - Not applicable / summary figure
+      validations:
+          required: true
+
+    - type: textarea
+      id: inputs
+      attributes:
+          label: Minimal inputs that reproduce it
+          description: |
+              Synthetic numbers are ideal. Filing status, ages, and the balances/rates that matter
+              are usually enough — you don't need to list every field.
+          placeholder: |
+              Filing status: single · Current age 55 · Retire at 55 · Life expectancy 90
+              Tax-deferred $1,000,000 @ 7% · Roth $200,000 @ 7% · Taxable $100,000 @ 6%
+              SS $30,000/yr claimed at 67 · Effective tax rate 22%
+      validations:
+          required: true
+
+    - type: checkboxes
+      id: checks
+      attributes:
+          label: Before filing
+          options:
+              - label: I checked the **Disclosures** tab and this isn't one of the documented simplifications.
+                required: true
+              - label: The numbers in this issue are synthetic or rounded — not my real finances.
+                required: true

@@ -1,0 +1,36 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+# A new push to the same branch makes the in-flight run irrelevant.
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    verify:
+        name: type-check · lint · test · build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: npm
+
+            - run: npm ci
+
+            # These four mirror the local gate in CONTRIBUTING.md exactly, so a green
+            # local run means a green CI run. `build` re-runs tsc, but keeping the
+            # separate type-check step gives a faster, clearer failure signal.
+            - run: npm run type-check
+            - run: npm run lint
+            - run: npm test
+            - run: npm run build

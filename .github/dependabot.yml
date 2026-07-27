@@ -1,0 +1,16 @@
+version: 2
+updates:
+    - package-ecosystem: npm
+      directory: /
+      schedule:
+          interval: weekly
+      open-pull-requests-limit: 5
+      # Dev tooling churns far more than runtime deps; grouping keeps the PR queue readable.
+      groups:
+          dev-dependencies:
+              dependency-type: development
+
+    - package-ecosystem: github-actions
+      directory: /
+      schedule:
+          interval: weekly

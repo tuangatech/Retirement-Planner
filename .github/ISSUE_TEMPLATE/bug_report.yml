@@ -1,0 +1,86 @@
+name: 🐛 Bug report
+description: Something in the app is broken, crashes, or behaves wrong (not a wrong number)
+labels: [bug]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for filing a bug. If a **projected number** looks wrong, please use the
+              **Calculation discrepancy** template instead — it collects the data needed to
+              reproduce the math.
+
+              > 🔒 **Never paste your real financial data here.** Issues are public. Use rounded
+              > or synthetic numbers.
+
+    - type: textarea
+      id: what-happened
+      attributes:
+          label: What happened?
+          description: What you saw, and what you expected instead.
+      validations:
+          required: true
+
+    - type: textarea
+      id: steps
+      attributes:
+          label: Steps to reproduce
+          placeholder: |
+              1. Go to the wizard, Step 1
+              2. Enter age 55, retirement age 55
+              3. Click Next
+              4. See error
+      validations:
+          required: true
+
+    - type: dropdown
+      id: where
+      attributes:
+          label: Where does it happen?
+          options:
+              - Landing page
+              - Wizard
+              - Results — Summary
+              - Results — Monte Carlo
+              - Results — Cash Flow
+              - Results — Annual Breakdown
+              - Results — Disclosures
+              - Saved scenarios
+              - Scenario comparison
+              - CSV / JSON export
+              - Somewhere else / not sure
+      validations:
+          required: true
+
+    - type: input
+      id: browser
+      attributes:
+          label: Browser and OS
+          placeholder: Chrome 140 on macOS 15
+      validations:
+          required: true
+
+    - type: textarea
+      id: console
+      attributes:
+          label: Browser console errors
+          description: Open DevTools → Console and paste anything red. Optional but very helpful.
+          render: text
+
+    - type: dropdown
+      id: where-run
+      attributes:
+          label: Live demo or local build?
+          options:
+              - Live demo
+              - Local dev server (npm run dev)
+              - Local production build (npm run build + preview)
+      validations:
+          required: true
+
+    - type: checkboxes
+      id: privacy
+      attributes:
+          label: Confirmation
+          options:
+              - label: This report contains no real financial data of mine.
+                required: true

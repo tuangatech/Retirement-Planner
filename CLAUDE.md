@@ -27,9 +27,13 @@ python3 scripts/verify_plan.py   # independent cross-check of an exported JSON b
 - **Success metric:** `success = ageOfDepletion === null`; failed runs report `finalBalance = 0`
   (never use `finalBalance > 0` — stranded pennies would misreport failures).
 - **Tax model:** IRS provisional-income SS + standard-deduction floor + one marginal rate above
-  it. Single filer only. Constants are year-specific — see `docs/2-tax-model.md`.
+  it. **Single and married-filing-jointly** filers — MFJ combines both spouses' SS for provisional
+  income and *pools* accounts under one RMD start age (the older spouse's); the survivor's penalty
+  is not modeled. See `docs/2-tax-model.md` and `docs/4-married-filing-jointly.md`. Constants are
+  year-specific.
 - **Saved scenarios** store inputs only (results recomputed on load). Never silently change how
-  an old scenario was computed — legacy `withdrawalStrategy.strategy` defaults to `'standard'`.
+  an old scenario was computed — legacy `withdrawalStrategy.strategy` defaults to `'tax_smart'`
+  (`yearlyProjection.ts`), and the UI mirrors that same fallback.
 
 ## Coding conventions & practices (staff-level)
 - **Match the surrounding code.** Mirror the file's existing naming, structure, and comment
@@ -51,7 +55,7 @@ python3 scripts/verify_plan.py   # independent cross-check of an exported JSON b
   something works; report failures plainly.
 
 ## Git
-Commit to `master` only when asked. **Short** messages, **no `Co-Authored-By` / attribution
+Commit to `main` only when asked. **Short** messages, **no `Co-Authored-By` / attribution
 trailers.** Confirm before force-pushing or anything hard to reverse.
 
 

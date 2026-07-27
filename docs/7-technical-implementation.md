@@ -162,7 +162,7 @@ Push-to-deploy via Vercel's GitHub integration — Vercel runs the build on its 
 do **not** run `npm run build` or the Vercel CLI locally to deploy.
 
 1. Import the repo into Vercel once (auto-detects Vite; output `dist`).
-2. Push to `master` → production deploy. Other branches / PRs → preview deploys.
+2. Push to `main` → production deploy. Other branches / PRs → preview deploys.
 3. `vercel.json` (repo root) rewrites all routes to `index.html` so client-side routes
    (`/results`, `/wizard/1`) don't 404 on refresh.
 

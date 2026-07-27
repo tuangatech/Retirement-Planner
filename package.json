@@ -1,8 +1,30 @@
 {
-    "name": "retirement-simulator",
+    "name": "retirement-planner",
     "private": true,
-    "version": "0.0.0",
+    "version": "0.1.0",
     "type": "module",
+    "description": "Privacy-first Monte Carlo retirement simulator. Tell it what you'll have at retirement, and it tells you if it lasts — entirely in your browser.",
+    "license": "MIT",
+    "author": "Tuan Tran",
+    "homepage": "https://retirement-planner-blond.vercel.app/",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tuangatech/retirement-planner.git"
+    },
+    "bugs": {
+        "url": "https://github.com/tuangatech/retirement-planner/issues"
+    },
+    "keywords": [
+        "retirement",
+        "retirement-planning",
+        "retirement-calculator",
+        "monte-carlo",
+        "financial-independence",
+        "fire",
+        "privacy-first",
+        "react",
+        "typescript"
+    ],
     "scripts": {
         "dev": "vite --port 5175",
         "build": "tsc && vite build",
