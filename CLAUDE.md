@@ -51,6 +51,10 @@ python3 scripts/verify_plan.py   # independent cross-check of an exported JSON b
   slip business logic into them. One source of truth for each number.
 - **Scope tightly, prefer the smallest correct change,** and flag pre-existing issues you find
   rather than silently reworking unrelated code. Recommend, don't sprawl.
+- **Never write a dependency version from memory** — recall lags reality (this repo was scaffolded
+  with pins 1–4 years stale). Check first: `npm view <pkg> version`, or `npm outdated`. New deps
+  take current stable; upgrading an existing one is separate — majors get their own PR, verified in
+  a browser via `verify-ui` (CI green only proves it compiles).
 - **Verify claims.** Prove correctness with `verify_plan.py` or a test/spot-check before saying
   something works; report failures plainly.
 
