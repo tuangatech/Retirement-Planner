@@ -13,6 +13,12 @@ updates:
           dev-minor-patch:
               dependency-type: development
               update-types: [minor, patch]
+              # On 0.x packages a "minor" bump is breaking by semver convention, so the
+              # filter above doesn't catch it. eslint-plugin-react-refresh 0.4→0.5 peers
+              # on eslint ^9||^10 while we're on 8, which failed `npm ci` and blocked three
+              # innocent packages. Excluded so it gets its own PR alongside the eslint
+              # migration instead of holding the group hostage.
+              exclude-patterns: ['eslint-plugin-react-refresh']
           prod-minor-patch:
               dependency-type: production
               update-types: [minor, patch]
