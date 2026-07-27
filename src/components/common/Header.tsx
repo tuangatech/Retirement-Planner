@@ -27,7 +27,7 @@ export function Header({ variant = 'wizard' }: HeaderProps) {
     };
 
     const handleBackToWizard = () => {
-        navigate('/wizard/7');
+        navigate('/wizard/4');
     };
 
     // const handleExportCSV = () => {

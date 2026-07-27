@@ -169,7 +169,7 @@ retirement-planner/
 └── package.json
 ```
 
-**Routes:** `/` (landing) → `/wizard/:step` (6-step wizard) → `/results` (5 tabs: Summary, Monte Carlo, Cash Flow, Annual Breakdown, Disclosures); plus `/scenarios` and `/compare`.
+**Routes:** `/` (landing) → `/wizard/:step` (4-step wizard) → `/results` (5 tabs: Summary, Monte Carlo, Cash Flow, Annual Breakdown, Disclosures); plus `/scenarios` and `/compare`.
 
 ---
 

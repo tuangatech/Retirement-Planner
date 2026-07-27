@@ -180,13 +180,14 @@ export default function LandingPage() {
                                 <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Early retirees &amp; FIRE planners (age 50–65)</span></li>
                                 <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>DIY investors who want to stress-test their plan</span></li>
                                 <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Anyone with pre-Medicare healthcare exposure</span></li>
+                                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Couples filing jointly (accounts modeled as pooled)</span></li>
                                 <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Skeptics who want to see the math</span></li>
                             </ul>
                         </div>
                         <div>
                             <p className="text-sm font-semibold text-amber-700 uppercase tracking-wide mb-3">Not the right tool for</p>
                             <ul className="space-y-2 text-slate-700">
-                                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-1" /><span>Couples planning (single filer only)</span></li>
+                                <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-1" /><span>Survivor benefits or per-spouse account strategies</span></li>
                                 <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-1" /><span>Long-term care or estate planning</span></li>
                                 <li className="flex items-start gap-2"><XCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-1" /><span>Replacing a CFP or professional advice</span></li>
                             </ul>
@@ -202,13 +203,13 @@ export default function LandingPage() {
                         How It Works
                     </h2>
                     <p className="text-lg text-slate-600 text-center mb-12 max-w-3xl mx-auto">
-                        A simple 6-step wizard guides you through your retirement plan
+                        A simple 4-step wizard guides you through your retirement plan
                     </p>
 
                     <div className="grid md:grid-cols-3 gap-8 mb-12">
-                        <StepCard number="1-2" title="Basic Information" description="Enter your age, retirement timeline, and planned spending across three retirement phases" />
-                        <StepCard number="3-4" title="Accounts & Income" description="Add your investment accounts (401k, Roth, HSA, taxable) and income sources (Social Security, pensions)" />
-                        <StepCard number="5-6" title="Healthcare & Simulation" description="Model pre-Medicare and Medicare costs, set tax rates, then run Monte Carlo analysis" />
+                        <StepCard number="1" title="Your Plan" description="Filing status, your retirement timeline, and planned spending across three retirement phases" />
+                        <StepCard number="2" title="Savings & Income" description="Add your investment accounts (401k, Roth, HSA, taxable) and income sources (Social Security, pensions)" />
+                        <StepCard number="3-4" title="Healthcare & Strategy" description="Model pre-Medicare and Medicare costs, set tax rates and withdrawal order, then run Monte Carlo analysis" />
                     </div>
 
                 </div>
