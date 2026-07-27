@@ -7,6 +7,7 @@ import { useInputs } from '@/contexts/InputsContext';
 import { DEFAULT_VALUES } from '@/lib/constants';
 import { Info, MapPin, Check, Lock } from 'lucide-react';
 import { RetirementTimeline } from './RetirementTimeline';
+import { ScopeBadge } from '@/components/common/ScopeBadge';
 import { RMD_START_AGE } from '@/lib/calculations/rmd';
 
 const NO_TAX_STATES = ['AK', 'FL', 'NV', 'NH', 'SD', 'TN', 'TX', 'WA', 'WY'];
@@ -58,6 +59,7 @@ export function Screen4Assumptions() {
     const { tax, simulation, mode, personal, income } = inputs;
     const isAdvanced = mode === 'advanced';
     const isNoTaxState = NO_TAX_STATES.includes(personal.state);
+    const isMFJ = personal.filingStatus === 'married_joint';
     const selected: StrategyKey = inputs.withdrawalStrategy.strategy ?? 'tax_smart';
 
     return (
@@ -147,8 +149,14 @@ export function Screen4Assumptions() {
 
             {/* Withdrawal strategy */}
             <div className="border-t pt-6">
-                <h3 className="text-xl font-bold mb-1">Withdrawal Strategy</h3>
-                <p className="text-gray-600 mb-4">How the simulator draws money each year — this materially changes lifetime tax and how long the money lasts.</p>
+                <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
+                    Withdrawal Strategy
+                    {isMFJ && <ScopeBadge scope="household" />}
+                </h3>
+                <p className="text-gray-600 mb-4">
+                    How the simulator draws money each year — this materially changes lifetime tax and how long the money lasts.
+                    {isMFJ && ' One sequence runs against the pooled household balances.'}
+                </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
                     {STRATEGIES.map((s) => {

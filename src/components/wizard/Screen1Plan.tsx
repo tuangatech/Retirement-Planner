@@ -12,6 +12,7 @@ import { useRef, useState, useEffect } from 'react';
 import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
 import { HelpPopover } from '@/components/common/HelpPopover';
 import { InlineGuidance } from '@/components/common/InlineGuidance';
+import { ScopeBadge } from '@/components/common/ScopeBadge';
 
 const MIN_PHASE_SPENDING = 1000;
 
@@ -249,7 +250,10 @@ export function Screen1Plan() {
 
             {/* ---- Retirement Phases ---- */}
             <div className="border-t pt-6">
-                <h3 className="text-xl font-bold mb-1">Retirement Phases</h3>
+                <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
+                    Retirement Phases
+                    {isMFJ && <ScopeBadge scope="household" />}
+                </h3>
                 <p className="text-gray-600 mb-4">
                     {isMFJ
                         ? 'Your household spending for each phase — phase boundaries follow your age'
@@ -339,6 +343,7 @@ export function Screen1Plan() {
                         <div>
                             <h4 className="font-semibold text-lg flex items-center gap-2">
                                 One-Time Major Expenses
+                                {isMFJ && <ScopeBadge scope="household" />}
                                 <HelpPopover title="When to Use One-Time Expenses">
                                     <p className="mb-2">Large, planned one-off costs:</p>
                                     <ul className="list-disc ml-4 space-y-1">

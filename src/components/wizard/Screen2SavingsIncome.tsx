@@ -12,6 +12,7 @@ import type { Pension } from '@/types';
 import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
 import { HelpPopover } from '@/components/common/HelpPopover';
 import { InlineGuidance } from '@/components/common/InlineGuidance';
+import { ScopeBadge } from '@/components/common/ScopeBadge';
 
 export function Screen2SavingsIncome() {
     const {
@@ -75,8 +76,17 @@ export function Screen2SavingsIncome() {
 
             {/* ---- Accounts ---- */}
             <div>
-                <h3 className="text-xl font-bold">Investment Accounts</h3>
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                    Investment Accounts
+                    {isMFJ && <ScopeBadge scope="household" />}
+                </h3>
                 <p className="text-sm text-gray-500">Expected-return guide: stocks ~8%, bonds ~4% — blend for your mix.</p>
+                {isMFJ && (
+                    <p className="text-sm text-gray-600 mt-1">
+                        Combine both spouses’ balances into one figure per account type — the simulator
+                        pools them and draws from the household total.
+                    </p>
+                )}
             </div>
             {accountTypes.map(({ key, label, subtitle, color, help }) => (
                 <div key={key} className={`border rounded-lg p-5 bg-gradient-to-r ${color}`}>
@@ -312,6 +322,7 @@ export function Screen2SavingsIncome() {
                             <div className="flex justify-between items-center mb-3">
                                 <h4 className="font-semibold text-lg flex items-center gap-2">
                                     Pensions
+                                    {isMFJ && <ScopeBadge scope="household" />}
                                     <HelpPopover title="Pensions"><p>Defined-benefit income for life. Private: usually 0% COLA; government: often 2–3%.</p></HelpPopover>
                                 </h4>
                                 <button
@@ -320,6 +331,12 @@ export function Screen2SavingsIncome() {
                                     + Add Pension
                                 </button>
                             </div>
+                            {isMFJ && (
+                                <InlineGuidance className="mb-3">
+                                    Add a spouse’s pension as its own entry. Start ages run on <strong>your</strong>{' '}
+                                    timeline, so use your age in the year their pension begins.
+                                </InlineGuidance>
+                            )}
                             {income.pensions.length > 0 ? (
                                 <div className="space-y-3">
                                     {income.pensions.map((pension) => (
@@ -379,11 +396,19 @@ export function Screen2SavingsIncome() {
                             <div className="flex justify-between items-center mb-3">
                                 <h4 className="font-semibold text-lg flex items-center gap-2">
                                     Part-Time Work
+                                    {isMFJ && <ScopeBadge scope="you-only" />}
                                     <HelpPopover title="Part-Time Work"><p>Subject to 7.65% payroll tax and income tax; may trigger the SS earnings test if claiming before 67.</p></HelpPopover>
                                 </h4>
                                 <button onClick={() => updatePartTimeWork({ enabled: false })}
                                     className="p-2 text-red-600 hover:bg-red-50 rounded-md" title="Remove part-time work"><Trash2 className="w-5 h-5" /></button>
                             </div>
+                            {isMFJ && (
+                                <InlineGuidance className="mb-3">
+                                    Enter <strong>your</strong> earnings only. This figure drives your Social Security
+                                    earnings test, so adding a spouse’s income here would overstate the reduction to
+                                    your benefit. A spouse’s own part-time work isn’t modeled — see Disclosures.
+                                </InlineGuidance>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Annual Gross Income</label>
@@ -425,6 +450,7 @@ export function Screen2SavingsIncome() {
                             <div className="flex justify-between items-center mb-3">
                                 <h4 className="font-semibold text-lg flex items-center gap-2">
                                     Rental Income
+                                    {isMFJ && <ScopeBadge scope="household" />}
                                     <HelpPopover title="Rental Income"><p>Enter NET income after mortgage, taxes, insurance, maintenance, management, and vacancy.</p></HelpPopover>
                                 </h4>
                                 <button onClick={() => updateRentalIncome({ enabled: false })}

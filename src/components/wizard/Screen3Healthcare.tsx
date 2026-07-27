@@ -6,6 +6,7 @@ import { AlertCircle } from 'lucide-react';
 import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
 import { HelpPopover } from '@/components/common/HelpPopover';
 import { InlineGuidance } from '@/components/common/InlineGuidance';
+import { ScopeBadge } from '@/components/common/ScopeBadge';
 
 export function Screen3Healthcare() {
     const { inputs, updateHealthcare } = useInputs();
@@ -18,7 +19,10 @@ export function Screen3Healthcare() {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold mb-2">Healthcare Costs</h2>
+                <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                    Healthcare Costs
+                    {isMFJ && <ScopeBadge scope="per-person" />}
+                </h2>
                 <p className="text-gray-600">Estimate your healthcare expenses before and during Medicare</p>
                 {isMFJ && (
                     <p className="text-sm text-gray-500 mt-2">

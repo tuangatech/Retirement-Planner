@@ -123,13 +123,21 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                                 a {(inputs.personal.filingStatus ?? 'single').replace('_', ' ')} filer
                             </li>
                             {inputs.personal.filingStatus === 'married_joint' && (
-                                <li>
-                                    <strong>Married filing jointly:</strong> both spouses' Social Security
-                                    benefits are combined for the provisional-income formula, and accounts
-                                    are <strong>pooled</strong> with one RMD start age (the older spouse's).
-                                    The survivor's penalty is <strong>not</strong> modeled — both spouses are
-                                    assumed to live to the shared life expectancy.
-                                </li>
+                                <>
+                                    <li>
+                                        <strong>Married filing jointly:</strong> both spouses' Social Security
+                                        benefits are combined for the provisional-income formula, and accounts
+                                        are <strong>pooled</strong> with one RMD start age (the older spouse's).
+                                        The survivor's penalty is <strong>not</strong> modeled — both spouses are
+                                        assumed to live to the shared life expectancy.
+                                    </li>
+                                    <li>
+                                        <strong>A spouse's earned income is not modeled.</strong> Part-time work is
+                                        treated entirely as <em>your</em> wages, so it drives only your Social
+                                        Security earnings test; the spouse's benefit gets no earnings test at all.
+                                        Pension and rental start ages also run on your timeline, not the spouse's.
+                                    </li>
+                                </>
                             )}
                             <li>
                                 Social Security taxability uses the IRS provisional-income formula
