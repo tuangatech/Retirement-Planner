@@ -107,12 +107,43 @@ await step('run 10,000-sim simulation -> /results', async () => {
 });
 
 // Radix tabs don't expose `value` on [role="tab"] — select by index.
-const TABS = ['summary', 'monte-carlo', 'cash-flow', 'breakdown', 'assumptions'];
-for (const [i, tab] of TABS.entries()) {
-    await step(`results tab: ${tab}`, async () => {
+// CHARTED marks tabs that must render an actual Recharts surface with drawn geometry:
+// a broken chart library still renders the tab and its container, so counting on the tab
+// click alone would sail straight past a recharts regression.
+const TABS = [
+    { name: 'summary', charted: false },
+    { name: 'monte-carlo', charted: true },
+    { name: 'cash-flow', charted: true },
+    { name: 'breakdown', charted: false },
+    { name: 'assumptions', charted: false },
+];
+
+for (const [i, { name, charted }] of TABS.entries()) {
+    await step(`results tab: ${name}`, async () => {
         await page.locator('[role="tab"]').nth(i).click();
         await page.waitForTimeout(400);
-        await shot(`09-tab-${tab}`);
+        await shot(`09-tab-${name}`);
+    });
+
+    if (!charted) continue;
+
+    await step(`  chart drew on ${name}`, async () => {
+        await page.waitForSelector('.recharts-surface', { timeout: 15000 });
+        const stats = await page.$$eval('.recharts-surface', (surfaces) =>
+            surfaces.map((s) => {
+                const r = s.getBoundingClientRect();
+                const drawn = [...s.querySelectorAll('path, line, rect, circle')].filter((n) => {
+                    const b = n.getBoundingClientRect();
+                    return b.width > 1 || b.height > 1;
+                }).length;
+                return { w: Math.round(r.width), h: Math.round(r.height), drawn };
+            })
+        );
+        const ok = stats.filter((s) => s.w > 50 && s.h > 50 && s.drawn > 5);
+        if (!ok.length) {
+            throw new Error(`no drawn Recharts surface (saw ${JSON.stringify(stats)})`);
+        }
+        steps.push(`  note: ${name} chart ${ok[0].w}x${ok[0].h}, ${ok[0].drawn} drawn elements`);
     });
 }
 
