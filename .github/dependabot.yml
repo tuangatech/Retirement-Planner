@@ -5,10 +5,20 @@ updates:
       schedule:
           interval: weekly
       open-pull-requests-limit: 5
-      # Dev tooling churns far more than runtime deps; grouping keeps the PR queue readable.
+      # Group only low-risk updates. Grouping ALL dev-dependencies once produced a single
+      # dead PR bundling five migrations (tailwind 3→4, vite 5→8, typescript 5→7,
+      # eslint 8→10, vitest 2→4) that couldn't even `npm ci`. Majors now arrive as
+      # individual PRs so a breaking bump is never welded to a routine one.
       groups:
-          dev-dependencies:
+          dev-minor-patch:
               dependency-type: development
+              update-types: [minor, patch]
+          prod-minor-patch:
+              dependency-type: production
+              update-types: [minor, patch]
+          # react/react-dom and their types must move together or npm ci hits ERESOLVE.
+          react:
+              patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
 
     - package-ecosystem: github-actions
       directory: /
