@@ -9,9 +9,10 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default [
-    // Don't lint build output, deps, generated verification bundles, or config files.
+    // Don't lint build output, deps, generated verification bundles, config files, or
+    // local agent tooling (`.claude/` is git-ignored and runs on Node, not in the browser).
     {
-        ignores: ['dist/**', 'node_modules/**', 'scripts/**', '*.config.js', '*.config.ts'],
+        ignores: ['dist/**', 'node_modules/**', 'scripts/**', '.claude/**', '*.config.js', '*.config.ts'],
     },
 
     js.configs.recommended,
