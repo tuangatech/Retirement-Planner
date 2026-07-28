@@ -67,12 +67,8 @@ export {
 // Module 6: Taxes
 export {
     calculateTaxOnFixedIncome,
-    calculateTaxOnTaxDeferredWithdrawal,
-    calculateTaxOnTaxableWithdrawal,
     calculateTaxOnRothWithdrawal,
     calculateTaxGrossUpFactor,
-    calculateGrossWithdrawalForNet,
-    calculateEffectiveTaxRateOnTaxable,
     iterateTaxCalculation,
     calculateTotalTaxes,
     validateTaxInputs,

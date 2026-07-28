@@ -2,14 +2,40 @@
 
 import { calculateRMD } from './rmd';
 import {
-    calculateTaxOnTaxDeferredWithdrawal,
-    calculateTaxOnTaxableWithdrawal,
-    calculateGrossWithdrawalForNet,
-    calculateEffectiveTaxRateOnTaxable,
     calculateTaxFreeTaxDeferredRoom,
+    calculateStandardDeduction,
+    calculateTaxableSocialSecurity,
     type FilingStatus,
 } from './taxes';
 import { calculateHSAWithdrawal } from './hsa';
+
+/**
+ * Gross-up convergence. The gross draw solves `gross − tax(gross) = need`, which is a fixed
+ * point of `g ↦ need + tax(g)`. It contracts at the marginal tax rate (well under 1), so a
+ * handful of passes is exact to the dollar — tighter than the $100 threshold the old flat-rate
+ * gross-up used, because with Social Security feedback the residual is what leaks into
+ * `netCashFlow` and the whole point of this solve is that it stops leaking.
+ */
+const MAX_GROSS_UP_PASSES = 10;
+const GROSS_UP_THRESHOLD = 1;
+
+/**
+ * Gross withdrawal needed to net `netNeeded` after the tax it causes.
+ *
+ * `taxOnGross` must return the *incremental* tax caused by drawing `gross` — not `gross × rate`.
+ * The distinction is the entire fix: an extra dollar of ordinary withdrawal also drags up to
+ * $0.85 of Social Security into the taxable base, so the true marginal rate is up to 1.85× the
+ * headline rate while SS is being phased in, then falls back once SS hits its 85% cap.
+ */
+function solveGrossForNet(netNeeded: number, taxOnGross: (gross: number) => number): number {
+    let gross = netNeeded;
+    for (let pass = 0; pass < MAX_GROSS_UP_PASSES; pass++) {
+        const next = netNeeded + taxOnGross(gross);
+        if (Math.abs(next - gross) < GROSS_UP_THRESHOLD) return next;
+        gross = next;
+    }
+    return gross;
+}
 
 export interface AccountBalances {
     taxDeferred: number;
@@ -100,10 +126,57 @@ export function executeWithdrawals(
 ): WithdrawalResult {
     const balances = { ...currentBalances };
 
-    // Withdrawals must cover their own state tax as well as federal, so every gross-up and
-    // the implied tax that reduces the net proceeds use the combined marginal rate. Using the
-    // federal rate alone here would overstate each withdrawal's net and leave the year short.
-    const marginalRate = effectiveTaxRate + stateMarginalRate;
+    // ── The year's tax picture, as a function of how much has been withdrawn ──────────────
+    //
+    // Every gross-up below sizes draws against this rather than a flat rate. A flat rate is
+    // wrong in both directions: it charges tax on a draw that the deduction floor actually
+    // shields (harmless — surplus is reinvested), and it *under*-charges inside the Social
+    // Security phase-in, where each withdrawn dollar also pulls up to $0.85 of SS into the
+    // taxable base. Under-withdrawal is the harmful direction: the year then spends money it
+    // never took out, `netCashFlow` goes negative, and depletion risk is understated.
+    const fixedOrdinary = income.pensions + income.partTimeWork + income.rentalIncome;
+    const deduction = calculateStandardDeduction(
+        currentAge,
+        year,
+        filingStatus,
+        deductionInflationFactor,
+        true,
+        spouseAge
+    );
+
+    /** Federal taxable income once `draws` of withdrawal income sits on top of fixed income. */
+    const federalTaxableWith = (draws: number): number =>
+        Math.max(
+            0,
+            calculateTaxableSocialSecurity(
+                income.socialSecurity,
+                fixedOrdinary + draws,
+                filingStatus,
+                socialSecurityTaxablePercentage
+            ) +
+                fixedOrdinary +
+                draws -
+                deduction
+        );
+
+    const federalTaxableBeforeDraws = federalTaxableWith(0);
+
+    /**
+     * Total tax caused by `draws` of taxable withdrawal income this year — ordinary draws and
+     * brokerage *gains* alike, since both land in AGI and both feed provisional income. State
+     * tax stays a flat add-on: `stateMarginalRate` already summarises the state's own
+     * exclusions and deduction (see docs/5-state-tax-model.md §3).
+     */
+    const taxOnDraws = (draws: number): number =>
+        (federalTaxableWith(draws) - federalTaxableBeforeDraws) * effectiveTaxRate +
+        draws * stateMarginalRate;
+
+    /** Taxable withdrawal income booked so far, so each new draw is taxed on top of it. */
+    let drawsBooked = 0;
+
+    /** Incremental tax of adding `draws` on top of what is already booked. */
+    const marginalTaxOn = (draws: number): number =>
+        taxOnDraws(drawsBooked + draws) - taxOnDraws(drawsBooked);
 
     const withdrawals: WithdrawalAmounts = {
         taxDeferred: 0,
@@ -135,20 +208,27 @@ export function executeWithdrawals(
         // medicalWithdrawal.
         const nonHealthcarGap = Math.max(0, cashFlowGap - healthcareCosts);
 
+        // Non-medical HSA withdrawals are ordinary income to the IRS and to the state
+        // (docs/5-state-tax-model.md §6). `calculateHSAWithdrawal` takes a flat rate, so pass
+        // the average rate across the draw it is about to make rather than the headline rate —
+        // probed at the amount it might withdraw, which is where the SS feedback actually bites.
+        const hsaEffectiveRate =
+            nonHealthcarGap > 0 ? marginalTaxOn(nonHealthcarGap) / nonHealthcarGap : 0;
+
         const hsaResult = calculateHSAWithdrawal(
             currentAge,
             balances.hsa,
             healthcareCosts,
             nonHealthcarGap,   // FIX: was Math.max(0, cashFlowGap)
             allowNonMedicalHSA,
-            // Non-medical HSA withdrawals are ordinary income to the state as well as the IRS
-            // (docs/5-state-tax-model.md §6), so size them at the combined rate.
-            marginalRate
+            hsaEffectiveRate
         );
 
         withdrawals.hsa = hsaResult.totalWithdrawal;
         hsaForHealthcare = hsaResult.medicalWithdrawal;
         taxOnWithdrawals += hsaResult.taxOnNonMedical;
+        // Only the non-medical portion is income; medical HSA draws are never taxed.
+        drawsBooked += hsaResult.nonMedicalWithdrawal;
 
         // Reduce cash flow gap by net HSA benefit
         const netHSABenefit = hsaResult.medicalWithdrawal +
@@ -169,7 +249,11 @@ export function executeWithdrawals(
             const actualRMD = Math.min(rmdAmount, balances.taxDeferred);
             withdrawals.taxDeferred = actualRMD;
 
-            const taxOnRMD = calculateTaxOnTaxDeferredWithdrawal(actualRMD, marginalRate);
+            // The RMD is forced, so there is nothing to size — but its tax still has to be the
+            // real incremental amount. Understating it overstates the RMD's net proceeds, which
+            // shrinks the remaining gap and leaves the year short.
+            const taxOnRMD = marginalTaxOn(actualRMD);
+            drawsBooked += actualRMD;
             const afterTaxRMD = actualRMD - taxOnRMD;
 
             if (afterTaxRMD >= cashFlowGap) {
@@ -226,15 +310,17 @@ export function executeWithdrawals(
 
             if (fillAmount > 0) {
                 withdrawals.taxDeferred += fillAmount;
-                // Federally the draw sits inside the deduction floor, so its federal tax is
-                // ~0 and gross ≈ net. State tax is a different matter: the floor this fill is
-                // sized to is the *federal* one, while a state applies its own, much smaller
-                // shield (Georgia's $15k standard deduction, with no retirement exclusion at
-                // all before age 62). So the fill can owe state tax, and charging it here is
-                // what keeps the year from spending money it never withdrew.
-                const stateTaxOnFill = fillAmount * stateMarginalRate;
-                taxOnWithdrawals += stateTaxOnFill;
-                cashFlowGap -= fillAmount - stateTaxOnFill;
+                // Federally this draw sits inside the deduction floor, so `marginalTaxOn`
+                // returns ~0 for it — which is the point of the fill. It is not necessarily
+                // free at the state level, though: the floor it is sized to is the *federal*
+                // one, while a state applies its own, much smaller shield (Georgia's $15k
+                // standard deduction, with no retirement exclusion at all before age 62).
+                // Charging the real incremental tax is what keeps the year from spending money
+                // it never withdrew.
+                const taxOnFill = marginalTaxOn(fillAmount);
+                drawsBooked += fillAmount;
+                taxOnWithdrawals += taxOnFill;
+                cashFlowGap -= fillAmount - taxOnFill;
             }
         }
     }
@@ -250,29 +336,24 @@ export function executeWithdrawals(
 
         if (available < 10) continue;
 
-        // Calculate gross withdrawal needed (including tax)
-        let grossNeeded = 0;
+        // How much of a gross draw from this account lands in taxable income: all of a
+        // tax-deferred draw, only the gain portion of a brokerage draw, none of a Roth draw.
+        const taxableShare =
+            accountType === 'tax_deferred' ? 1 : accountType === 'taxable' ? 1 - costBasisPercentage : 0;
 
-        if (accountType === 'tax_deferred') {
-            grossNeeded = calculateGrossWithdrawalForNet(remainingNeed, marginalRate);
-        } else if (accountType === 'taxable') {
-            const taxOnGains = calculateEffectiveTaxRateOnTaxable(costBasisPercentage, marginalRate);
-            grossNeeded = calculateGrossWithdrawalForNet(remainingNeed, taxOnGains);
-        } else {
-            // Roth - no tax
-            grossNeeded = remainingNeed;
-        }
+        // Size the draw against the real tax it causes. Solving `gross − tax(gross) = need`
+        // rather than dividing by a flat rate is what makes this correct inside the Social
+        // Security phase-in, where the marginal rate is up to 1.85× the headline rate.
+        const grossNeeded =
+            taxableShare === 0
+                ? remainingNeed
+                : solveGrossForNet(remainingNeed, (gross) => marginalTaxOn(gross * taxableShare));
 
         // Limit to available balance
         const actualGross = Math.min(grossNeeded, available);
 
-        // Calculate actual tax and net
-        let actualTax = 0;
-        if (accountType === 'tax_deferred') {
-            actualTax = calculateTaxOnTaxDeferredWithdrawal(actualGross, marginalRate);
-        } else if (accountType === 'taxable') {
-            actualTax = calculateTaxOnTaxableWithdrawal(actualGross, costBasisPercentage, marginalRate);
-        }
+        const actualTax = marginalTaxOn(actualGross * taxableShare);
+        drawsBooked += actualGross * taxableShare;
 
         const actualNet = actualGross - actualTax;
 

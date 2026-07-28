@@ -65,15 +65,79 @@ describe('executeWithdrawals', () => {
             'standard', 2026, 1, 'single', undefined, 65, 75, 0.05
         );
 
-        // Need $20k net: 20,000 / (1 − 0.12) = 22,727 federal-only,
-        // vs 20,000 / (1 − 0.17) = 24,096 once a 5% state rate is added.
-        expect(federalOnly.withdrawals.taxDeferred).toBeCloseTo(20_000 / 0.88, 0);
-        expect(withState.withdrawals.taxDeferred).toBeCloseTo(20_000 / 0.83, 0);
+        // No Social Security here and a $24,150 deduction floor at 65 in 2026, so a $20k
+        // tax-deferred draw is entirely federally shielded: the federal-only case needs no
+        // gross-up at all. (The old flat-rate gross-up drew 20,000 / 0.88 = $22,727 here and
+        // leaned on surplus reinvestment to put the excess back.)
+        expect(federalOnly.withdrawals.taxDeferred).toBeCloseTo(20_000, 0);
+
+        // A 5% state rate is not shielded by the federal floor, so it does need grossing up:
+        // 20,000 / 0.95 = $21,052.63.
+        expect(withState.withdrawals.taxDeferred).toBeCloseTo(20_000 / 0.95, 0);
         expect(withState.withdrawals.taxDeferred).toBeGreaterThan(federalOnly.withdrawals.taxDeferred);
 
-        // Both still net the amount actually needed — the point of the gross-up.
+        // Both still net the amount actually needed — the point of the gross-up. The solve is
+        // iterative rather than closed-form, so it lands within a cent, not to float exactness
+        // (the UI only flags a shortfall above $0.50).
         expect(withState.withdrawals.taxDeferred - withState.taxOnWithdrawals).toBeCloseTo(20_000, 0);
-        expect(withState.shortfall).toBeCloseTo(0, 6);
+        expect(withState.shortfall).toBeCloseTo(0, 1);
+    });
+
+    // Regression for the Social Security "tax torpedo" in the gross-up. Sizing a draw at the
+    // flat rate ignores that each withdrawn dollar drags up to $0.85 of SS into the taxable
+    // base, so the true marginal rate is up to 1.85× the headline rate. Withdrawals came out
+    // systematically short in exactly the years SS is being phased in.
+    describe('sizes draws against the real marginal rate, not the flat rate', () => {
+        const balances: AccountBalances = { taxDeferred: 2_000_000, roth: 0, taxable: 0, hsa: 0 };
+        const tdOnly: Array<'taxable' | 'tax_deferred' | 'roth'> = ['tax_deferred', 'taxable', 'roth'];
+        // $28,800 of SS, so a draw on top of it pulls SS into tax. Age 67, 2035 → the senior
+        // bonus has sunset, leaving a $23,682 floor at this inflation factor.
+        const withSS: IncomeForTax = { ...noIncome, socialSecurity: 28_800 };
+
+        /** Net proceeds of the year's draws — must cover the need, or the year spends air. */
+        const netOf = (r: ReturnType<typeof executeWithdrawals>) =>
+            r.withdrawals.taxDeferred + r.withdrawals.taxable + r.withdrawals.roth - r.taxOnWithdrawals;
+
+        const draw = (need: number, income: IncomeForTax, strategy: 'standard' | 'tax_smart') =>
+            executeWithdrawals(
+                67, need, balances, 0, false, tdOnly, income, 0.12, 0.85, 0.7,
+                strategy, 2035, 1.3048, 'single', undefined, 67, 75, 0
+            );
+
+        it('takes exactly the need when the deduction floor shields it entirely', () => {
+            // No SS, $10k need, $23,682 floor → no tax, so no gross-up is warranted. The flat
+            // rate would have drawn 10,000 / 0.88 = $11,364 and relied on reinvesting the excess.
+            const r = draw(10_000, noIncome, 'standard');
+            expect(r.withdrawals.taxDeferred).toBeCloseTo(10_000, 0);
+            expect(r.taxOnWithdrawals).toBeCloseTo(0, 0);
+        });
+
+        it('nets the need exactly when the draw crosses the SS phase-in', () => {
+            // Part of the $30k draw is shielded by the floor and part lands in the torpedo, so
+            // the blended rate is 9.2% — neither the flat 12% nor the marginal 22.2%. Getting
+            // this right is the whole point: the year covers its bill without over-drawing.
+            const r = draw(30_000, withSS, 'standard');
+            expect(r.withdrawals.taxDeferred).toBeCloseTo(33_032, 0);
+            expect(netOf(r)).toBeCloseTo(30_000, 0);
+        });
+
+        it('reaches the same total whether or not the tax-smart fill splits the draw', () => {
+            // The fill changes which dollars are nominally "free", not what the year owes — so
+            // the total must agree. Under the flat-rate gross-up it did not: the fill's dollars
+            // stopped being shielded once STEP 2 pulled SS into tax, and nothing paid for it.
+            expect(draw(30_000, withSS, 'tax_smart').withdrawals.taxDeferred)
+                .toBeCloseTo(draw(30_000, withSS, 'standard').withdrawals.taxDeferred, 0);
+        });
+
+        it('settles back to the headline rate once SS is capped at 85%', () => {
+            // A $200k need runs past the phase-in, where each further dollar is taxed at 12%
+            // again, so the blended rate lands just above 12%.
+            const r = draw(200_000, withSS, 'standard');
+            expect(netOf(r)).toBeCloseTo(200_000, 0);
+            const blendedRate = r.taxOnWithdrawals / r.withdrawals.taxDeferred;
+            expect(blendedRate).toBeGreaterThan(0.12);
+            expect(blendedRate).toBeLessThan(0.13);
+        });
     });
 
     // Regression: the tax-smart fill is sized to the FEDERAL deduction floor, so its federal

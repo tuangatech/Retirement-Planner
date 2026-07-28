@@ -40,10 +40,15 @@ It is independently re-checked by [`scripts/verify_plan.py`](../scripts/verify_p
 
 5. **Payroll tax** (7.65% FICA) applies only to part-time work income, separately.
 
-6. **Withdrawal gross-up** still sizes withdrawals at the flat rate (conservative) — plus the
-   state marginal rate when a state module is active, so a draw covers its state tax too. Any
-   resulting over-withdrawal surplus is reinvested to the taxable account in
-   `yearlyProjection.ts` so no cash leaks.
+6. **Withdrawal gross-up** solves `gross − tax(gross) = need` against the *incremental* tax the
+   draw causes, plus the state marginal rate when a state module is active. This matters because
+   the marginal rate is **not** the headline rate: it is 0% inside the deduction floor, rises to
+   as much as **1.85×** the headline rate while the provisional-income formula is pulling Social
+   Security into tax, then falls back once SS hits its 85% cap. A flat rate was previously used
+   here and described as "conservative", which was backwards — it *under*-withdrew by ~$8,700 per
+   run over a retirement, letting the plan spend money it never took out and flattering the
+   success rate by roughly half a point. Any remaining over-withdrawal surplus is reinvested to
+   the taxable account in `yearlyProjection.ts` so no cash leaks.
 
 ## Constants (`TAX_RULES` in `taxes.ts`)
 
