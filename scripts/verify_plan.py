@@ -22,8 +22,15 @@ What is verified (deterministic, derived from inputs):
                       two per-person tracks summed for MFJ)
   - Income tax       (provisional-income SS formula + standard-deduction floor +
                       marginal rate) and payroll tax (7.65% of part-time work)
+  - State income tax (GA's age-tiered exclusion, VA's means-tested age deduction and
+                      graduated brackets; $0 for the nine no-income-tax states)
+  - RMDs             (IRS Uniform Lifetime divisor on the start-of-year tax-deferred
+                      balance, from age 75; MFJ pools under the OLDER spouse's age)
   - Component sums: Total Income / Expenses / Tax / Withdrawals
   - Cash-flow identity: Income + Withdrawals = Expenses + Taxes + Net Cash Flow
+  - Funding: withdrawals actually cover the year they fund (netCashFlow >= 0). This is
+             the check that catches a broken gross-up — the plan "spending" money it
+             never withdrew — which two separate bugs did before it existed.
 
 The TAX_RULES table below MUST stay in sync with TAX_RULES in
 src/lib/calculations/taxes.ts. See docs/2-federal-tax-model.md for the model and sources.
@@ -65,6 +72,25 @@ SS_ADJUSTMENT_FACTORS = {
 }
 EARNINGS_TEST_BEFORE_FRA = 23400
 EARNINGS_TEST_IN_FRA_YEAR = 62160
+
+# Age at which this tool starts RMDs — a flat 75 (SECURE 2.0 for those born 1960+), matching
+# RMD_START_AGE in src/lib/calculations/rmd.ts.
+RMD_START_AGE = 75
+
+# IRS Uniform Lifetime Table divisors — must mirror RMD_TABLE in src/lib/calculations/rmd.ts.
+# Duplicated by hand (like TAX_RULES below) rather than shared: this is a published IRS table, so
+# an independent transcription is exactly the kind of error worth catching. Ages 101+ reuse 100.
+RMD_DIVISORS = {
+    73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0, 79: 21.1,
+    80: 20.2, 81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2,
+    87: 14.4, 88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8, 93: 10.1,
+    94: 9.5, 95: 8.9, 96: 8.4, 97: 7.8, 98: 7.3, 99: 6.8, 100: 6.4,
+}
+
+# Largest negative netCashFlow treated as rounding rather than a funding failure. The engine's
+# gross-up solve converges to within $1, so a few cents either side of zero is expected; anything
+# bigger means withdrawals did not cover the year.
+FUNDING_TOLERANCE = 1.0
 
 # Tax-rule constants — must mirror TAX_RULES in src/lib/calculations/taxes.ts
 TAX_RULES = {
@@ -330,10 +356,72 @@ class Plan:
         wd_taxable = max(0.0, wd_base - ded_left)
         return (fixed_taxable + wd_taxable) * self.eff_rate
 
+    # -- RMDs --
+    def expected_rmd(self, age: int, start_tax_deferred: float) -> float:
+        """RMD for the year, from the start-of-year tax-deferred balance.
+
+        For MFJ this tool pools both spouses' accounts under a single RMD trigger — the OLDER
+        spouse's age — so distributions begin no later than required (docs/4-married-filing-jointly.md).
+        That decision is only visible end-to-end here, which is why it is re-derived rather than
+        assumed.
+        """
+        sp_age = self.spouse_age(age)
+        rmd_age = max(age, sp_age) if sp_age is not None else age
+        if rmd_age < RMD_START_AGE:
+            return 0.0
+        divisor = RMD_DIVISORS.get(rmd_age, RMD_DIVISORS[100])
+        return start_tax_deferred / divisor
+
     # -- state tax --
     def _state_standard_deduction(self, rules: dict, year: int) -> float:
         entry = pick_for_year(rules["standardDeduction"], year)
         return entry["married"] if self.filing == "married_joint" else entry["single"]
+
+    def _count_at_least_age(self, age: int, min_age: int) -> int:
+        """Taxpayers on the return who have reached `min_age`: 1 for single, 0-2 for MFJ."""
+        sp_age = self.spouse_age(age)
+        return (1 if age >= min_age else 0) + (1 if sp_age is not None and sp_age >= min_age else 0)
+
+    def _va_age_deduction(self, benefit: dict, age: int, afagi: float) -> float:
+        """Virginia's age deduction: $12,000 per taxpayer 65+, phased out $1 per $1 of AFAGI
+        above $50,000 single / $75,000 married.
+
+        AFAGI is federal AGI less federally taxable SS, which is what `agi` already is here. The
+        means test is per RETURN on COMBINED income against a pooled cap, so — unlike Georgia's
+        per-person exclusion — pooled accounts give the statutory answer with no attribution
+        needed (docs/5-state-tax-model.md §4.3).
+        """
+        eligible = self._count_at_least_age(age, benefit["minAge"])
+        if eligible == 0:
+            return 0.0
+        limit = benefit["threshold"]["married" if self.filing == "married_joint" else "single"]
+        cap = benefit["perPerson"] * eligible
+        return max(0.0, cap - benefit["reductionPerDollar"] * max(0.0, afagi - limit))
+
+    def _personal_exemptions(self, rules: dict, age: int) -> float:
+        """Virginia's personal exemptions: per filer, plus an addition per filer aged 65+."""
+        exemption = rules.get("personalExemption")
+        if exemption is None:
+            return 0.0
+        filers = 2 if self.filing == "married_joint" else 1
+        return (exemption["perFiler"] * filers
+                + exemption["age65Addition"] * self._count_at_least_age(age, 65))
+
+    @staticmethod
+    def _apply_rate(rate: dict, taxable: float) -> float:
+        """Flat rate (GA) or a marginal bracket walk (VA). `upTo: null` marks the top bracket."""
+        if rate["kind"] == "flat":
+            return taxable * rate["rate"]
+
+        tax = 0.0
+        floor = 0.0
+        for bracket in rate["brackets"]:
+            if taxable <= floor:
+                break
+            ceiling = bracket["upTo"] if bracket["upTo"] is not None else float("inf")
+            tax += (min(taxable, ceiling) - floor) * bracket["rate"]
+            floor = ceiling
+        return tax
 
     def _ga_exclusion(self, rules: dict, row: dict, gains: float) -> float:
         """Georgia's retirement-income exclusion: per person, age-tiered, capped by that
@@ -362,31 +450,49 @@ class Plan:
     def expected_state_tax(self, row: dict) -> float:
         """Expected state income tax for one projection row.
 
-        Unmodeled states report $0 (their burden is folded into the user's marginal rate) and
-        the nine no-income-tax states owe a real $0. Georgia is re-derived here; Virginia is
-        not yet implemented in the engine.
+        Unmodeled states report $0 (their burden is folded into the user's marginal rate) and the
+        nine no-income-tax states owe a real $0. Georgia and Virginia are re-derived here. Any
+        other income-taxing state raises rather than silently returning 0 — a deliberate tripwire
+        so adding a state to the JSON without a formula here cannot pass unnoticed.
         """
         if self.state_mode != "modeled":
             return 0.0
         rules = STATE_TAX_RULES.get(self.state)
         if rules is None or not rules.get("taxesIncome", False):
             return 0.0
-        if self.state != "GA":
+        if self.state not in ("GA", "VA"):
             raise NotImplementedError(f"No state-tax formula for {self.state}")
 
         inc = row["income"]
         wd = row["portfolio"]["withdrawals"]
         hsa_nonmed = max(0.0, wd["hsa"] - row["portfolio"]["hsaForHealthcare"])
         gains = wd["taxable"] * (1 - self.cost_basis)
+        age = int(row["age"])
 
-        # State AGI = federal AGI − federally taxable SS. Georgia exempts Social Security, so
+        # State AGI = federal AGI − federally taxable SS. Both states exempt Social Security, so
         # it is simply never added; state deductions are not inflated (they are not indexed).
         agi = (inc["pensions"] + inc["partTimeWork"] + inc["rentalIncome"]
                + wd["taxDeferred"] + gains + hsa_nonmed)
 
-        exclusion = self._ga_exclusion(rules, row, gains)
+        # Virginia imposes no tax below the filing threshold (§ 58.1-321). Georgia has no such
+        # floor, so the key is absent there.
+        threshold = rules.get("filingThreshold")
+        if threshold is not None:
+            limit = threshold["married" if self.filing == "married_joint" else "single"]
+            if agi < limit:
+                return 0.0
+
+        benefit_rules = rules.get("retirementBenefit")
+        if benefit_rules is None:
+            benefit = 0.0
+        elif benefit_rules["kind"] == "ga_exclusion":
+            benefit = self._ga_exclusion(rules, row, gains)
+        else:
+            benefit = self._va_age_deduction(benefit_rules, age, agi)
+
         deduction = self._state_standard_deduction(rules, int(row["year"]))
-        return max(0.0, agi - exclusion - deduction) * rules["rate"]["rate"]
+        exemptions = self._personal_exemptions(rules, age)
+        return self._apply_rate(rules["rate"], max(0.0, agi - benefit - deduction - exemptions))
 
 
 # ─── CHECK HELPERS ──────────────────────────────────────────────────────────────
@@ -506,6 +612,25 @@ def verify(bundle: dict, percentile: str, tol: float) -> int:
         lhs = inc["totalBeforeWithdrawals"] + wd["total"]
         rhs = exp["total"] + tax["total"] + p["netCashFlow"]
         chk("Cash Flow: Income + WD = Expenses + Tax + NCF", lhs, rhs, issues)
+
+        # RMD, from the START-of-year tax-deferred balance (returns are applied after
+        # withdrawals, so that is the previous year's closing balance).
+        chk("RMD = start-of-year tax-deferred / Uniform Lifetime divisor",
+            p["portfolio"]["rmdAmount"],
+            plan.expected_rmd(age, prev_bal["taxDeferred"]),
+            issues)
+
+        # Funding: the year's withdrawals must actually cover it. A negative netCashFlow outside
+        # a genuine shortfall means the gross-up under-withdrew and the plan spent money it never
+        # took out — understating depletion risk. This is an absolute-dollar check, not a
+        # relative one, because the correct value is 0 and `within_tol` cannot express that.
+        total += 1
+        if p["shortfall"] <= 0.5 and p["netCashFlow"] < -FUNDING_TOLERANCE:
+            n_fail += 1
+            issues.append(
+                f"    {FAIL} Withdrawals do not cover the year: "
+                f"netCashFlow ${p['netCashFlow']:,.2f} with no reported shortfall "
+                f"(state tax ${state_tax:,.2f})")
 
         # Implied-return plausibility (informational)
         for key, wkey in (("taxDeferred", "taxDeferred"), ("roth", "roth"),

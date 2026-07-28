@@ -15,8 +15,8 @@
  * withdrawal gross-up, not just the final report — otherwise the engine under-withdraws by
  * the state tax every year and the plan "spends" money it never took out.
  *
- * Scope today: the nine states with no individual income tax, plus Georgia. Virginia adds a
- * graduated-rate arm and its own retirement benefit.
+ * Scope today: the nine states with no individual income tax, plus Georgia (flat rate, per-person
+ * retirement exclusion) and Virginia (graduated brackets, household age deduction).
  */
 
 import type { USState } from '@/types';
@@ -26,6 +26,7 @@ import {
     type GaExclusion,
     type IncomeTaxRules,
     type StateTaxRules,
+    type VaAgeDeduction,
 } from './stateTaxRules';
 
 /**
@@ -130,7 +131,93 @@ function georgiaExclusion(benefit: GaExclusion, inputs: StateTaxInputs): number 
     return Math.min(cap, eligible);
 }
 
+/** Taxpayers on the return who have reached `minAge`: 1 for a single filer, 0–2 for MFJ. */
+function countAtLeastAge(inputs: StateTaxInputs, minAge: number): number {
+    const spouseQualifies =
+        inputs.filingStatus === 'married_joint' &&
+        inputs.spouseAge !== undefined &&
+        inputs.spouseAge >= minAge;
+    return (inputs.age >= minAge ? 1 : 0) + (spouseQualifies ? 1 : 0);
+}
+
+/**
+ * Virginia's age deduction for the year: $12,000 per taxpayer 65+, reduced $1 for every $1 of
+ * AFAGI above $50,000 single / $75,000 married.
+ *
+ * `afagi` is Virginia's "adjusted federal adjusted gross income" — federal AGI less federally
+ * taxable Social Security and Tier 1 Railroad Retirement, which is exactly what `stateAGI`
+ * already builds (see the note on `StateTaxInputs`), so it is passed in rather than recomputed.
+ *
+ * The means test is per *return* on *combined* income against a pooled cap, so unlike Georgia's
+ * per-person exclusion it needs no attribution of a withdrawal to a spouse and this tool's
+ * pooled-accounts MFJ model gives the statutory answer rather than an approximation.
+ *
+ * Because the phase-out is dollar-for-dollar, a dollar earned inside the band also destroys a
+ * dollar of deduction: taxable income rises by $2 and the marginal rate doubles to ~11.5%. That
+ * is why the withdrawal gross-up evaluates this whole function instead of taking one rate.
+ */
+function virginiaAgeDeduction(
+    benefit: VaAgeDeduction,
+    inputs: StateTaxInputs,
+    afagi: number
+): number {
+    const eligible = countAtLeastAge(inputs, benefit.minAge);
+    if (eligible === 0) return 0;
+
+    const threshold =
+        inputs.filingStatus === 'married_joint'
+            ? benefit.threshold.married
+            : benefit.threshold.single;
+
+    const cap = benefit.perPerson * eligible;
+    return Math.max(0, cap - benefit.reductionPerDollar * Math.max(0, afagi - threshold));
+}
+
+/** Virginia's personal exemptions: per filer, plus an addition for each filer aged 65+. */
+function personalExemptions(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
+    const exemption = rules.personalExemption;
+    if (exemption === undefined) return 0;
+
+    const filers = inputs.filingStatus === 'married_joint' ? 2 : 1;
+    // The age-65 addition is keyed to 65 by § 58.1-322.03 in its own right — it happens to match
+    // the age deduction's threshold but is not derived from it. Dependent and blindness
+    // exemptions are not modeled (§4.3).
+    return exemption.perFiler * filers + exemption.age65Addition * countAtLeastAge(inputs, 65);
+}
+
+/** Marginal-bracket tax. `upTo: null` marks the top bracket. */
+function applyBrackets(
+    brackets: Array<{ upTo: number | null; rate: number }>,
+    taxable: number
+): number {
+    let tax = 0;
+    let floor = 0;
+
+    for (const bracket of brackets) {
+        if (taxable <= floor) break;
+        const ceiling = bracket.upTo ?? Infinity;
+        tax += (Math.min(taxable, ceiling) - floor) * bracket.rate;
+        floor = ceiling;
+    }
+
+    return tax;
+}
+
 function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
+    const agi = stateAGI(inputs);
+
+    // Below the filing threshold no tax is imposed and no return is required (Virginia,
+    // § 58.1-321). Without this the band between the standard deduction and the threshold would
+    // be billed tax nobody owes — a few hundred dollars a year once the 2030 deduction cliff
+    // widens that band. Georgia has no such floor, so the field is absent there.
+    if (rules.filingThreshold !== undefined) {
+        const threshold =
+            inputs.filingStatus === 'married_joint'
+                ? rules.filingThreshold.married
+                : rules.filingThreshold.single;
+        if (agi < threshold) return 0;
+    }
+
     const deductionSchedule = pickForYear(rules.standardDeduction, inputs.year);
     const standardDeduction =
         inputs.filingStatus === 'married_joint' ? deductionSchedule.married : deductionSchedule.single;
@@ -139,10 +226,20 @@ function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
     // statutorily indexed, so holding them flat while income inflates is what the law
     // actually does. A deliberate asymmetry with the federal base deduction (§6).
     const benefit =
-        rules.retirementBenefit !== undefined ? georgiaExclusion(rules.retirementBenefit, inputs) : 0;
+        rules.retirementBenefit === undefined
+            ? 0
+            : rules.retirementBenefit.kind === 'ga_exclusion'
+              ? georgiaExclusion(rules.retirementBenefit, inputs)
+              : virginiaAgeDeduction(rules.retirementBenefit, inputs, agi);
 
-    const taxable = Math.max(0, stateAGI(inputs) - benefit - standardDeduction);
-    return taxable * rules.rate.rate;
+    const taxable = Math.max(
+        0,
+        agi - benefit - standardDeduction - personalExemptions(rules, inputs)
+    );
+
+    return rules.rate.kind === 'flat'
+        ? taxable * rules.rate.rate
+        : applyBrackets(rules.rate.brackets, taxable);
 }
 
 /**
@@ -166,43 +263,6 @@ export function computeStateTax(
 }
 
 /**
- * How much a $1,000 probe withdrawal moves the state bill. Wide enough to average over a
- * threshold the household is sitting just under (a blended rate is the right answer for a
- * gross-up), small enough not to smear a genuinely piecewise-constant rate.
- */
-const MARGINAL_PROBE = 1000;
-
-/**
- * The state's marginal rate on the next dollar of ordinary withdrawal, used to gross up
- * withdrawals so they cover their own state tax.
- *
- * Computed from fixed income *before* discretionary draws — the same non-circular shortcut
- * `calculateTaxFreeTaxDeferredRoom` uses. Residual over-withdrawal is reinvested to the
- * taxable account by `yearlyProjection`; under-withdrawal is the failure mode to avoid.
- *
- * Taken as a finite difference over a probe withdrawal rather than re-deriving each state's
- * marginal algebra. That is not a shortcut for its own sake: Georgia's exclusion **grows with
- * eligible income**, so an extra dollar of tax-deferred draw is untaxed while exclusion room
- * remains even though the household is already past its standard deduction. The probe gets
- * that, the deduction shield, and (once Virginia lands) its doubled phase-out band for free,
- * from the one formula that is already the source of truth.
- */
-export function stateMarginalRate(
-    rules: StateTaxRules | undefined,
-    inputs: StateTaxInputs
-): number {
-    if (rules === undefined || !rules.taxesIncome) return 0;
-
-    const base = incomeTax(rules, inputs);
-    const bumped = incomeTax(rules, {
-        ...inputs,
-        taxDeferredWithdrawals: inputs.taxDeferredWithdrawals + MARGINAL_PROBE,
-    });
-
-    return (bumped - base) / MARGINAL_PROBE;
-}
-
-/**
  * Disclosure text for the selected state, or `null` when the state is not modeled. Presentation
  * reads this instead of restating tax rules in the UI layer.
  *
@@ -216,13 +276,19 @@ export function stateTaxDisclosure(
     if (rules === undefined) return null;
     if (!rules.taxesIncome) return { summary: 'no state income tax', caveat: rules.caveat };
 
-    // Deliberately names no exclusion amount: it is age- and year-dependent, so any single
-    // figure here would be wrong for most of the retirement. The engine holds the tiers.
-    const rate = `${(rules.rate.rate * 100).toFixed(2)}% flat rate`;
+    // Deliberately names no benefit amount: it is age-, year- and income-dependent, so any single
+    // figure here would be wrong for most of the retirement. The engine holds the schedules.
+    const rate =
+        rules.rate.kind === 'flat'
+            ? `${(rules.rate.rate * 100).toFixed(2)}% flat rate`
+            : `graduated rates to ${(rules.rate.brackets[rules.rate.brackets.length - 1].rate * 100).toFixed(2)}%`;
+
     const benefit =
-        rules.retirementBenefit !== undefined
-            ? '; Social Security is exempt and an age-tiered retirement-income exclusion applies from age 62'
-            : '; Social Security is exempt';
+        rules.retirementBenefit === undefined
+            ? '; Social Security is exempt'
+            : rules.retirementBenefit.kind === 'ga_exclusion'
+              ? '; Social Security is exempt and an age-tiered retirement-income exclusion applies from age 62'
+              : '; Social Security is exempt and an income-tested age deduction applies from age 65';
 
     return { summary: rate + benefit, caveat: rules.caveat };
 }

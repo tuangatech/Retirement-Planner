@@ -100,9 +100,12 @@ export interface WithdrawalResult {
  * @param rmdAge - Age governing the RMD trigger; for MFJ pooled accounts this is the
  *   older spouse's age so RMDs start no later than required. Defaults to currentAge.
  * @param rmdStartAge - Age at which RMDs begin (this tool passes RMD_START_AGE = 75). Default 73.
- * @param stateMarginalRate - State tax on the next dollar of ordinary withdrawal, added to the
- *   federal rate when sizing withdrawals. 0 for unmodeled states and for states with no income
- *   tax. Without it the engine under-withdraws by the state tax every year.
+ * @param stateTaxOnDraws - Incremental state income tax caused by `draws` of ordinary
+ *   withdrawal income, as the state's own formula computes it. Defaults to no state tax, which
+ *   is correct for unmodeled states and for states with no income tax. A *function* rather than
+ *   a rate because a state's marginal rate is not constant across a draw: Virginia's age
+ *   deduction phases out dollar-for-dollar, so income inside the band is taxed at ~11.5% and
+ *   income above it at 5.75%. Without this the engine under-withdraws by the state tax owed.
  */
 export function executeWithdrawals(
     currentAge: number,
@@ -122,7 +125,7 @@ export function executeWithdrawals(
     spouseAge?: number,
     rmdAge: number = currentAge,
     rmdStartAge: number = 73,
-    stateMarginalRate: number = 0
+    stateTaxOnDraws: (draws: number) => number = () => 0
 ): WithdrawalResult {
     const balances = { ...currentBalances };
 
@@ -163,13 +166,16 @@ export function executeWithdrawals(
 
     /**
      * Total tax caused by `draws` of taxable withdrawal income this year — ordinary draws and
-     * brokerage *gains* alike, since both land in AGI and both feed provisional income. State
-     * tax stays a flat add-on: `stateMarginalRate` already summarises the state's own
-     * exclusions and deduction (see docs/5-state-tax-model.md §3).
+     * brokerage *gains* alike, since both land in AGI and both feed provisional income.
+     *
+     * Both halves re-run their real formula over `draws`, so both curves bend where the law
+     * bends: federally at the deduction floor and through the Social Security phase-in, at the
+     * state level through a phasing-out deduction or a growing exclusion. Neither is a rate
+     * times an amount (see docs/5-state-tax-model.md §3).
      */
     const taxOnDraws = (draws: number): number =>
         (federalTaxableWith(draws) - federalTaxableBeforeDraws) * effectiveTaxRate +
-        draws * stateMarginalRate;
+        stateTaxOnDraws(draws);
 
     /** Taxable withdrawal income booked so far, so each new draw is taxed on top of it. */
     let drawsBooked = 0;

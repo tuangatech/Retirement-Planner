@@ -41,7 +41,8 @@ It is independently re-checked by [`scripts/verify_plan.py`](../scripts/verify_p
 5. **Payroll tax** (7.65% FICA) applies only to part-time work income, separately.
 
 6. **Withdrawal gross-up** solves `gross − tax(gross) = need` against the *incremental* tax the
-   draw causes, plus the state marginal rate when a state module is active. This matters because
+   draw causes — federal, plus the state's own formula when a state module is active
+   ([`5-state-tax-model.md`](5-state-tax-model.md) §3). This matters because
    the marginal rate is **not** the headline rate: it is 0% inside the deduction floor, rises to
    as much as **1.85×** the headline rate while the provisional-income formula is pulling Social
    Security into tax, then falls back once SS hits its 85% cap. A flat rate was previously used

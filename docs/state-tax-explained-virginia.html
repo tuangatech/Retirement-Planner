@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virginia State Tax for Retirees — and how this simulator models it</title>
+<style>
+    :root {
+        --ink: #1a2733;
+        --ink-soft: #5a6b7b;
+        --line: #d9e1e8;
+        --paper: #fdfdfb;
+        --panel: #f4f7f9;
+        --va: #1f4e79;          /* Virginia accent */
+        --va-soft: #e7eef5;
+        --free: #2f7d64;        /* deducted / untaxed */
+        --free-soft: #e6f2ee;
+        --taxed: #b45309;       /* taxed */
+        --taxed-soft: #fdf1e0;
+        --hot: #a02c2c;         /* the doubled band */
+        --hot-soft: #fbeaea;
+        --code: #24303c;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 56px 28px 96px; }
+
+    header { border-bottom: 3px solid var(--ink); padding-bottom: 22px; margin-bottom: 40px; }
+    .kicker {
+        font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .16em; text-transform: uppercase; color: var(--va); margin-bottom: 14px;
+    }
+    h1 { font-size: 2.15rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -.02em; }
+    .standfirst { font-size: 1.1rem; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+
+    h2 {
+        font-size: 1.4rem; margin: 52px 0 8px; padding-top: 20px;
+        border-top: 1px solid var(--line); letter-spacing: -.01em;
+    }
+    h2 .num {
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+        color: var(--va); display: block; margin-bottom: 6px; letter-spacing: .12em;
+    }
+    h3 { font-size: 1.05rem; margin: 30px 0 6px; }
+    p { margin: 12px 0; }
+    strong { font-weight: 700; }
+
+    .lede { font-size: 1.05rem; color: var(--ink-soft); margin-top: 0; }
+
+    /* ---------- figures ---------- */
+    figure {
+        margin: 26px 0; padding: 22px 22px 16px;
+        background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    }
+    figcaption {
+        font: 500 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); margin-top: 14px; padding-top: 12px;
+        border-top: 1px dashed var(--line);
+    }
+    figcaption b { color: var(--ink); }
+    svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .lbl { font: 500 12px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-sm { font: 500 10.5px ui-sans-serif, system-ui, sans-serif; fill: var(--ink-soft); }
+    .lbl-num { font: 700 13px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-white { font: 700 12px ui-sans-serif, system-ui, sans-serif; fill: #fff; }
+
+    /* ---------- callouts ---------- */
+    .note, .warn, .key {
+        border-radius: 8px; padding: 16px 18px; margin: 24px 0;
+        font-size: .96rem;
+    }
+    .note { background: var(--panel); border-left: 4px solid var(--ink-soft); }
+    .warn { background: var(--taxed-soft); border-left: 4px solid var(--taxed); }
+    .key  { background: var(--va-soft);  border-left: 4px solid var(--va); }
+    .note p:first-child, .warn p:first-child, .key p:first-child { margin-top: 0; }
+    .note p:last-child, .warn p:last-child, .key p:last-child { margin-bottom: 0; }
+    .tag {
+        display: inline-block; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px;
+        margin-right: 8px; vertical-align: 2px;
+    }
+    .tag-va { background: var(--va); color: #fff; }
+    .tag-warn { background: var(--taxed); color: #fff; }
+    .tag-key { background: var(--ink); color: #fff; }
+
+    /* ---------- tables ---------- */
+    table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: .94rem; }
+    caption {
+        text-align: left; font: 600 13px ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); padding-bottom: 8px;
+    }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    th {
+        font: 600 12px ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--ink-soft); background: var(--panel);
+    }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: #fafcfd; }
+    .yes { color: var(--free); font-weight: 700; }
+    .no  { color: var(--taxed); font-weight: 700; }
+    tr.hot td { background: var(--hot-soft); }
+
+    code {
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--panel); padding: 1px 5px; border-radius: 4px; color: var(--code);
+    }
+    pre {
+        background: var(--code); color: #e8eef4; padding: 16px 18px; border-radius: 8px;
+        overflow-x: auto; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+    .cmt { color: #8fa6ba; }
+
+    ul, ol { padding-left: 22px; }
+    li { margin: 7px 0; }
+
+    footer {
+        margin-top: 64px; padding-top: 20px; border-top: 3px solid var(--ink);
+        font: 13px/1.6 ui-sans-serif, system-ui, sans-serif; color: var(--ink-soft);
+    }
+    a { color: var(--va); }
+    @media print {
+        body { background: #fff; }
+        figure, table { break-inside: avoid; }
+        h2 { break-after: avoid; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+    <div class="kicker">Retirement Planner · Tax Model Explainer</div>
+    <h1>Virginia state tax for retirees</h1>
+    <p class="standfirst">Virginia's one retiree benefit is means-tested, and the way it is taken
+    away creates a band where every extra dollar you withdraw is taxed at double the headline
+    rate. That single quirk changed how this simulator sizes withdrawals.</p>
+</header>
+
+<p class="lede">Georgia hands retirees a large exclusion that <em>grows</em> with their retirement
+income. Virginia does close to the opposite: one deduction, available only from age 65, worth
+$12,000 a person — and it <strong>shrinks dollar-for-dollar</strong> once household income passes
+$50,000. Social Security is exempt, as in Georgia. There is no pension or 401(k) exclusion of any
+kind. Virginia is simply a state where a comfortable retiree pays real tax, every year.</p>
+
+<div class="key">
+    <span class="tag tag-key">The whole model in one line</span>
+    <p style="margin-top:10px"><code>VA tax = brackets( max(0, [federal AGI − taxable Social Security] − age deduction − standard deduction − personal exemptions) )</code></p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART ONE · THE TAX</span>Four subtractions, then a bracket schedule</h2>
+
+<p>Virginia starts from your <em>federal</em> adjusted gross income, removes the Social Security
+that was federally taxable, then subtracts three more things before applying rates. Here is a
+single 67-year-old with $60,000 of income — deep enough into the phase-out to show what it does:</p>
+
+<figure>
+<svg viewBox="0 0 840 340" role="img" aria-label="Stacked bar showing 60,000 dollars of Virginia AGI split into a 2,000 dollar age deduction, 8,750 standard deduction, 1,730 exemptions and 47,520 of taxable income, with 10,000 dollars of age deduction destroyed by the phase-out">
+    <text class="lbl" x="70" y="34" style="font-weight:700">$60,000 of Virginia AGI (Social Security already removed)</text>
+
+    <!-- the bar -->
+    <rect x="70" y="52" width="23.3" height="58" fill="#2f7d64"/>
+    <rect x="93.3" y="52" width="102.1" height="58" fill="#4d9a80"/>
+    <rect x="195.4" y="52" width="20.2" height="58" fill="#7cb8a3"/>
+    <rect x="215.6" y="52" width="554.4" height="58" fill="#b45309"/>
+    <rect x="70" y="52" width="700" height="58" fill="none" stroke="#1a2733" stroke-width="1.2"/>
+
+    <text class="lbl-white" x="492" y="87" text-anchor="middle">taxable income  $47,520</text>
+
+    <!-- the three thin slices are too narrow to label in place, so they get a keyed legend -->
+    <path d="M81 110 L81 126" fill="none" stroke="#5a6b7b" stroke-width="1"/>
+    <path d="M144 110 L144 126" fill="none" stroke="#5a6b7b" stroke-width="1"/>
+    <path d="M205 110 L205 126" fill="none" stroke="#5a6b7b" stroke-width="1"/>
+    <path d="M81 126 L205 126" fill="none" stroke="#5a6b7b" stroke-width="1"/>
+    <path d="M143 126 L143 138" fill="none" stroke="#5a6b7b" stroke-width="1"/>
+    <text class="lbl-sm" x="215" y="130">the three deductions, enlarged below</text>
+
+    <rect x="70" y="148" width="12" height="12" fill="#2f7d64"/>
+    <text class="lbl-sm" x="90" y="158" style="fill:#2f7d64;font-weight:700">$2,000</text>
+    <text class="lbl-sm" x="146" y="158">age deduction — all that survived the phase-out</text>
+
+    <rect x="70" y="170" width="12" height="12" fill="#4d9a80"/>
+    <text class="lbl-sm" x="90" y="180" style="fill:#2f7d64;font-weight:700">$8,750</text>
+    <text class="lbl-sm" x="146" y="180">standard deduction (single, TY2026)</text>
+
+    <rect x="70" y="192" width="12" height="12" fill="#7cb8a3"/>
+    <text class="lbl-sm" x="90" y="202" style="fill:#2f7d64;font-weight:700">$1,730</text>
+    <text class="lbl-sm" x="146" y="202">personal exemption $930 + age-65 addition $800</text>
+
+    <!-- the destroyed deduction -->
+    <rect x="70" y="222" width="116.7" height="32" fill="#fbeaea" stroke="#a02c2c" stroke-dasharray="4 3"/>
+    <text class="lbl-sm" x="128" y="242" text-anchor="middle" style="fill:#a02c2c;font-weight:700">$10,000</text>
+    <text class="lbl-sm" x="198" y="235" style="fill:#a02c2c;font-weight:700">age deduction destroyed by the means test</text>
+    <text class="lbl-sm" x="198" y="249" style="fill:#a02c2c">$1 lost for every $1 of income above $50,000</text>
+
+    <!-- result -->
+    <line x1="70" y1="274" x2="770" y2="274" stroke="#d9e1e8"/>
+    <text class="lbl" x="70" y="296" style="font-weight:700">Tax on $47,520</text>
+    <text class="lbl-sm" x="190" y="296">= $720 + 5.75% × ($47,520 − $17,000)</text>
+    <text class="lbl-num" x="770" y="296" text-anchor="end" style="fill:#1f4e79">$2,474.90</text>
+    <text class="lbl-sm" x="70" y="318">Had this retiree earned $50,000 instead, the full $12,000 deduction would have survived — and the bill would be $1,324.90.</text>
+</svg>
+<figcaption><b>Every figure here is the simulator's own output</b>, not an illustration. The
+$10,000 dashed block is the part people miss: at $60,000 of income the "$12,000 age deduction"
+is really worth $2,000.</figcaption>
+</figure>
+
+<h3>The brackets</h3>
+<p>Unlike New York's and California's, Virginia's rate schedule does <strong>not</strong> vary by
+filing status — single and married filers use the same one:</p>
+
+<table>
+<caption>Virginia rate schedule, § 58.1-320 (unchanged for decades, not inflation-indexed)</caption>
+<thead><tr><th>Virginia taxable income</th><th class="num">Rate</th><th>Tax</th></tr></thead>
+<tbody>
+    <tr><td>$0 – $3,000</td><td class="num">2%</td><td>2% of the amount</td></tr>
+    <tr><td>$3,000 – $5,000</td><td class="num">3%</td><td>$60 + 3% of the excess</td></tr>
+    <tr><td>$5,000 – $17,000</td><td class="num">5%</td><td>$120 + 5% of the excess</td></tr>
+    <tr><td>Over $17,000</td><td class="num">5.75%</td><td>$720 + 5.75% of the excess</td></tr>
+</tbody>
+</table>
+
+<p>Because the top bracket starts so low, any retiree with meaningful income lands in it, and the
+whole schedule collapses to a tidy shortcut: <code>tax = 5.75% × taxable − $257.50</code>. The
+simulator implements the real four-step walk anyway — it is four lines, and a modest retiree
+drawing $30,000 genuinely sits in the 5% bracket, where the shortcut would be wrong.</p>
+
+<div class="note">
+    <p><strong>Below $11,950, no tax at all.</strong> Virginia imposes no tax and requires no
+    return if Virginia AGI is under $11,950 (single) or $23,900 (married) — § 58.1-321. That
+    threshold sits <em>above</em> the deduction plus exemption ($9,680 for a single filer), so
+    without modelling it the simulator would bill a low-income retiree tax they do not owe. It
+    matters more after 2030, when the standard deduction drops and that gap widens.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART TWO · THE SHAPE</span>The band where your marginal rate doubles</h2>
+
+<p class="lede">This is the one thing worth understanding about Virginia if you are planning
+withdrawals.</p>
+
+<p>The age deduction disappears at $1 per $1 of income above the threshold. So inside that band, a
+dollar withdrawn does two things: it adds a dollar of income, <em>and</em> it destroys a dollar of
+deduction. Taxable income rises by <strong>two dollars</strong>, and the effective marginal rate
+is <strong>2 × 5.75% = 11.5%</strong>.</p>
+
+<p>The band is only $12,000 wide — $50,000 to $62,000 for a single 65-year-old, $75,000 to $99,000
+for a couple both over 65. A normal year's withdrawal walks straight through it.</p>
+
+<figure>
+<svg viewBox="0 0 840 400" role="img" aria-label="Step chart of Virginia's marginal tax rate against income, rising 0, 2, 3, 5, 5.75 percent then jumping to 11.5 percent between 50,000 and 62,000 before falling back to 5.75 percent">
+    <!-- shaded band -->
+    <rect x="433.5" y="80" width="137.4" height="220" fill="#fbeaea"/>
+    <text class="lbl-sm" x="502" y="58" text-anchor="middle" style="fill:#a02c2c;font-weight:700">the doubled band</text>
+
+    <!-- gridlines -->
+    <line x1="90" y1="300" x2="800" y2="300" stroke="#1a2733" stroke-width="1.2"/>
+    <line x1="90" y1="194.6" x2="800" y2="194.6" stroke="#d9e1e8" stroke-dasharray="3 3"/>
+    <line x1="90" y1="89.2" x2="800" y2="89.2" stroke="#d9e1e8" stroke-dasharray="3 3"/>
+    <text class="lbl-sm" x="82" y="304" text-anchor="end">0%</text>
+    <text class="lbl-sm" x="82" y="198" text-anchor="end">5.75%</text>
+    <text class="lbl-sm" x="82" y="93" text-anchor="end">11.5%</text>
+
+    <!-- the staircase -->
+    <path d="M90 300 H118.4 V263.3 H152.7 V245 H175.6 V208.3 H313 V194.6 H433.5 V89.2 H570.9 V194.6 H800"
+          fill="none" stroke="#1f4e79" stroke-width="2.5"/>
+
+    <!-- step labels -->
+    <text class="lbl-sm" x="104" y="292" text-anchor="middle">0%</text>
+    <text class="lbl-sm" x="135" y="256" text-anchor="middle">2%</text>
+    <text class="lbl-sm" x="164" y="238" text-anchor="middle">3%</text>
+    <text class="lbl-sm" x="244" y="201" text-anchor="middle">5%</text>
+    <text class="lbl-sm" x="373" y="188" text-anchor="middle">5.75%</text>
+    <text class="lbl-num" x="502" y="82" text-anchor="middle" style="fill:#a02c2c">11.5%</text>
+    <text class="lbl-sm" x="685" y="188" text-anchor="middle">5.75%</text>
+
+    <!-- x ticks -->
+    <line x1="118.4" y1="300" x2="118.4" y2="306" stroke="#5a6b7b"/>
+    <line x1="313" y1="300" x2="313" y2="306" stroke="#5a6b7b"/>
+    <line x1="433.5" y1="300" x2="433.5" y2="306" stroke="#a02c2c" stroke-width="1.5"/>
+    <line x1="570.9" y1="300" x2="570.9" y2="306" stroke="#a02c2c" stroke-width="1.5"/>
+    <line x1="777" y1="300" x2="777" y2="306" stroke="#5a6b7b"/>
+    <text class="lbl-sm" x="118.4" y="320" text-anchor="middle">$22,480</text>
+    <text class="lbl-sm" x="313" y="320" text-anchor="middle">$39,480</text>
+    <text class="lbl-sm" x="433.5" y="320" text-anchor="middle" style="fill:#a02c2c;font-weight:700">$50,000</text>
+    <text class="lbl-sm" x="570.9" y="320" text-anchor="middle" style="fill:#a02c2c;font-weight:700">$62,000</text>
+    <text class="lbl-sm" x="777" y="320" text-anchor="middle">$80,000</text>
+    <text class="lbl-sm" x="445" y="344" style="fill:#5a6b7b">Virginia AGI  →</text>
+
+    <!-- annotations -->
+    <text class="lbl-sm" x="90" y="368">Deductions absorb everything below $22,480 · the bracket walk lifts the rate to 5.75% at $39,480 ·</text>
+    <text class="lbl-sm" x="90" y="384">the means test doubles it for exactly $12,000 · then it falls back, the deduction already gone.</text>
+</svg>
+<figcaption><b>Breakpoints measured from the engine with a $1 probe</b>, single filer aged 67 in
+TY2026. Note the shape: the rate is not monotonic. It is the only place in this simulator where
+withdrawing <em>more</em> lowers your marginal rate.</figcaption>
+</figure>
+
+<div class="warn">
+    <span class="tag tag-warn">Planning consequence</span>
+    <p style="margin-top:10px">A Virginia retiree in the band faces a combined federal + state
+    marginal rate that is genuinely punishing, and it is worst in precisely the income range most
+    middle-class retirees occupy. Stacked on the Social Security "tax torpedo" — where each
+    withdrawn dollar also drags up to 85¢ of benefits into federal tax — the true cost of the next
+    dollar can exceed 30% for someone whose headline federal bracket is 12%.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART THREE · SCHEDULED CHANGES</span>The 2030 cliff we model and don't believe</h2>
+
+<p>Virginia's standard deduction is on a statutory schedule that <strong>reverts sharply in
+2030</strong> — from $9,300 back to $3,000 for a single filer. This is what current law says.</p>
+
+<figure>
+<svg viewBox="0 0 840 330" role="img" aria-label="Bar chart of Virginia tax on a flat 40,000 dollar pension from 2026 to 2031, roughly 720-750 dollars until 2029 then jumping to 1,080 dollars in 2030">
+    <line x1="80" y1="280" x2="790" y2="280" stroke="#1a2733" stroke-width="1.2"/>
+
+    <rect x="110" y="155" width="80" height="125" fill="#1f4e79" rx="2"/>
+    <rect x="220" y="159.3" width="80" height="120.7" fill="#1f4e79" rx="2"/>
+    <rect x="330" y="160.3" width="80" height="119.8" fill="#1f4e79" rx="2"/>
+    <rect x="440" y="160.3" width="80" height="119.8" fill="#1f4e79" rx="2"/>
+    <rect x="550" y="99.9" width="80" height="180.1" fill="#a02c2c" rx="2"/>
+    <rect x="660" y="99.9" width="80" height="180.1" fill="#a02c2c" rx="2"/>
+
+    <text class="lbl-num" x="150" y="146" text-anchor="middle">$750</text>
+    <text class="lbl-num" x="260" y="150" text-anchor="middle">$724</text>
+    <text class="lbl-num" x="370" y="151" text-anchor="middle">$719</text>
+    <text class="lbl-num" x="480" y="151" text-anchor="middle">$719</text>
+    <text class="lbl-num" x="590" y="91" text-anchor="middle" style="fill:#a02c2c">$1,081</text>
+    <text class="lbl-num" x="700" y="91" text-anchor="middle" style="fill:#a02c2c">$1,081</text>
+
+    <text class="lbl" x="150" y="300" text-anchor="middle">2026</text>
+    <text class="lbl" x="260" y="300" text-anchor="middle">2027</text>
+    <text class="lbl" x="370" y="300" text-anchor="middle">2028</text>
+    <text class="lbl" x="480" y="300" text-anchor="middle">2029</text>
+    <text class="lbl" x="590" y="300" text-anchor="middle" style="fill:#a02c2c;font-weight:700">2030</text>
+    <text class="lbl" x="700" y="300" text-anchor="middle" style="fill:#a02c2c;font-weight:700">2031</text>
+
+    <text class="lbl-sm" x="150" y="316" text-anchor="middle">$8,750</text>
+    <text class="lbl-sm" x="260" y="316" text-anchor="middle">$9,200</text>
+    <text class="lbl-sm" x="370" y="316" text-anchor="middle">$9,300</text>
+    <text class="lbl-sm" x="480" y="316" text-anchor="middle">$9,300</text>
+    <text class="lbl-sm" x="590" y="316" text-anchor="middle" style="fill:#a02c2c;font-weight:700">$3,000</text>
+    <text class="lbl-sm" x="700" y="316" text-anchor="middle" style="fill:#a02c2c;font-weight:700">$3,000</text>
+
+    <path d="M545 60 L545 95" fill="none" stroke="#a02c2c" stroke-width="1.5" marker-end="url(#ar)"/>
+    <defs><marker id="ar" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
+        <path d="M0 0 L7 3.5 L0 7 z" fill="#a02c2c"/></marker></defs>
+    <text class="lbl-sm" x="556" y="52" style="fill:#a02c2c;font-weight:700">+$362 a year on identical income (+50%)</text>
+    <text class="lbl-sm" x="80" y="34">Virginia tax on a flat $40,000 pension · single filer, aged 67 · standard deduction shown beneath each year</text>
+</svg>
+<figcaption><b>Modelled as enacted, and flagged as doubtful.</b> Virginia's legislature has
+repeatedly postponed this reversion rather than let it happen. Modelling it is the conservative
+reading of current law — not a prediction that it will occur.</figcaption>
+</figure>
+
+<div class="note">
+    <p><strong>Why not just assume the extension?</strong> The project's rule is to model what is
+    <em>enacted and unconditional</em>, and to freeze anything <em>contingent</em>. Virginia's
+    reversion is unconditional — it happens unless a future legislature acts — so it is modelled.
+    Georgia's further rate cuts are contingent on revenue triggers, so they are frozen. Both
+    choices push the estimate the same way: toward slightly more tax, never less. The alternative
+    is forecasting legislatures, which this tool refuses to do.</p>
+</div>
+
+<h3>Virginia versus Georgia, same plan</h3>
+<p>Running the simulator's default plan in each state, changing nothing else:</p>
+
+<table>
+<caption>Default plan (retire at 58, claim Social Security at 67), state tax by age, seed 7</caption>
+<thead><tr><th>Age</th><th>Year</th><th class="num">Virginia</th><th class="num">Georgia</th><th>What changed</th></tr></thead>
+<tbody>
+    <tr><td>58</td><td>2026</td><td class="num">$731</td><td class="num">$590</td><td>Neither state has a retiree benefit yet</td></tr>
+    <tr><td>61</td><td>2029</td><td class="num">$844</td><td class="num">$716</td><td>Still nothing; both bills grow with inflation</td></tr>
+    <tr class="hot"><td>62</td><td>2030</td><td class="num">$1,264</td><td class="num">$0</td><td>GA's exclusion begins · VA's deduction <em>cliff</em> hits</td></tr>
+    <tr><td>64</td><td>2032</td><td class="num">$1,371</td><td class="num">$0</td><td>VA's age deduction still three years away</td></tr>
+    <tr><td>65</td><td>2033</td><td class="num">$1,021</td><td class="num">$0</td><td>VA's $12,000 age deduction finally arrives</td></tr>
+    <tr><td>67</td><td>2035</td><td class="num">$1,248</td><td class="num">$0</td><td>Social Security starts — exempt in both states</td></tr>
+    <tr><td colspan="2"><strong>Lifetime</strong></td><td class="num"><strong>$24,494</strong></td><td class="num"><strong>$2,610</strong></td><td>Virginia costs this retiree <strong>9.4×</strong> what Georgia does</td></tr>
+</tbody>
+</table>
+
+<p>The age-62 row is the one that surprises. In Georgia, 62 is when the tax bill vanishes. In
+Virginia, this plan's age 62 happens to be calendar 2030 — so the same birthday brings a 50%
+<em>increase</em>. Nothing about the retiree changed; the statute did.</p>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART FOUR · IMPLEMENTATION</span>What Virginia forced us to change</h2>
+
+<p class="lede">Georgia's flat rate let the engine take a shortcut. Virginia's phase-out proved the
+shortcut wrong, and fixing it is the most consequential change in this work.</p>
+
+<h3>The shortcut, and why it broke</h3>
+<p>To withdraw enough from an account to cover the tax the withdrawal itself causes, the engine
+must solve <code>gross − tax(gross) = need</code>. Until now the state half of that used a single
+<em>rate</em>, measured with a probe withdrawal: multiply the draw by it and you have the state
+tax. For Georgia's flat 4.99% that is essentially exact.</p>
+
+<p>For Virginia it cannot be. A single rate has to be either the in-band 11.5% or the out-of-band
+5.75%, and a real draw crosses the boundary:</p>
+
+<figure>
+<svg viewBox="0 0 840 340" role="img" aria-label="Diagram of a 37,313 dollar withdrawal split into three segments taxed at 5.75, 11.5 and 5.75 percent, compared with two flat-rate approximations that over- and under-withdraw">
+    <text class="lbl-sm" x="70" y="24">A single 67-year-old with $45,000 of pension needs <tspan style="font-weight:700">$30,000</tspan> net. The gross draw is <tspan style="font-weight:700">$37,313</tspan> — and it spans three state rates:</text>
+
+    <!-- segmented draw bar -->
+    <rect x="70" y="42" width="93.9" height="46" fill="#4d9a80"/>
+    <rect x="163.9" y="42" width="225.3" height="46" fill="#a02c2c"/>
+    <rect x="389.2" y="42" width="381.4" height="46" fill="#b45309"/>
+    <rect x="70" y="42" width="700.6" height="46" fill="none" stroke="#1a2733" stroke-width="1.2"/>
+
+    <text class="lbl-white" x="117" y="70" text-anchor="middle">5.75%</text>
+    <text class="lbl-white" x="276" y="70" text-anchor="middle">11.5%  ← the band</text>
+    <text class="lbl-white" x="580" y="70" text-anchor="middle">5.75%</text>
+
+    <text class="lbl-sm" x="117" y="106" text-anchor="middle">$5,000</text>
+    <text class="lbl-sm" x="276" y="106" text-anchor="middle">$12,000</text>
+    <text class="lbl-sm" x="580" y="106" text-anchor="middle">$20,313</text>
+    <text class="lbl-sm" x="117" y="120" text-anchor="middle">to $50,000</text>
+    <text class="lbl-sm" x="276" y="120" text-anchor="middle">the deduction dies here</text>
+    <text class="lbl-sm" x="580" y="120" text-anchor="middle">deduction already gone</text>
+
+    <!-- comparison rows -->
+    <line x1="70" y1="146" x2="770" y2="146" stroke="#d9e1e8"/>
+    <text class="lbl" x="70" y="170" style="font-weight:700">Sizing method</text>
+    <text class="lbl" x="470" y="170" text-anchor="end" style="font-weight:700">Gross drawn</text>
+    <text class="lbl" x="758" y="170" text-anchor="end" style="font-weight:700">Error against what Virginia bills</text>
+
+    <rect x="70" y="182" width="700" height="34" rx="4" fill="#e6f2ee" stroke="#2f7d64"/>
+    <text class="lbl" x="82" y="203">Re-run the real formula  <tspan class="lbl-sm">(what the engine now does)</tspan></text>
+    <text class="lbl" x="470" y="203" text-anchor="end">$37,313</text>
+    <text class="lbl" x="758" y="203" text-anchor="end" style="fill:#2f7d64;font-weight:700">$0.00</text>
+
+    <rect x="70" y="224" width="700" height="34" rx="4" fill="#fdf1e0" stroke="#b45309"/>
+    <text class="lbl" x="82" y="245">Flat 11.5%, the in-band rate</text>
+    <text class="lbl" x="470" y="245" text-anchor="end">$39,216</text>
+    <text class="lbl" x="758" y="245" text-anchor="end" style="fill:#b45309;font-weight:700">over-withdraws $1,903</text>
+
+    <rect x="70" y="266" width="700" height="34" rx="4" fill="#fbeaea" stroke="#a02c2c"/>
+    <text class="lbl" x="82" y="287">Flat 5.75%, the bracket rate</text>
+    <text class="lbl" x="470" y="287" text-anchor="end">$36,474</text>
+    <text class="lbl" x="758" y="287" text-anchor="end" style="fill:#a02c2c;font-weight:700">leaves $690 unfunded</text>
+
+    <text class="lbl-sm" x="70" y="326" style="fill:#a02c2c">The last row is the dangerous one: the plan spends $690 it never withdrew, so its money appears to last longer than it will.</text>
+</svg>
+<figcaption><b>All four numbers are test assertions</b>, in
+<code>withdrawals.test.ts</code>. Over-withdrawing is merely wasteful — the surplus is reinvested.
+Under-withdrawing corrupts the result.</figcaption>
+</figure>
+
+<h3>The fix: pass the formula, not a number</h3>
+<p>The withdrawal engine no longer takes a state <em>rate</em>. It takes a <em>function</em> — the
+state's own tax calculation — and evaluates it at whatever draw the solver is currently testing.
+The curve then bends wherever the law bends, with no per-state algebra anywhere in the withdrawal
+code:</p>
+
+<pre><code><span class="cmt">// yearlyProjection.ts — what gets handed to executeWithdrawals</span>
+(draws) =&gt; computeStateTax(stateRules, { ...stateInputsBase,
+              taxDeferredWithdrawals: draws }).tax - initialStateTax
+
+<span class="cmt">// withdrawals.ts — federal and state, both re-run their real formula</span>
+const taxOnDraws = (draws) =&gt;
+    (federalTaxableWith(draws) - federalTaxableBeforeDraws) * effectiveTaxRate
+    + stateTaxOnDraws(draws);</code></pre>
+
+<p>This deleted more code than it added: the probe-based marginal-rate function is gone entirely,
+because nothing needs a single rate any more.</p>
+
+<div class="key">
+    <span class="tag tag-key">Measured effect</span>
+    <p style="margin-top:10px">Across a 60-seed sweep of the default plan, phantom spending —
+    dollars the plan spent without withdrawing them — fell from <strong>$12 per run to $0.52</strong>
+    in Georgia, with the worst single year going from <strong>−$362 to −$0.21</strong>. Virginia,
+    carrying roughly nine times Georgia's tax bill, leaks the same sub-dollar rounding. In other
+    words the state gross-up is now <em>exact</em>, where it used to be an estimate with a
+    disclosed residual.</p>
+</div>
+
+<h3>Where the constants live</h3>
+<p>Every Virginia number sits in <code>src/lib/calculations/stateTaxRules.json</code> against a
+link to the Code of Virginia section or the Form 760 worksheet that states it. That file is JSON
+rather than TypeScript so the independent Python verifier,
+<code>scripts/verify_plan.py</code>, reads the <em>same</em> constants instead of re-declaring
+them — one file, two readers. The <em>formulas</em> stay separately implemented in each language,
+which is the whole point: a wrong constant is caught by human review against the primary source, a
+wrong formula by the verifier disagreeing with the engine.</p>
+
+<h3>What is deliberately not modelled</h3>
+<ul>
+    <li><strong>The 2030 reversion is treated as real</strong> — likely overstating Virginia tax
+        from 2030 on, as described above.</li>
+    <li><strong>The separate $12,000 deduction for taxpayers born on or before 1 January 1939.</strong>
+        They are 87+ in 2026, outside this tool's audience, and it would need a birth year rather
+        than an age.</li>
+    <li><strong>Blindness exemptions, the military benefits subtraction, dependent exemptions,</strong>
+        and federal conformity adjustments.</li>
+    <li><strong>Brackets and exemptions are never inflated</strong> — correct, since Virginia
+        indexes neither. A deliberate asymmetry with the federal deduction, which <em>is</em>
+        indexed, and one that quietly raises real tax every year.</li>
+    <li><strong>Localities levy no income tax in Virginia</strong>, so there is nothing to add.</li>
+</ul>
+
+<div class="note">
+    <p><strong>One structural piece of luck.</strong> Virginia's age deduction is means-tested per
+    <em>return</em> on <em>combined</em> income against a pooled cap. This simulator already pools
+    a couple's accounts and cannot attribute a withdrawal to one spouse — which for Georgia's
+    per-person exclusion is an approximation that over-excludes lopsided couples. For Virginia it
+    is not an approximation at all: pooling is exactly what the statute does.</p>
+</div>
+
+<footer>
+    <p><strong>Sources.</strong> Code of Virginia
+    <a href="https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-320/">§ 58.1-320</a> (rates),
+    <a href="https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-321/">§ 58.1-321</a> (filing threshold),
+    <a href="https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-322.02/">§ 58.1-322.02</a> (Social Security subtraction),
+    <a href="https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-322.03/">§ 58.1-322.03</a>
+    (standard deduction, age deduction, personal exemptions), and the Form 760 instructions'
+    "Age 65 and Older Deduction Worksheet".</p>
+    <p>Constants verified for <strong>tax year 2026</strong>. Full model notes, including the
+    annual re-verification procedure, are in <code>docs/5-state-tax-model.md</code> §4.3. The
+    companion explainer for the other modelled income-taxing state is
+    <code>docs/state-tax-explained-georgia.html</code>.</p>
+    <p><em>This is a simulator's documentation, not tax advice.</em></p>
+</footer>
+
+</div>
+</body>
+</html>

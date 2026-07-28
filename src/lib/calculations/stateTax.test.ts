@@ -1,7 +1,8 @@
 // src/lib/calculations/stateTax.test.ts
 
 import { describe, it, expect } from 'vitest';
-import { computeStateTax, stateMarginalRate, stateTaxDisclosure, type StateTaxInputs } from './stateTax';
+import { computeStateTax, stateTaxDisclosure, type StateTaxInputs } from './stateTax';
+import type { USState } from '@/types';
 import {
     getStateTaxRules,
     isStateModeled,
@@ -31,9 +32,27 @@ function gaTax(overrides: Partial<StateTaxInputs> = {}): number {
     return computeStateTax(getStateTaxRules('GA'), { ...INPUTS, ...overrides }).tax;
 }
 
-/** Georgia's marginal rate on the next dollar of tax-deferred withdrawal. */
-function gaMarginal(overrides: Partial<StateTaxInputs> = {}): number {
-    return stateMarginalRate(getStateTaxRules('GA'), { ...INPUTS, ...overrides });
+/** Virginia tax for `INPUTS` with the given fields replaced. */
+function vaTax(overrides: Partial<StateTaxInputs> = {}): number {
+    return computeStateTax(getStateTaxRules('VA'), { ...INPUTS, ...overrides }).tax;
+}
+
+/**
+ * Average state rate over $1,000 more tax-deferred withdrawal.
+ *
+ * This is what the withdrawal gross-up consumes — it evaluates `computeStateTax` at the draw it
+ * is testing rather than multiplying by a rate — so the rate is measured the same way here
+ * instead of being asserted from per-state algebra the engine does not use.
+ */
+function marginalRate(state: USState, overrides: Partial<StateTaxInputs> = {}): number {
+    const rules = getStateTaxRules(state);
+    const base = { ...INPUTS, ...overrides };
+    const taxAt = (extra: number): number =>
+        computeStateTax(rules, {
+            ...base,
+            taxDeferredWithdrawals: base.taxDeferredWithdrawals + extra,
+        }).tax;
+    return (taxAt(1000) - taxAt(0)) / 1000;
 }
 
 /** Only Georgia-eligible income, so the exclusion is the only thing under test. */
@@ -171,25 +190,145 @@ describe('computeStateTax — Georgia', () => {
     });
 });
 
-describe('stateMarginalRate', () => {
-    it('is 0 for states with no income tax, so the gross-up is unchanged', () => {
-        expect(stateMarginalRate(getStateTaxRules('TX'), INPUTS)).toBe(0);
+describe('Virginia', () => {
+    // Every figure below is hand-derived from §4.3 of docs/5-state-tax-model.md:
+    //   taxable = AGI − ageDeduction − standardDeduction − exemptions, then the bracket schedule.
+    // TY2026 constants: deduction $8,750/$17,500, exemption $930/filer + $800 per filer 65+.
+
+    it('gives the full $12,000 age deduction below the phase-out threshold', () => {
+        // 40,000 − 12,000 − 8,750 − 1,730 = 17,520 → 720 + 520 × 5.75%
+        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 40000 })).toBeCloseTo(749.9, 2);
     });
 
-    it('is 0 for unmodeled states', () => {
-        expect(stateMarginalRate(undefined, INPUTS)).toBe(0);
+    it('gives no age deduction before 65 — Virginia has no other retiree benefit', () => {
+        // 40,000 − 8,750 − 930 = 30,320 → 720 + 13,320 × 5.75%. Nearly double the age-67 bill
+        // on identical income: the benefit is keyed to 65, not to retiring.
+        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 40000 })).toBeCloseTo(1485.9, 2);
+    });
+
+    it('phases the age deduction out $1 per $1 above $50,000 for a single filer', () => {
+        // AFAGI 60,000 → deduction 12,000 − 10,000 = 2,000.
+        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 60000 })).toBeCloseTo(2474.9, 2);
+    });
+
+    it('exhausts the age deduction $12,000 above the threshold', () => {
+        // AFAGI 62,000 = 50,000 + 12,000 → deduction 0, and it cannot go negative.
+        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 62000 })).toBeCloseTo(2704.9, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 70000 })).toBeCloseTo(3164.9, 2);
+    });
+
+    it('owes nothing below the filing threshold, where the deduction alone would still bill tax', () => {
+        // $11,000 clears deduction + exemption ($9,680) so the schedule would compute $26.40,
+        // but § 58.1-321 imposes no tax under $11,950 of VAGI.
+        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 11000 })).toBe(0);
+        // $1 over the deduction+exemption and still under the threshold — still nothing.
+        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 11949 })).toBe(0);
+        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 11950 })).toBeGreaterThan(0);
+    });
+
+    it('walks the 2% / 3% / 5% brackets, not just the top rate', () => {
+        // taxable 4,000 → 3,000 × 2% + 1,000 × 3% = 90
+        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 4000 + 8750 + 930 })).toBeCloseTo(90, 2);
+        // taxable 10,000 → 60 + 60 + 5,000 × 5% = 370
+        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 10000 + 8750 + 930 })).toBeCloseTo(370, 2);
+    });
+
+    it('reduces to 5.75% less a fixed $257.50 in the top bracket', () => {
+        // The doc's shortcut for sanity-checking any realistic retiree, re-derived here from the
+        // statute rather than from the bracket walk: 720 + 5.75%(T − 17,000) ≡ 5.75%T − 257.50.
+        for (const pensions of [45000, 90000, 150000]) {
+            const ageDeduction = Math.max(0, 12000 - Math.max(0, pensions - 50000));
+            const taxable = pensions - ageDeduction - 8750 - 1730;
+            expect(taxable).toBeGreaterThan(17000);
+            expect(vaTax({ ...PENSION_ONLY, age: 67, pensions })).toBeCloseTo(
+                taxable * 0.0575 - 257.5,
+                2
+            );
+        }
+    });
+
+    it('models the 2030 standard-deduction reversion, which raises the bill on flat income', () => {
+        const income = { ...PENSION_ONLY, age: 67, pensions: 40000 } as const;
+        // $8,750 through 2026, $9,200 in 2027, $9,300 for 2028–2029, then $3,000 from 2030.
+        expect(vaTax({ ...income, year: 2026 })).toBeCloseTo(749.9, 2);
+        expect(vaTax({ ...income, year: 2027 })).toBeCloseTo(724.025, 2);
+        expect(vaTax({ ...income, year: 2029 })).toBeCloseTo(718.5, 2);
+        expect(vaTax({ ...income, year: 2030 })).toBeCloseTo(1080.525, 2);
+        // The cliff costs this retiree $362.03 a year on unchanged income — a 50% jump, and the
+        // single most questionable number the Virginia model produces (see the rules `caveat`).
+        expect(vaTax({ ...income, year: 2030 }) - vaTax({ ...income, year: 2029 }))
+            .toBeCloseTo(362.025, 2);
+    });
+
+    it('MFJ: pools a $24,000 cap and means-tests it on combined income', () => {
+        // Both 67: cap 24,000, AFAGI 80,000 → 24,000 − 5,000 = 19,000 deduction;
+        // deduction 17,500; exemptions 930×2 + 800×2 = 3,460 → taxable 40,040.
+        expect(
+            vaTax({
+                ...PENSION_ONLY,
+                filingStatus: 'married_joint',
+                age: 67,
+                spouseAge: 67,
+                pensions: 80000,
+            })
+        ).toBeCloseTo(2044.8, 2);
+    });
+
+    it('MFJ: counts only the spouses who have actually turned 65', () => {
+        // One spouse 67, one 62 → cap 12,000, and only one $800 age addition.
+        expect(
+            vaTax({
+                ...PENSION_ONLY,
+                filingStatus: 'married_joint',
+                age: 67,
+                spouseAge: 62,
+                pensions: 80000,
+            })
+        ).toBeCloseTo(2780.8, 2);
+    });
+
+    it('MFJ: the means test is on combined income, so it needs no per-spouse attribution', () => {
+        // Unlike Georgia's per-person exclusion, splitting the same household income between the
+        // spouses cannot change the answer — the statute pools it. Pooled accounts are therefore
+        // exact here rather than an approximation.
+        const both = {
+            ...PENSION_ONLY,
+            filingStatus: 'married_joint' as const,
+            age: 67,
+            spouseAge: 67,
+        };
+        expect(vaTax({ ...both, pensions: 80000 })).toBeCloseTo(
+            vaTax({ ...both, pensions: 30000, taxDeferredWithdrawals: 50000 }),
+            2
+        );
+    });
+
+    it('taxes a non-medical HSA draw that Georgia would exclude', () => {
+        // Virginia has no income-type scoping at all: the age deduction is a means test, so every
+        // dollar of AGI counts the same. The GA suite asserts the opposite for the same input.
+        const withHSA = { ...PENSION_ONLY, age: 67, pensions: 40000, hsaNonMedicalWithdrawals: 10000 };
+        expect(vaTax(withHSA)).toBeGreaterThan(vaTax({ ...PENSION_ONLY, age: 67, pensions: 40000 }));
+    });
+});
+
+// What the withdrawal gross-up actually depends on. A state's marginal rate is NOT its headline
+// rate, and it is not even constant across one year's draw — which is why `executeWithdrawals`
+// takes the whole state formula as a function (docs/5-state-tax-model.md §3).
+describe('marginal rate on the next dollar of withdrawal', () => {
+    it('is 0 for states with no income tax, so the gross-up is unchanged', () => {
+        expect(marginalRate('TX')).toBe(0);
     });
 
     it('GA: is the flat rate once the exclusion is exhausted', () => {
         // $100k of pension income uses up the whole $65,000 exclusion, so the next
         // tax-deferred dollar is taxed outright.
-        expect(gaMarginal({ ...PENSION_ONLY, age: 65, pensions: 100000 })).toBeCloseTo(0.0499, 6);
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 65, pensions: 100000 })).toBeCloseTo(0.0499, 6);
     });
 
     it('GA: is 0 while exclusion room remains, even though tax is already owed', () => {
-        // The withdrawal creates its own exclusion room dollar-for-dollar, so it is free at
-        // the margin. This is why the rate is a finite difference rather than "past the
-        // deduction ⇒ 4.99%": that shortcut would over-gross-up every draw here.
+        // The withdrawal creates its own exclusion room dollar-for-dollar, so it is free at the
+        // margin. This is why "past the deduction ⇒ 4.99%" is wrong: it would over-gross-up
+        // every draw here.
         const inputs = {
             ...PENSION_ONLY,
             age: 65,
@@ -197,27 +336,69 @@ describe('stateMarginalRate', () => {
             hsaNonMedicalWithdrawals: 30000,
         };
         expect(gaTax(inputs)).toBeGreaterThan(0);
-        expect(gaMarginal(inputs)).toBe(0);
+        expect(marginalRate('GA', inputs)).toBe(0);
     });
 
     it('GA: is the flat rate before 62, when there is no exclusion to grow', () => {
-        expect(gaMarginal({ ...PENSION_ONLY, age: 61, pensions: 20000 })).toBeCloseTo(0.0499, 6);
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, pensions: 20000 })).toBeCloseTo(0.0499, 6);
     });
 
     it('GA: is 0 below the standard deduction', () => {
-        expect(gaMarginal({ ...PENSION_ONLY, age: 61, pensions: 5000 })).toBe(0);
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, pensions: 5000 })).toBe(0);
     });
 
     it('GA: blends across a threshold the household is sitting just under', () => {
-        // $200 under the deduction: only $800 of the $1,000 probe is taxed, so the
-        // gross-up sees 3.992% rather than a full 4.99% — the right answer for sizing.
-        expect(gaMarginal({ ...PENSION_ONLY, age: 61, pensions: 14800 })).toBeCloseTo(0.03992, 6);
+        // $200 under the deduction: only $800 of the next $1,000 is taxed, so the gross-up sees
+        // 3.992% rather than a full 4.99% — the right answer for sizing that draw.
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, pensions: 14800 })).toBeCloseTo(0.03992, 6);
+    });
+
+    // The reason the gross-up takes a function and not a rate. Virginia's age deduction dies at
+    // $1 per $1, so inside the band a withdrawn dollar adds *two* dollars of taxable income.
+    it('VA: doubles to 11.5% inside the age-deduction phase-out band', () => {
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 55000 })).toBeCloseTo(0.115, 6);
+    });
+
+    it('VA: is the top bracket rate below the phase-out band', () => {
+        // $45,000 keeps AFAGI (and the probe) under the $50,000 threshold, so the full $12,000
+        // deduction survives and only the bracket rate applies.
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 45000 })).toBeCloseTo(0.0575, 6);
+    });
+
+    it('VA: is only 5% for a modest-income retiree still inside the third bracket', () => {
+        // $30,000 leaves taxable income of $7,520 — the graduated schedule is worth implementing
+        // rather than assuming every retiree lands in the top bracket.
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 30000 })).toBeCloseTo(0.05, 6);
+    });
+
+    it('VA: is the top bracket rate again above the phase-out band', () => {
+        // The band is AFAGI $50,000–$62,000 for a single 65-year-old; $70,000 is past the end,
+        // where the deduction is already fully gone and cannot be destroyed twice.
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 70000 })).toBeCloseTo(0.0575, 6);
+    });
+
+    it('VA: is 0 before 65 when income is under the filing threshold', () => {
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 64, pensions: 5000 })).toBe(0);
+    });
+
+    // A single rate applied to a whole draw is wrong precisely because of this: a household
+    // sitting at the start of the band pays 11.5% on the first $12,000 and 5.75% after.
+    it('VA: a draw that crosses the band out of it is charged less than the in-band rate', () => {
+        const inBand = marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 50000 });
+        const rules = getStateTaxRules('VA');
+        const at = (pensions: number): number =>
+            computeStateTax(rules, { ...INPUTS, ...PENSION_ONLY, age: 67, pensions }).tax;
+
+        // $30,000 spans the band ($50k → $62k at 11.5%) and beyond ($62k → $80k at 5.75%).
+        const blended = (at(80000) - at(50000)) / 30000;
+        expect(blended).toBeLessThan(inBand);
+        expect(blended).toBeCloseTo((12000 * 0.115 + 18000 * 0.0575) / 30000, 6);
     });
 });
 
 describe('state tax rules data', () => {
-    it('models the nine no-income-tax states plus Georgia', () => {
-        expect(modeledStates().sort()).toEqual([...NO_INCOME_TAX_STATES, 'GA'].sort());
+    it('models the nine no-income-tax states plus Georgia and Virginia', () => {
+        expect(modeledStates().sort()).toEqual([...NO_INCOME_TAX_STATES, 'GA', 'VA'].sort());
     });
 
     it('records the tax year the constants were verified against', () => {
@@ -241,7 +422,7 @@ describe('state tax rules data', () => {
     it('isStateModeled distinguishes modeled from deferred states', () => {
         expect(isStateModeled('FL')).toBe(true);
         expect(isStateModeled('GA')).toBe(true);
-        expect(isStateModeled('VA')).toBe(false); // lands in the Virginia PR
+        expect(isStateModeled('VA')).toBe(true);
         expect(isStateModeled('NY')).toBe(false);
     });
 });
