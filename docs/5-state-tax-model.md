@@ -209,8 +209,9 @@ plus re-checking WA's threshold.
 
 > 📊 For an illustrated walkthrough of these rules — the waterfall, the age cliff, and how the
 > engine computes them — open
-> [`georgia-state-tax-explained.html`](georgia-state-tax-explained.html) in a browser. This
-> section remains the authoritative record of the constants and their statutory language.
+> [`state-tax-explained-georgia.html`](state-tax-explained-georgia.html) in a browser (one
+> `state-tax-explained-<state>.html` per modeled state). This section remains the authoritative
+> record of the constants and their statutory language.
 
 **Formula**
 

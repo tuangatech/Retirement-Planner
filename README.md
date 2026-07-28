@@ -228,7 +228,7 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 - **[3-withdrawal-strategy.md](docs/3-withdrawal-strategy.md)** — withdrawal order and tax-efficiency suggestions
 - **[4-married-filing-jointly.md](docs/4-married-filing-jointly.md)** — married-filing-jointly (couples) model and roadmap
 - **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (10 states live incl. GA), constants and sources
-- **[georgia-state-tax-explained.html](docs/georgia-state-tax-explained.html)** — illustrated walkthrough of Georgia's retiree tax rules (open in a browser)
+- **[state-tax-explained-georgia.html](docs/state-tax-explained-georgia.html)** — illustrated walkthrough of Georgia's retiree tax rules (open in a browser); one `state-tax-explained-*.html` per modeled state
 - **[6-system-design.md](docs/6-system-design.md)** — architecture and design
 - **[7-technical-implementation.md](docs/7-technical-implementation.md)** — implementation guide (incl. verification workflow)
 
