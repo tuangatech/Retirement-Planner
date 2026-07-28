@@ -31,11 +31,11 @@ Establishes the timeline and tax context that drive duration and phase transitio
 
 - **Retirement age** (50–75) — the simulation's starting point.
 - **Life expectancy** (70–110, default 90) — planning horizon.
-- **State** (50 states + DC) — **ten states are modeled**: the nine with no individual income
-  tax (AK, FL, NH, NV, SD, TN, TX, WA, WY) and **Georgia**. For those, state tax is computed
-  and the marginal rate in Step 6 becomes **federal-only**. Every other state is guidance only:
-  fold your state's rate into that marginal rate yourself. Virginia is specified but not yet
-  built — see [`5-state-tax-model.md`](5-state-tax-model.md).
+- **State** (50 states + DC) — **eleven states are modeled**: the nine with no individual income
+  tax (AK, FL, NH, NV, SD, TN, TX, WA, WY), **Georgia** and **Virginia**. For those, state tax is
+  computed and the marginal rate in Step 6 becomes **federal-only**. Every other state is guidance
+  only: fold your state's rate into that marginal rate yourself — see
+  [`5-state-tax-model.md`](5-state-tax-model.md).
 - **Filing status** — **single** or **married filing jointly**. MFJ reveals spouse age and
   (in Step 4) spouse Social Security. The couples model is specified in [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
 
@@ -178,7 +178,7 @@ Captures the two effects that dominate retiree taxation — **provisional-income
 Social Security** and the **standard-deduction "tax-free floor"** — then applies a single
 **marginal** rate above the floor. Full specification, constants (with sources), MFJ details,
 and RMD age in [`2-federal-tax-model.md`](2-federal-tax-model.md). **State** income tax is a
-separate model with its own constants and annual-review cycle, covering ten states today
+separate model with its own constants and annual-review cycle, covering eleven states today
 (§2.1) — see [`5-state-tax-model.md`](5-state-tax-model.md).
 
 ### 6.1 Marginal Rate (above the deduction)
@@ -198,7 +198,7 @@ figures. In a **modeled** state this is your federal rate only; otherwise add a 
 your state actually taxes retirement income.
 
 **Not modeled:** full 10–37% brackets, 0/15/20% capital-gains brackets, and itemized
-deductions/credits. State-specific exemptions are modeled for the ten states in §2.1 and
+deductions/credits. State-specific exemptions are modeled for the eleven states in §2.1 and
 approximated by the user's rate everywhere else.
 
 ### 6.2 Payroll Tax
@@ -392,8 +392,8 @@ one market shock; inflation is constant; spending is constant within a phase.
 
 **Scope constraints:** US-only; single or MFJ (couples modeled per [`4-married-filing-jointly.md`](4-married-filing-jointly.md), no
 survivor penalty yet); no pre-retirement accumulation; fixed life expectancy; simplified tax
-(marginal rate + deduction floor, no full brackets); no long-term care; state tax for ten states
-only (§2.1); no ACA subsidies; no Roth conversions yet; no dynamic spending. Client-side only;
+(marginal rate + deduction floor, no full brackets); no long-term care; state tax for eleven
+states only (§2.1); no ACA subsidies; no Roth conversions yet; no dynamic spending. Client-side only;
 localStorage is unencrypted ("don't use on shared computers"); no SSN/account numbers/names required.
 
 **Required disclaimer (results page):** *"Educational projections only. Not financial, tax, or

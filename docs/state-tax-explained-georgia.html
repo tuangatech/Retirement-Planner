@@ -297,19 +297,19 @@ model captures, and no flat "add 3% for Georgia" adjustment can reproduce it.</p
     <!-- the age-62 boundary, where the exclusion opens -->
     <line x1="315" y1="45" x2="315" y2="255" stroke="#1a2733" stroke-dasharray="4 3" stroke-width="1.2"/>
 
-    <!-- data: ages 58–70 → 602, 643, 685, 728, then $0 for good -->
-    <polyline points="140,108 190,98 240,88 290,78 340,255 390,255 440,255 490,255 540,255 590,255 640,255 690,255 740,255"
+    <!-- data: ages 58–70 → 590, 631, 673, 716, then $0 for good -->
+    <polyline points="140,111 190,101 240,91 290,81 340,255 390,255 440,255 490,255 540,255 590,255 640,255 690,255 740,255"
               fill="none" stroke="#9c3d54" stroke-width="2.5"/>
     <g fill="#9c3d54">
-        <circle cx="140" cy="108" r="4.5"/><circle cx="190" cy="98" r="4.5"/>
-        <circle cx="240" cy="88" r="4.5"/><circle cx="290" cy="78" r="4.5"/>
+        <circle cx="140" cy="111" r="4.5"/><circle cx="190" cy="101" r="4.5"/>
+        <circle cx="240" cy="91" r="4.5"/><circle cx="290" cy="81" r="4.5"/>
         <circle cx="340" cy="255" r="4.5"/><circle cx="390" cy="255" r="4.5"/>
         <circle cx="440" cy="255" r="4.5"/><circle cx="490" cy="255" r="4.5"/>
         <circle cx="540" cy="255" r="4.5"/>
     </g>
     <!-- value callouts, offset clear of the line and the markers -->
-    <text class="lbl-num" x="128" y="102" text-anchor="end" style="fill:#9c3d54">$602</text>
-    <text class="lbl-num" x="290" y="69" text-anchor="middle" style="fill:#9c3d54">$728</text>
+    <text class="lbl-num" x="128" y="105" text-anchor="end" style="fill:#9c3d54">$590</text>
+    <text class="lbl-num" x="290" y="72" text-anchor="middle" style="fill:#9c3d54">$716</text>
     <text class="lbl-num" x="500" y="242" style="fill:#2f7d64">$0 from age 62 on</text>
 
     <!-- x labels -->
@@ -325,7 +325,7 @@ model captures, and no flat "add 3% for Georgia" adjustment can reproduce it.</p
 </svg>
 <figcaption><b>Measured, not illustrative.</b> These are the simulator's own numbers for its
 default plan — retire at 58, $50,000 a year of spending, single filer. Lifetime Georgia tax:
-<b>$2,657</b>, every dollar of it paid before age 62. The bill rises while under 62 only because
+<b>$2,610</b>, every dollar of it paid before age 62. The bill rises while under 62 only because
 spending inflates; the moment the exclusion opens it swallows the entire draw.</figcaption>
 </figure>
 
@@ -434,28 +434,35 @@ human review against the primary source catches a wrong number.</p>
 one people implement first and the other two are the ones they forget.</figcaption>
 </figure>
 
-<h3>The marginal rate is measured, not derived</h3>
+<h3>The tax on the next dollar is measured, not derived</h3>
 <p>To draw enough from an account to cover the state tax the draw itself causes, the engine needs
-Georgia's rate on the <em>next</em> dollar. That is not simply "4.99% once you're past the
-deduction", because the exclusion is capped by eligible income: while exclusion room remains,
-each extra dollar of tax-deferred withdrawal <strong>creates its own exclusion</strong> and costs
-nothing at the margin — even for a household already paying Georgia tax on other income.</p>
+to know what Georgia charges on the <em>next</em> dollar. That is not simply "4.99% once you're
+past the deduction", because the exclusion is capped by eligible income: while exclusion room
+remains, each extra dollar of tax-deferred withdrawal <strong>creates its own exclusion</strong>
+and costs nothing at the margin — even for a household already paying Georgia tax on other
+income.</p>
 
-<p>Rather than encode that reasoning twice, the engine asks the question it actually wants
-answered — it re-runs the real formula with a $1,000 probe withdrawal and measures the
-difference:</p>
+<p>Rather than encode that reasoning twice, the engine never computes a rate at all. It hands the
+withdrawal solver Georgia's real formula as a function and lets it evaluate it at whatever draw it
+is testing:</p>
 
-<pre><code><span class="cmt">// stateMarginalRate() — the finite-difference trick</span>
-const base   = incomeTax(rules, inputs);
-const bumped = incomeTax(rules, { ...inputs,
-                 taxDeferredWithdrawals: inputs.taxDeferredWithdrawals + 1000 });
+<pre><code><span class="cmt">// yearlyProjection.ts — the state's own formula, as a function of the draw</span>
+(draws) =&gt; computeStateTax(stateRules, { ...stateInputsBase,
+              taxDeferredWithdrawals: draws }).tax - initialStateTax</code></pre>
 
-return (bumped - base) / 1000;   <span class="cmt">// → 0, or 0.0499, or blended</span></code></pre>
+<p>This gets the exclusion growth and the deduction shield for free, from the one formula that is
+already the source of truth.</p>
 
-<p>This gets the exclusion growth, the deduction shield, and correct blending across a threshold
-the household happens to be sitting just under — all from the one formula that is already the
-source of truth. It will also handle Virginia's phase-out band, where the marginal rate
-<em>doubles</em>, without any new code.</p>
+<div class="note">
+    <p><strong>This used to be a single probed rate, and Virginia proved that wrong.</strong> An
+    earlier version measured Georgia's marginal rate with a $1,000 probe and multiplied the draw by
+    it — near-exact for a flat-rate state. But Virginia's age deduction phases out dollar-for-dollar,
+    so its marginal rate <em>doubles</em> inside a $12,000-wide band that a normal year's withdrawal
+    crosses. No single rate is right for such a draw: the in-band rate over-withdraws, the
+    out-of-band rate leaves the year short. Passing the formula instead of a number fixed both
+    states at once and deleted the probe entirely. See
+    <code>docs/state-tax-explained-virginia.html</code>, Part Four.</p>
+</div>
 
 <h3>Simplifications, stated plainly</h3>
 <ul>

@@ -264,14 +264,27 @@ describe('withdrawals cover the year they fund', () => {
         expect(leakPerRun).toBeLessThan(1);
     });
 
-    // In a modeled state a small residual is expected and disclosed: the state gross-up rate is
-    // probed at the expected draw rather than solved simultaneously (docs/5-state-tax-model.md
-    // §6). It must stay small — orders of magnitude below the federal bug this replaced.
-    it('keeps the state gross-up residual negligible', () => {
+    // A state that taxes income must leak no more than one that doesn't. It used to: while the
+    // gross-up multiplied by one probed rate, Georgia ran to −$362 in the worst year and ~$12 per
+    // run. Sizing against the state's own formula closed that to the same sub-dollar rounding as
+    // Texas — so the state gross-up is exact now, not an estimate with a disclosed residual.
+    it('leaks no more in Georgia than in a no-income-tax state', () => {
         const inputs = makeInputs();      // default state is GA
         const { worstYear, leakPerRun } = leakage(inputs);
-        expect(worstYear).toBeGreaterThan(-500);
-        expect(leakPerRun).toBeLessThan(100);
+        expect(worstYear).toBeGreaterThan(-1);
+        expect(leakPerRun).toBeLessThan(1);
+    });
+
+    // Virginia is the harder case and the reason the gross-up takes a function: its age deduction
+    // phases out dollar-for-dollar, so the marginal rate doubles inside a $12,000 band that a
+    // normal year's draw crosses. It carries ~4× Georgia's tax bill here and still leaks nothing.
+    it('leaks nothing in Virginia, across the age-deduction phase-out', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'VA';
+
+        const { worstYear, leakPerRun } = leakage(inputs);
+        expect(worstYear).toBeGreaterThan(-1);
+        expect(leakPerRun).toBeLessThan(1);
     });
 
     it('holds for an early claiming age, which lands SS squarely in the phase-in', () => {
@@ -280,6 +293,17 @@ describe('withdrawals cover the year they fund', () => {
         inputs.income.socialSecurity.claimingAge = 62;
         inputs.personal.filingStatus = 'married_joint';
         inputs.personal.spouseAgeAtRetirement = 58;
+
+        expect(leakage(inputs).worstYear).toBeGreaterThan(-1);
+    });
+
+    // MFJ in Virginia stacks the two hardest interactions: a pooled $24,000 age-deduction cap
+    // means-tested on combined income, and both spouses' SS in the provisional-income formula.
+    it('holds for a married couple in Virginia', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'VA';
+        inputs.personal.filingStatus = 'married_joint';
+        inputs.personal.spouseAgeAtRetirement = 63;
 
         expect(leakage(inputs).worstYear).toBeGreaterThan(-1);
     });
@@ -363,7 +387,11 @@ describe('state tax', () => {
 
         const first = runCompleteSimulation(inputs, createSeededRNG(7)).projections[0];
         expect(first.taxes.stateTax).toBeGreaterThan(0);
-        expect(first.netCashFlow).toBeGreaterThanOrEqual(0);
+        // Was −$602 — exactly the state tax owed, i.e. the whole bill unfunded. Now within a cent:
+        // sizing against the state's own formula leaves only the $1 convergence residual, which
+        // can fall either side of zero instead of always over-withdrawing.
+        expect(first.netCashFlow).toBeGreaterThan(-1);
+        expect(first.netCashFlow).toBeGreaterThan(-first.taxes.stateTax / 100);
     });
 
     it('GA in manual mode reports $0 — a legacy scenario is not taxed twice', () => {
@@ -373,6 +401,35 @@ describe('state tax', () => {
 
         const r = runCompleteSimulation(inputs, createSeededRNG(7));
         expect(r.projections.every(p => p.taxes.stateTax === 0)).toBe(true);
+    });
+
+    // Virginia's benefit is shaped the opposite way to Georgia's: it starts at 65 (not 62), it is
+    // means-tested rather than capped by income type, and it *shrinks* as income rises.
+    it('VA: charges tax before 65 and keeps charging it after, unlike Georgia', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'VA';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(7));
+        expect(r.projections.every(p => p.netCashFlow >= -1)).toBe(true);
+
+        for (const p of r.projections) {
+            expect(p.taxes.total).toBeCloseTo(
+                p.taxes.onFixedIncome + p.taxes.onWithdrawals + p.taxes.payrollTax + p.taxes.stateTax,
+                6
+            );
+        }
+
+        // Georgia's exclusion zeroes its bill out from 65; Virginia's means test does not, because
+        // a withdrawal large enough to fund the year also phases the age deduction away.
+        const ga = makeInputs();
+        ga.personal.state = 'GA';
+        ga.tax.stateTaxMode = 'modeled';
+        const gaRun = runCompleteSimulation(ga, createSeededRNG(7));
+
+        const from65 = (run: typeof r) =>
+            run.projections.filter(p => p.age >= 65).reduce((s, p) => s + p.taxes.stateTax, 0);
+        expect(from65(r)).toBeGreaterThan(from65(gaRun));
     });
 
     it('keeps the cash-flow identity: income + withdrawals = expenses + tax + net', () => {

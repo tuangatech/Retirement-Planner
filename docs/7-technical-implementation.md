@@ -106,9 +106,17 @@ formulas in Python. This catches drift between what the UI shows and what the in
 - **Verify (script side):** `scripts/verify_plan.py` re-derives every deterministic value
   from `inputs` and compares against the projection — Social Security, pensions, rental,
   living expenses, healthcare premiums/out-of-pocket, income tax (provisional-income SS +
-  standard-deduction floor + marginal rate, mirroring `TAX_RULES` in `taxes.ts`), payroll
-  tax, the component sums, and the cash-flow identity. Implied per-account returns are
-  range-checked (informational; balances are stochastic).
+  standard-deduction floor + marginal rate, mirroring `TAX_RULES` in `taxes.ts`), **state
+  income tax** (Georgia's exclusion and Virginia's age deduction, from the same
+  `stateTaxRules.json` the engine reads), **RMDs** (Uniform Lifetime divisor on the
+  start-of-year balance; MFJ pools under the older spouse's age), payroll tax, the component
+  sums, and the cash-flow identity. It also asserts each year is **funded** — a negative
+  `netCashFlow` outside a genuine shortfall means the gross-up under-withdrew and the plan
+  spent money it never took out, which is how two separate gross-up bugs were caught. Implied
+  per-account returns are range-checked (informational; balances are stochastic).
+
+  An income-taxing state present in `stateTaxRules.json` with no formula in `verify_plan.py`
+  raises rather than silently returning `$0` — a deliberate tripwire for the next state added.
 
 ```bash
 # Save the downloaded bundle into scripts/, then:

@@ -43,18 +43,52 @@ export interface GaExclusion {
 }
 
 /**
- * A state that taxes income. Only the fields Georgia needs are here; Virginia widens `rate`
- * with a graduated arm and `retirementBenefit` with its age deduction.
+ * Virginia's age deduction: $12,000 per taxpayer aged 65+, means-tested at the *household*
+ * level against combined AFAGI and phased out dollar-for-dollar above the threshold
+ * (docs/5-state-tax-model.md §4.3).
+ *
+ * Structurally the opposite of Georgia's exclusion. Georgia's is per person and capped by that
+ * person's eligible income, so it *grows* with retirement income; Virginia's is a pooled cap
+ * that *shrinks* as household income rises, and cares nothing about which income type funds it.
+ * That is why these are two union members and not one parameterized "exclusion".
+ */
+export interface VaAgeDeduction {
+    kind: 'va_age_deduction';
+    perPerson: number;
+    /** Age at which a taxpayer becomes eligible (65 — the born-before-1939 tier is not modeled). */
+    minAge: number;
+    /** AFAGI above which the deduction starts phasing out, per return on combined income. */
+    threshold: { single: number; married: number };
+    /** Dollars of deduction lost per dollar of AFAGI over the threshold (1 — hence 2× the rate). */
+    reductionPerDollar: number;
+}
+
+/**
+ * A state that taxes income. `rate` carries both a flat arm (Georgia) and a graduated one
+ * (Virginia); `personalExemption` and `filingThreshold` are Virginia-only and absent for Georgia,
+ * whose flat-tax structure has neither.
  */
 export interface IncomeTaxRules {
     state: USState;
     taxesIncome: true;
     /** Both modeled states exempt SS. Widen when a state that taxes it is added. */
     socialSecurity: 'exempt';
-    rate: { kind: 'flat'; rate: number };
+    rate:
+        | { kind: 'flat'; rate: number }
+        // Ascending; the final bracket has `upTo: null`. Virginia's schedule does not vary by
+        // filing status, unlike NY's and CA's — see §10 before widening this for them.
+        | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> };
     /** Year-keyed schedule: state deductions change by legislation, on dated steps. */
     standardDeduction: Array<{ fromYear: number; single: number; married: number }>;
-    retirementBenefit?: GaExclusion;
+    /** Per filer, doubled for MFJ, plus an addition for each spouse aged 65+. */
+    personalExemption?: { perFiler: number; age65Addition: number };
+    /**
+     * State AGI below which no tax is imposed and no return is required. A *filing* rule rather
+     * than a computation, but without it we bill a low-income retiree the tax on the band between
+     * the deduction and the threshold.
+     */
+    filingThreshold?: { single: number; married: number };
+    retirementBenefit?: GaExclusion | VaAgeDeduction;
     caveat?: string;
     note?: string;
     sources: Record<string, string>;

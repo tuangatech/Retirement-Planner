@@ -70,6 +70,47 @@
                 "noIncomeTax": "https://comptroller.texas.gov/taxes/"
             }
         },
+        "VA": {
+            "taxesIncome": true,
+            "socialSecurity": "exempt",
+            "rate": {
+                "kind": "graduated",
+                "brackets": [
+                    { "upTo": 3000, "rate": 0.02 },
+                    { "upTo": 5000, "rate": 0.03 },
+                    { "upTo": 17000, "rate": 0.05 },
+                    { "upTo": null, "rate": 0.0575 }
+                ]
+            },
+            "standardDeduction": [
+                { "fromYear": 2026, "single": 8750, "married": 17500 },
+                { "fromYear": 2027, "single": 9200, "married": 18400 },
+                { "fromYear": 2028, "single": 9300, "married": 18600 },
+                { "fromYear": 2030, "single": 3000, "married": 6000 }
+            ],
+            "personalExemption": { "perFiler": 930, "age65Addition": 800 },
+            "filingThreshold": { "single": 11950, "married": 23900 },
+            "retirementBenefit": {
+                "kind": "va_age_deduction",
+                "perPerson": 12000,
+                "minAge": 65,
+                "threshold": { "single": 50000, "married": 75000 },
+                "reductionPerDollar": 1
+            },
+            "note": "The entire Virginia schedule is unconditional, so Rule 1 models all of it including the 2030 standard-deduction reversion to $3,000/$6,000 (docs/5-state-tax-model.md §2). Virginia has repeatedly extended the elevated deduction rather than let it lapse, so the cliff may never happen — modeling it is the current-law reading, not a forecast. The age deduction is a HOUSEHOLD-level means test against a pooled cap, which maps cleanly onto this tool's pooled MFJ accounts (unlike Georgia's per-person exclusion). Its dollar-for-dollar phase-out doubles the marginal rate to ~11.5% inside the band, which is why the withdrawal gross-up takes the whole state formula as a function rather than one rate (§3). Not modeled: the separate $12,000 deduction for taxpayers born on or before 1 Jan 1939 (they are 87+ in 2026 and it needs a birth year, not an age), the blindness exemption, the military benefits subtraction, and dependent exemptions. Brackets and the $930/$800 exemptions are NOT inflation-indexed in statute, so they are held flat.",
+            "caveat": "Virginia's standard deduction is modeled as reverting to $3,000 single / $6,000 married in 2030, which is what current law says but which the legislature has repeatedly postponed — so Virginia tax is likely overstated from 2030 on. The $12,000-per-person age deduction starts at 65, not at retirement, and phases out $1 per $1 of income above $50,000 single / $75,000 married; inside that band each extra dollar withdrawn is taxed at roughly 11.5% rather than 5.75%. Virginia has no general pension or 401(k)/IRA exclusion — the age deduction is the only retiree benefit, and there is none at all before 65.",
+            "sources": {
+                "rate": "https://www.tax.virginia.gov/income-tax-calculator",
+                "brackets": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-320/",
+                "standardDeduction": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-322.03/",
+                "ageDeduction": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-322.03/",
+                "ageDeductionPhaseOut": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-322.03/",
+                "personalExemption": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-322.03/",
+                "filingThreshold": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-321/",
+                "socialSecurityExempt": "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-322.02/",
+                "afagiWorksheet": "https://www.tax.virginia.gov/forms/search/760"
+            }
+        },
         "WA": {
             "taxesIncome": false,
             "caveat": "Washington has no income tax, but levies a 7% excise tax on long-term capital gains above an inflation-indexed standard deduction ($278,000 for 2025), with an additional higher tier. It is NOT modeled here: retirement accounts are exempt, so it reaches only taxable-brokerage gains, and this tool applies a flat cost-basis percentage per withdrawal rather than tracking realized gains.",

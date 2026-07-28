@@ -13,7 +13,7 @@ import {
 } from '@/lib/calculations/withdrawals';
 import { generateAccountReturns } from '@/lib/calculations/random';
 import { RMD_START_AGE } from '@/lib/calculations/rmd';
-import { computeStateTax, stateMarginalRate, type StateTaxInputs } from '@/lib/calculations/stateTax';
+import { computeStateTax, type StateTaxInputs } from '@/lib/calculations/stateTax';
 import { getStateTaxRules } from '@/lib/calculations/stateTaxRules';
 
 export interface YearlyProjection {
@@ -218,19 +218,24 @@ export function calculateYearlyProjection(
             spouseAge,
             rmdAge,
             RMD_START_AGE,
-            // Gross up withdrawals for state tax too. The rate is probed at the year's
-            // *expected* draw rather than at fixed income alone: an early retiree with little
-            // fixed income but a large withdrawal need is exactly whom Georgia taxes hardest
-            // (no retirement exclusion before 62), and probing from fixed income alone reads
-            // 0% there — leaving the whole state bill unfunded and letting the year spend
-            // money it never withdrew. The cash-flow gap is the best non-circular proxy for
-            // the draws. Treating all of it as ordinary income overstates the rate whenever
-            // the gap is met from Roth or cost basis; that errs toward over-withdrawal, which
-            // the surplus reinvestment below absorbs.
-            stateMarginalRate(stateRules, {
-                ...stateInputsBase,
-                taxDeferredWithdrawals: cashFlowGap,
-            })
+            // Gross up withdrawals for state tax using the state's own formula, evaluated at
+            // whatever draw the solver is currently testing. Not a single probed rate: a state's
+            // marginal rate is not constant across a draw (Virginia's age deduction phases out
+            // dollar-for-dollar, doubling the rate to ~11.5% inside a $12,000-wide band and
+            // halving it again above), so any one rate is wrong for part of any draw that
+            // crosses the kink.
+            //
+            // Everything is passed as `taxDeferredWithdrawals`, i.e. ordinary state income. That
+            // is exact for tax-deferred draws and for brokerage gains (neither state gives
+            // capital gains a preference), and slightly generous for a non-medical HSA draw,
+            // which Georgia's exclusion does not actually cover. The final `computeStateTax`
+            // below splits the categories properly; the small difference lands in the surplus
+            // that gets reinvested.
+            (draws) =>
+                computeStateTax(stateRules, {
+                    ...stateInputsBase,
+                    taxDeferredWithdrawals: draws,
+                }).tax - initialStateTax
         );
 
         // Deduct withdrawals from current balances

@@ -9,6 +9,8 @@ import {
     type AccountBalances,
     type IncomeForTax,
 } from './withdrawals';
+import { computeStateTax, type StateTaxInputs } from './stateTax';
+import { getStateTaxRules } from './stateTaxRules';
 
 const noIncome: IncomeForTax = { socialSecurity: 0, pensions: 0, partTimeWork: 0, rentalIncome: 0 };
 const priority: Array<'taxable' | 'tax_deferred' | 'roth'> = ['taxable', 'tax_deferred', 'roth'];
@@ -50,19 +52,19 @@ describe('executeWithdrawals', () => {
         expect(r.rmdExcess).toBeGreaterThan(0);
     });
 
-    // The state marginal rate is the one state-tax touch point that can be exercised with a
-    // nonzero value before Georgia/Virginia ship, so it is tested directly here.
+    // A flat 5% state tax, as the simplest possible state function: it isolates the wiring
+    // (state tax reaches the gross-up at all) from the shape of any real state's formula.
     it('grosses up a tax-deferred draw for state tax as well as federal', () => {
         const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 0, hsa: 0 };
         const tdOnly: Array<'taxable' | 'tax_deferred' | 'roth'> = ['tax_deferred', 'taxable', 'roth'];
 
         const federalOnly = executeWithdrawals(
             65, 20_000, balances, 0, false, tdOnly, noIncome, 0.12, 0.85, 0.7,
-            'standard', 2026, 1, 'single', undefined, 65, 75, 0
+            'standard', 2026, 1, 'single', undefined, 65, 75, () => 0
         );
         const withState = executeWithdrawals(
             65, 20_000, balances, 0, false, tdOnly, noIncome, 0.12, 0.85, 0.7,
-            'standard', 2026, 1, 'single', undefined, 65, 75, 0.05
+            'standard', 2026, 1, 'single', undefined, 65, 75, (draws) => draws * 0.05
         );
 
         // No Social Security here and a $24,150 deduction floor at 65 in 2026, so a $20k
@@ -101,7 +103,7 @@ describe('executeWithdrawals', () => {
         const draw = (need: number, income: IncomeForTax, strategy: 'standard' | 'tax_smart') =>
             executeWithdrawals(
                 67, need, balances, 0, false, tdOnly, income, 0.12, 0.85, 0.7,
-                strategy, 2035, 1.3048, 'single', undefined, 67, 75, 0
+                strategy, 2035, 1.3048, 'single', undefined, 67, 75, () => 0
             );
 
         it('takes exactly the need when the deduction floor shields it entirely', () => {
@@ -148,10 +150,10 @@ describe('executeWithdrawals', () => {
         const args = [60, 20_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7] as const;
 
         const federalOnly = executeWithdrawals(
-            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, 0
+            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, () => 0
         );
         const withState = executeWithdrawals(
-            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, 0.0499
+            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, (draws) => draws * 0.0499
         );
 
         // At 60 the floor is the $16,100 base deduction, so both fill $16,100 first, then
@@ -167,12 +169,106 @@ describe('executeWithdrawals', () => {
         expect(withState.withdrawals.taxDeferred - withState.taxOnWithdrawals).toBeCloseTo(20_000, 0);
     });
 
-    it('leaves withdrawals unchanged when the state marginal rate is 0', () => {
+    // Why the gross-up takes the state formula as a *function* and not a rate. Virginia's age
+    // deduction dies $1 per $1 from AFAGI $50,000, so one draw can face three different state
+    // rates: 5.75% under the threshold, ~11.5% inside the $12,000-wide band, 5.75% again above
+    // it. No single rate is right for all of it, and the band is narrow enough that a normal
+    // year's withdrawal crosses it.
+    describe('sizes draws against a state rate that changes mid-draw (Virginia)', () => {
+        const balances: AccountBalances = { taxDeferred: 2_000_000, roth: 0, taxable: 0, hsa: 0 };
+        const tdOnly: Array<'taxable' | 'tax_deferred' | 'roth'> = ['tax_deferred', 'taxable', 'roth'];
+        // $45,000 of pension puts AFAGI just under the $50,000 threshold, and past the federal
+        // floor, so federal tax is a clean 12% and the state curve is what is under test. No SS,
+        // so the torpedo is not tangled up in this.
+        const pensionOnly: IncomeForTax = { ...noIncome, pensions: 45_000 };
+
+        const stateBase: StateTaxInputs = {
+            year: 2026,
+            filingStatus: 'single',
+            age: 67,
+            pensions: 45_000,
+            partTimeWork: 0,
+            rentalIncome: 0,
+            taxDeferredWithdrawals: 0,
+            brokerageGains: 0,
+            hsaNonMedicalWithdrawals: 0,
+        };
+        const vaRules = getStateTaxRules('VA');
+        const baseStateTax = computeStateTax(vaRules, stateBase).tax;
+
+        /** The real Virginia curve, as `yearlyProjection` passes it in. */
+        const realVirginia = (draws: number): number =>
+            computeStateTax(vaRules, { ...stateBase, taxDeferredWithdrawals: draws }).tax - baseStateTax;
+
+        const draw = (need: number, stateTaxOnDraws: (draws: number) => number) =>
+            executeWithdrawals(
+                67, need, balances, 0, false, tdOnly, pensionOnly, 0.12, 0.85, 0.7,
+                'standard', 2026, 1, 'single', undefined, 67, 75, stateTaxOnDraws
+            );
+
+        const netOf = (r: ReturnType<typeof executeWithdrawals>) =>
+            r.withdrawals.taxDeferred - r.taxOnWithdrawals;
+
+        it('nets the need exactly on a draw spanning all three state rate regimes', () => {
+            // $30,000 of net need pulls a $37,313 gross draw: the first $5,000 of it stays under
+            // the $50,000 threshold, the next $12,000 sits in the doubled band, the rest is past
+            // it. The blended state rate is 7.6% — none of the three regime rates.
+            const r = draw(30_000, realVirginia);
+            expect(netOf(r)).toBeCloseTo(30_000, 0);
+            expect(r.shortfall).toBeCloseTo(0, 1);
+            expect(r.withdrawals.taxDeferred).toBeCloseTo(37_313, 0);
+        });
+
+        it('lands between what the in-band and out-of-band flat rates would have drawn', () => {
+            const real = draw(30_000, realVirginia).withdrawals.taxDeferred;
+            const atInBandRate = draw(30_000, (d) => d * 0.115).withdrawals.taxDeferred;
+            const atBracketRate = draw(30_000, (d) => d * 0.0575).withdrawals.taxDeferred;
+
+            // Either flat rate is off by four figures on a single year's draw: 11.5% across the
+            // whole thing over-withdraws $1,903, the 5.75% bracket rate under-withdraws $839.
+            expect(atBracketRate).toBeLessThan(real);
+            expect(real).toBeLessThan(atInBandRate);
+            expect(atInBandRate - real).toBeCloseTo(1_903, 0);
+            expect(real - atBracketRate).toBeCloseTo(839, 0);
+        });
+
+        // The failure mode the function form removes. Sizing and pricing have to be checked
+        // against *Virginia*, not against each other: a flat-rate gross-up is internally
+        // consistent (it charges what it sized for) and still leaves the year short, because
+        // `yearlyProjection` bills the real formula afterwards. That gap is money the plan
+        // spends without withdrawing.
+        it('collects exactly the state tax Virginia will actually bill', () => {
+            const sizedOnCurve = draw(30_000, realVirginia).withdrawals.taxDeferred;
+            expect(realVirginia(sizedOnCurve)).toBeCloseTo(2_835.5, 1);
+
+            const sizedFlat = draw(30_000, (d) => d * 0.0575).withdrawals.taxDeferred;
+            const collected = sizedFlat * 0.0575;
+            // $690 unfunded in this one year, on a $30,000 need.
+            expect(realVirginia(sizedFlat) - collected).toBeCloseTo(690, 0);
+        });
+
+        it('charges no state tax at all below the filing threshold', () => {
+            const belowThreshold: StateTaxInputs = { ...stateBase, age: 64, pensions: 0 };
+            const noTaxYet = (draws: number): number =>
+                computeStateTax(vaRules, { ...belowThreshold, taxDeferredWithdrawals: draws }).tax;
+
+            // An $11,000 draw with no other income never reaches $11,950 of VAGI, so the gross-up
+            // must not inflate it. The federal floor covers it too, so gross == net exactly.
+            const r = executeWithdrawals(
+                64, 11_000, balances, 0, false, tdOnly, noIncome, 0.12, 0.85, 0.7,
+                'standard', 2026, 1, 'single', undefined, 64, 75, noTaxYet
+            );
+            expect(r.withdrawals.taxDeferred).toBeCloseTo(11_000, 0);
+            expect(r.taxOnWithdrawals).toBeCloseTo(0, 0);
+        });
+    });
+
+    it('leaves withdrawals unchanged when the state levies no income tax', () => {
         const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 0, hsa: 0 };
         const args = [65, 20_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7] as const;
         const withoutArg = executeWithdrawals(...args);
         const withZero = executeWithdrawals(
-            ...args, 'standard', 2026, 1, 'single', undefined, 65, 73, 0
+            ...args, 'standard', 2026, 1, 'single', undefined, 65, 73, () => 0
         );
         expect(withZero.withdrawals).toEqual(withoutArg.withdrawals);
     });
