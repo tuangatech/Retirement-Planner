@@ -12,9 +12,7 @@ A privacy-first, Monte Carlo simulation-based retirement planning tool that help
 
 ### 👉 [**Try the live demo**](https://retirement-planner-blond.vercel.app/) — no install, runs entirely in your browser
 
-<!-- TODO: add a screenshot or GIF of the Results dashboard here. For a visual app this is the
-     single biggest thing that converts a repo visitor into a user. Save it to public/ and embed:
-     ![Results dashboard](public/screenshot.png) -->
+![Results dashboard](public/screenshot.gif)
 
 ---
 
