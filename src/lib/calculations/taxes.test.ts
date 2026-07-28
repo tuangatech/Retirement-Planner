@@ -7,8 +7,6 @@ import {
     calculateStandardDeduction,
     calculateTaxFreeTaxDeferredRoom,
     calculateTotalTaxes,
-    calculateTaxOnTaxableWithdrawal,
-    calculateGrossWithdrawalForNet,
 } from './taxes';
 
 describe('calculateTaxableSocialSecurity (IRS provisional-income formula)', () => {
@@ -91,27 +89,6 @@ describe('calculateStandardDeduction (tax-free floor)', () => {
     it('single filer ignores spouseAge (no second senior)', () => {
         // Even with a spouseAge passed, a single filer counts only its own senior.
         expect(calculateStandardDeduction(66, 2026, 'single', 1, true, 70)).toBeCloseTo(24150, 6);
-    });
-});
-
-describe('calculateTaxOnTaxableWithdrawal (gain-only)', () => {
-    it('taxes only the gain portion, not the cost basis', () => {
-        // $10k withdrawal, 70% basis → $3k gain × 18% = $540.
-        expect(calculateTaxOnTaxableWithdrawal(10000, 0.7, 0.18)).toBeCloseTo(540, 6);
-    });
-});
-
-describe('calculateGrossWithdrawalForNet (tax gross-up)', () => {
-    it('grosses up so the after-tax amount equals the need', () => {
-        const gross = calculateGrossWithdrawalForNet(10000, 0.18);
-        expect(gross).toBeCloseTo(10000 / 0.82, 6);
-        // Round-trip: gross − tax === net.
-        expect(gross - gross * 0.18).toBeCloseTo(10000, 6);
-    });
-
-    it('returns 0 for a non-positive need', () => {
-        expect(calculateGrossWithdrawalForNet(0, 0.18)).toBe(0);
-        expect(calculateGrossWithdrawalForNet(-500, 0.18)).toBe(0);
     });
 });
 

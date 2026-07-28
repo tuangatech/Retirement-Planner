@@ -104,8 +104,11 @@ Default priority (also the tax-smart fall-through): **Taxable → Tax-Deferred �
 5. **Priority sequence** (user order) until need met or accounts depleted.
 6. **Depletion handling:** track shortfall; income-only survival after total depletion.
 
-**Tax gross-up:** withdrawals are grossed up to cover their own tax via iterative convergence
-(2–5 iterations, $100 threshold). Example: need $10k net at 20% → withdraw ~$12,500.
+**Tax gross-up:** withdrawals are grossed up to cover their own tax by solving
+`gross − tax(gross) = need` against the **real** marginal rate, not a flat one. That rate is not
+constant: inside the standard-deduction floor it is 0%, and while Social Security is phasing into
+taxation each withdrawn dollar also pulls up to $0.85 of SS into the taxable base, making the true
+rate up to **1.85×** the headline rate before it settles back once SS hits its 85% cap.
 
 ---
 
@@ -204,8 +207,12 @@ approximated by the user's rate everywhere else.
 
 ### 6.3 Tax Gross-Up
 
-Iterative (2–5 iterations, $100 threshold) so withdrawals cover their own tax. Applied to
-Tax-Deferred and Taxable gains.
+Withdrawals cover their own tax: the engine solves `gross − tax(gross) = need`, iterating to
+within $1. Crucially the tax term is the **incremental** tax the draw actually causes — including
+the Social Security it drags into taxation and the shielding the deduction floor provides — not
+`gross × rate`. A flat rate over-withdraws inside the floor (harmless; the surplus is reinvested)
+and **under**-withdraws inside the SS phase-in, which would let a year spend money it never took
+out. Applied to Tax-Deferred draws, Taxable **gains**, forced RMDs, and non-medical HSA draws.
 
 ---
 

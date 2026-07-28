@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Georgia State Tax for Retirees — and how this simulator models it</title>
+<style>
+    :root {
+        --ink: #1a2733;
+        --ink-soft: #5a6b7b;
+        --line: #d9e1e8;
+        --paper: #fdfdfb;
+        --panel: #f4f7f9;
+        --ga: #9c3d54;          /* Georgia accent */
+        --ga-soft: #f6e8ec;
+        --free: #2f7d64;        /* excluded / untaxed */
+        --free-soft: #e6f2ee;
+        --taxed: #b45309;       /* taxed */
+        --taxed-soft: #fdf1e0;
+        --code: #24303c;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 56px 28px 96px; }
+
+    header { border-bottom: 3px solid var(--ink); padding-bottom: 22px; margin-bottom: 40px; }
+    .kicker {
+        font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .16em; text-transform: uppercase; color: var(--ga); margin-bottom: 14px;
+    }
+    h1 { font-size: 2.15rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -.02em; }
+    .standfirst { font-size: 1.1rem; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+
+    h2 {
+        font-size: 1.4rem; margin: 52px 0 8px; padding-top: 20px;
+        border-top: 1px solid var(--line); letter-spacing: -.01em;
+    }
+    h2 .num {
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ga); display: block; margin-bottom: 6px; letter-spacing: .12em;
+    }
+    h3 { font-size: 1.05rem; margin: 30px 0 6px; }
+    p { margin: 12px 0; }
+    strong { font-weight: 700; }
+
+    .lede { font-size: 1.05rem; color: var(--ink-soft); margin-top: 0; }
+
+    /* ---------- figures ---------- */
+    figure {
+        margin: 26px 0; padding: 22px 22px 16px;
+        background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    }
+    figcaption {
+        font: 500 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); margin-top: 14px; padding-top: 12px;
+        border-top: 1px dashed var(--line);
+    }
+    figcaption b { color: var(--ink); }
+    svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .lbl { font: 500 12px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-sm { font: 500 10.5px ui-sans-serif, system-ui, sans-serif; fill: var(--ink-soft); }
+    .lbl-num { font: 700 13px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-white { font: 700 12px ui-sans-serif, system-ui, sans-serif; fill: #fff; }
+
+    /* ---------- callouts ---------- */
+    .note, .warn, .key {
+        border-radius: 8px; padding: 16px 18px; margin: 24px 0;
+        font-size: .96rem;
+    }
+    .note { background: var(--panel); border-left: 4px solid var(--ink-soft); }
+    .warn { background: var(--taxed-soft); border-left: 4px solid var(--taxed); }
+    .key  { background: var(--ga-soft);  border-left: 4px solid var(--ga); }
+    .note p:first-child, .warn p:first-child, .key p:first-child { margin-top: 0; }
+    .note p:last-child, .warn p:last-child, .key p:last-child { margin-bottom: 0; }
+    .tag {
+        display: inline-block; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px;
+        margin-right: 8px; vertical-align: 2px;
+    }
+    .tag-ga { background: var(--ga); color: #fff; }
+    .tag-warn { background: var(--taxed); color: #fff; }
+    .tag-key { background: var(--ink); color: #fff; }
+
+    /* ---------- tables ---------- */
+    table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: .94rem; }
+    caption {
+        text-align: left; font: 600 13px ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); padding-bottom: 8px;
+    }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    th {
+        font: 600 12px ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--ink-soft); background: var(--panel);
+    }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: #fafcfd; }
+    .yes { color: var(--free); font-weight: 700; }
+    .no  { color: var(--taxed); font-weight: 700; }
+
+    code {
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--panel); padding: 1px 5px; border-radius: 4px; color: var(--code);
+    }
+    pre {
+        background: var(--code); color: #e8eef4; padding: 16px 18px; border-radius: 8px;
+        overflow-x: auto; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+    .cmt { color: #8fa6ba; }
+
+    ul, ol { padding-left: 22px; }
+    li { margin: 7px 0; }
+
+    footer {
+        margin-top: 64px; padding-top: 20px; border-top: 3px solid var(--ink);
+        font: 13px/1.6 ui-sans-serif, system-ui, sans-serif; color: var(--ink-soft);
+    }
+    a { color: var(--ga); }
+    @media print {
+        body { background: #fff; }
+        figure, table { break-inside: avoid; }
+        h2 { break-after: avoid; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+    <div class="kicker">Retirement Planner · Tax Model Explainer</div>
+    <h1>Georgia state tax for retirees</h1>
+    <p class="standfirst">Why Georgia is unusually generous to retirees over 65 — unusually harsh
+    to those who retire early — and how this simulator turns that into numbers.</p>
+</header>
+
+<p class="lede">Georgia taxes income at one flat rate, but almost none of a typical 65-year-old
+retiree's income ever reaches that rate. Two provisions do the work: Social Security is
+<strong>completely exempt</strong>, and a large slice of everything else is <strong>excluded by
+age</strong>. The catch is that the age exclusion doesn't exist at all before 62 — which is
+exactly when early retirees are living off their portfolios.</p>
+
+<div class="key">
+    <span class="tag tag-key">The whole model in one line</span>
+    <p style="margin-top:10px"><code>GA tax = 4.99% × max(0, [federal AGI − taxable Social Security] − retirement exclusion − standard deduction)</code></p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART ONE · THE TAX</span>How income becomes taxable in Georgia</h2>
+
+<p>Georgia starts from your <em>federal</em> adjusted gross income and then subtracts three
+things. Each subtraction is a different mechanism, and they stack:</p>
+
+<figure>
+<svg viewBox="0 0 840 400" role="img" aria-label="Waterfall diagram showing federal AGI reduced by Social Security exemption, retirement exclusion, and standard deduction, leaving a small taxable remainder">
+    <!-- baseline -->
+    <line x1="60" y1="330" x2="800" y2="330" stroke="#d9e1e8" stroke-width="1.5"/>
+
+    <!-- Bar 1: Federal AGI -->
+    <rect x="70" y="90" width="120" height="240" fill="#5a6b7b" rx="3"/>
+    <text class="lbl-white" x="130" y="215" text-anchor="middle">$80,400</text>
+    <text class="lbl" x="130" y="352" text-anchor="middle">Federal AGI</text>
+    <text class="lbl-sm" x="130" y="368" text-anchor="middle">gross income</text>
+
+    <!-- minus SS -->
+    <text class="lbl-num" x="212" y="215" text-anchor="middle" style="fill:#9c3d54">−</text>
+    <rect x="230" y="90" width="120" height="129" fill="#2f7d64" rx="3"/>
+    <rect x="230" y="219" width="120" height="111" fill="#eef2f5" rx="3" stroke="#d9e1e8"/>
+    <text class="lbl-white" x="290" y="160" text-anchor="middle">$43,200</text>
+    <text class="lbl" x="290" y="352" text-anchor="middle">Social Security</text>
+    <text class="lbl-sm" x="290" y="368" text-anchor="middle">100% exempt</text>
+
+    <!-- minus exclusion -->
+    <text class="lbl-num" x="372" y="215" text-anchor="middle" style="fill:#9c3d54">−</text>
+    <rect x="390" y="219" width="120" height="111" fill="#2f7d64" rx="3" opacity=".78"/>
+    <text class="lbl-white" x="450" y="280" text-anchor="middle">$37,200</text>
+    <text class="lbl" x="450" y="352" text-anchor="middle">Retirement excl.</text>
+    <text class="lbl-sm" x="450" y="368" text-anchor="middle">up to $65k/person at 65+</text>
+
+    <!-- minus standard deduction: drawn to scale but hollow — nothing remains for it to absorb -->
+    <text class="lbl-num" x="532" y="215" text-anchor="middle" style="fill:#9c3d54">−</text>
+    <rect x="550" y="241" width="120" height="89" fill="none" rx="3" stroke="#2f7d64"
+          stroke-width="1.5" stroke-dasharray="5 3"/>
+    <text class="lbl-num" x="610" y="292" text-anchor="middle" style="fill:#2f7d64">$30,000</text>
+    <text class="lbl-sm" x="610" y="308" text-anchor="middle" style="fill:#2f7d64">unused</text>
+    <text class="lbl" x="610" y="352" text-anchor="middle">Standard deduction</text>
+    <text class="lbl-sm" x="610" y="368" text-anchor="middle">married, TY2026</text>
+
+    <!-- equals -->
+    <text class="lbl-num" x="692" y="215" text-anchor="middle" style="fill:#9c3d54">=</text>
+    <rect x="710" y="322" width="90" height="8" fill="#b45309" rx="2"/>
+    <text class="lbl-num" x="755" y="310" text-anchor="middle" style="fill:#b45309">$0</text>
+    <text class="lbl" x="755" y="352" text-anchor="middle">GA taxable</text>
+    <text class="lbl-sm" x="755" y="368" text-anchor="middle">tax owed: $0</text>
+
+    <!-- annotation -->
+    <text class="lbl-sm" x="70" y="70">A couple both 65+, $80,400 of income — and a $0 Georgia tax bill.</text>
+</svg>
+<figcaption><b>The headline case.</b> This is the couple from
+<code>docs/zero-tax-bill-georgia-retiree.pdf</code>. Their exclusion is capped at their eligible
+income ($37,200), not at the statutory $65,000 each — you cannot exclude more than you actually
+received. The standard deduction then has nothing left to absorb. Georgia tax: <b>$0</b>.</figcaption>
+</figure>
+
+<h3>Subtraction 1 — Social Security is fully exempt</h3>
+<p>Georgia does not tax Social Security at all. Note the subtlety: the simulator subtracts the
+portion that was <em>federally</em> taxable, because that is the only part that ever entered
+federal AGI in the first place. Georgia also insists that Social Security is left out of the
+retirement-exclusion arithmetic entirely — it cannot be used to soak up exclusion room.</p>
+
+<h3>Subtraction 2 — the retirement income exclusion, the big one</h3>
+<p>This is Georgia's signature retiree benefit. It is <strong>per person</strong>, it steps up
+with age, and it is capped by each person's own eligible income.</p>
+
+<table>
+<caption>Exclusion amount per person, by age</caption>
+<thead><tr><th>Your age</th><th class="num">TY2026</th><th class="num">TY2027 onward</th><th>What that means</th></tr></thead>
+<tbody>
+    <tr><td>Under 62</td><td class="num no">$0</td><td class="num no">$0</td><td>No exclusion whatsoever</td></tr>
+    <tr><td>62 – 64</td><td class="num">$35,000</td><td class="num">$35,000</td><td>Kicks in the year you turn 62</td></tr>
+    <tr><td>65 and over</td><td class="num yes">$65,000</td><td class="num yes">$70,000</td><td>The step-up is already enacted</td></tr>
+</tbody>
+</table>
+
+<p>A married couple can reach <strong>2×</strong> the amount — but each spouse must qualify on
+their own, against their own income. Two 66-year-olds can shelter up to $130,000 between them;
+a 66-year-old married to a 60-year-old can shelter $65,000, because the younger spouse's tier is
+still zero.</p>
+
+<h3>Which income counts as "eligible"?</h3>
+<p>The exclusion applies to specific categories, not to income generally. In this simulator's
+terms:</p>
+
+<table>
+<caption>Eligibility of each income type for the Georgia exclusion</caption>
+<thead><tr><th>Income type</th><th>Eligible?</th><th>Notes</th></tr></thead>
+<tbody>
+    <tr><td>Traditional 401(k) / IRA withdrawals</td><td class="yes">Yes</td><td>The main event for most retirees</td></tr>
+    <tr><td>Pensions and annuities</td><td class="yes">Yes</td><td></td></tr>
+    <tr><td>Net rental income</td><td class="yes">Yes</td><td></td></tr>
+    <tr><td>Brokerage capital gains, interest, dividends</td><td class="yes">Yes</td><td>Taxed as ordinary income by GA — no preferential rate</td></tr>
+    <tr><td>Part-time work (earned income)</td><td class="yes">Partly</td><td>Only the first <strong>$5,000</strong> — a sublimit inside the cap</td></tr>
+    <tr><td>Social Security</td><td class="no">Excluded</td><td>Already exempt; must not be counted here</td></tr>
+    <tr><td>Roth withdrawals</td><td class="no">N/A</td><td>Never in federal AGI, so never reaches Georgia</td></tr>
+    <tr><td>HSA spent on healthcare</td><td class="no">N/A</td><td>Never in federal AGI</td></tr>
+    <tr><td>HSA spent on non-medical (65+)</td><td class="no">No</td><td>Federal "other income" — matches no eligible category</td></tr>
+</tbody>
+</table>
+
+<h3>Subtraction 3 — the standard deduction</h3>
+<p>$15,000 for a single filer, $30,000 for a married couple (TY2026). Unlike the federal
+deduction there is <strong>no age-65 addition</strong> under Georgia's flat-tax structure, and
+unlike the federal deduction it is <strong>not indexed to inflation</strong> — it only moves when
+the legislature moves it.</p>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART TWO · THE SHAPE</span>Why age 62 is a cliff edge</h2>
+
+<p>Because the exclusion is zero until 62, jumps to $35,000, then jumps again at 65, a Georgia
+retiree's state tax bill has a distinctive shape: <strong>front-loaded into the earliest
+years</strong> and falling to nothing thereafter. This is the single most important thing the
+model captures, and no flat "add 3% for Georgia" adjustment can reproduce it.</p>
+
+<figure>
+<svg viewBox="0 0 840 330" role="img" aria-label="Line chart of Georgia tax by age for the default plan: rising from age 58 to 61 then dropping to zero at 62">
+    <!-- Scale: x = 140 + (age − 58)·50 · y = 255 − dollars·0.24375 (so $800 → y 60) -->
+
+    <!-- exclusion regime bands, split on the age boundaries (61|62 → x 315, 64|65 → x 465) -->
+    <rect x="90" y="45" width="225" height="210" fill="#fdf1e0" opacity=".85"/>
+    <rect x="315" y="45" width="150" height="210" fill="#f6f4e8" opacity=".7"/>
+    <rect x="465" y="45" width="335" height="210" fill="#e6f2ee" opacity=".7"/>
+    <text class="lbl-sm" x="202" y="38" text-anchor="middle" style="fill:#b45309">under 62 · no exclusion</text>
+    <text class="lbl-sm" x="390" y="38" text-anchor="middle">62–64 · $35k</text>
+    <text class="lbl-sm" x="632" y="38" text-anchor="middle" style="fill:#2f7d64">65+ · $65k → $70k</text>
+
+    <!-- grid -->
+    <g stroke="#dde5ea" stroke-width="1">
+        <line x1="90" y1="60"  x2="800" y2="60"/>
+        <line x1="90" y1="109" x2="800" y2="109"/>
+        <line x1="90" y1="158" x2="800" y2="158"/>
+        <line x1="90" y1="206" x2="800" y2="206"/>
+    </g>
+    <line x1="90" y1="255" x2="800" y2="255" stroke="#1a2733" stroke-width="1.5"/>
+    <line x1="90" y1="45" x2="90" y2="255" stroke="#1a2733" stroke-width="1.5"/>
+
+    <!-- y labels -->
+    <text class="lbl-sm" x="82" y="64"  text-anchor="end">$800</text>
+    <text class="lbl-sm" x="82" y="113" text-anchor="end">$600</text>
+    <text class="lbl-sm" x="82" y="162" text-anchor="end">$400</text>
+    <text class="lbl-sm" x="82" y="210" text-anchor="end">$200</text>
+    <text class="lbl-sm" x="82" y="259" text-anchor="end">$0</text>
+
+    <!-- the age-62 boundary, where the exclusion opens -->
+    <line x1="315" y1="45" x2="315" y2="255" stroke="#1a2733" stroke-dasharray="4 3" stroke-width="1.2"/>
+
+    <!-- data: ages 58–70 → 602, 643, 685, 728, then $0 for good -->
+    <polyline points="140,108 190,98 240,88 290,78 340,255 390,255 440,255 490,255 540,255 590,255 640,255 690,255 740,255"
+              fill="none" stroke="#9c3d54" stroke-width="2.5"/>
+    <g fill="#9c3d54">
+        <circle cx="140" cy="108" r="4.5"/><circle cx="190" cy="98" r="4.5"/>
+        <circle cx="240" cy="88" r="4.5"/><circle cx="290" cy="78" r="4.5"/>
+        <circle cx="340" cy="255" r="4.5"/><circle cx="390" cy="255" r="4.5"/>
+        <circle cx="440" cy="255" r="4.5"/><circle cx="490" cy="255" r="4.5"/>
+        <circle cx="540" cy="255" r="4.5"/>
+    </g>
+    <!-- value callouts, offset clear of the line and the markers -->
+    <text class="lbl-num" x="128" y="102" text-anchor="end" style="fill:#9c3d54">$602</text>
+    <text class="lbl-num" x="290" y="69" text-anchor="middle" style="fill:#9c3d54">$728</text>
+    <text class="lbl-num" x="500" y="242" style="fill:#2f7d64">$0 from age 62 on</text>
+
+    <!-- x labels -->
+    <g class="lbl-sm" text-anchor="middle">
+        <text x="140" y="274">58</text><text x="190" y="274">59</text>
+        <text x="240" y="274">60</text><text x="290" y="274">61</text>
+        <text x="340" y="274">62</text><text x="440" y="274">64</text>
+        <text x="540" y="274">66</text><text x="640" y="274">68</text>
+        <text x="740" y="274">70</text>
+    </g>
+    <text class="lbl" x="445" y="298" text-anchor="middle">Age</text>
+    <text class="lbl" x="20" y="150" text-anchor="middle" transform="rotate(-90 20 150)">Georgia tax</text>
+</svg>
+<figcaption><b>Measured, not illustrative.</b> These are the simulator's own numbers for its
+default plan — retire at 58, $50,000 a year of spending, single filer. Lifetime Georgia tax:
+<b>$2,657</b>, every dollar of it paid before age 62. The bill rises while under 62 only because
+spending inflates; the moment the exclusion opens it swallows the entire draw.</figcaption>
+</figure>
+
+<div class="warn">
+    <span class="tag tag-warn">The trap</span>
+    <p style="margin-top:10px">Georgia's state bill lands hardest in precisely the years a
+    "tax-smart" withdrawal strategy targets. That strategy draws from tax-deferred accounts up to
+    the <em>federal</em> standard-deduction floor, on the reasoning that those dollars are
+    tax-free. In Georgia before 62 they are not: the federal floor is far larger than Georgia's
+    $15,000 deduction, and there is no exclusion yet to cover the difference. The draw is usually
+    still worth making — it shrinks future RMDs — but it is not free, and this app no longer
+    describes it as though it were.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART THREE · SCHEDULED CHANGES</span>What we model, and what we refuse to</h2>
+
+<p>Georgia's 2026 tax bill (HB 463) contains two kinds of future change, and they get opposite
+treatment:</p>
+
+<figure>
+<svg viewBox="0 0 840 250" role="img" aria-label="Two-branch diagram: unconditional changes are modeled, revenue-contingent changes are frozen">
+    <rect x="290" y="14" width="260" height="44" rx="8" fill="#1a2733"/>
+    <text class="lbl-white" x="420" y="41" text-anchor="middle">A scheduled future change</text>
+
+    <path d="M400 58 L400 78 L210 78 L210 100" fill="none" stroke="#5a6b7b" stroke-width="1.5"/>
+    <path d="M440 58 L440 78 L630 78 L630 100" fill="none" stroke="#5a6b7b" stroke-width="1.5"/>
+    <text class="lbl-sm" x="300" y="93" text-anchor="middle">statute says it just happens</text>
+    <text class="lbl-sm" x="640" y="93" text-anchor="middle">happens only if revenue triggers fire</text>
+
+    <!-- left: model it -->
+    <rect x="60" y="100" width="300" height="120" rx="8" fill="#e6f2ee" stroke="#2f7d64"/>
+    <text class="lbl" x="80" y="126" style="font-weight:700;fill:#2f7d64">UNCONDITIONAL → model it</text>
+    <text class="lbl-sm" x="80" y="150">Exclusion at 65+ rises $65,000 → $70,000</text>
+    <text class="lbl-sm" x="80" y="168">in TY2027, full stop.</text>
+    <text class="lbl-sm" x="80" y="196" style="fill:#2f7d64">The engine steps it up by tax year.</text>
+
+    <!-- right: freeze it -->
+    <rect x="480" y="100" width="300" height="120" rx="8" fill="#fdf1e0" stroke="#b45309"/>
+    <text class="lbl" x="500" y="126" style="font-weight:700;fill:#b45309">CONTINGENT → freeze it</text>
+    <text class="lbl-sm" x="500" y="150">Rate drifting 4.99% → 3.99%; deduction</text>
+    <text class="lbl-sm" x="500" y="168">climbing to $18,000 / $36,000.</text>
+    <text class="lbl-sm" x="500" y="196" style="fill:#b45309">Held at today's values, forever.</text>
+</svg>
+<figcaption><b>Why freeze?</b> Forecasting whether a legislature's revenue targets will be met
+thirty years out is inventing tax policy, not modeling it. Both frozen values err the same way —
+the rate can only fall, the deduction can only rise — so freezing them <b>overstates</b> your
+Georgia tax. That is the safe direction, and the app discloses it.</figcaption>
+</figure>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART FOUR · IMPLEMENTATION</span>How the simulator computes it</h2>
+
+<p class="lede">The tax rules above are the interesting part. This section is a short tour of where
+they live in the code, for anyone reading the engine.</p>
+
+<h3>Constants live in JSON, read by two languages</h3>
+<p>Every Georgia number sits in <code>src/lib/calculations/stateTaxRules.json</code> with a link
+to the enacted bill text or the IT-511 instruction booklet. That file is deliberately JSON rather
+than TypeScript so the independent Python verifier, <code>scripts/verify_plan.py</code>, reads the
+<em>same</em> constants instead of re-declaring them. One file, two readers, no hand-kept sync —
+the formulas stay separately implemented, so the verifier still catches a wrong formula while
+human review against the primary source catches a wrong number.</p>
+
+<figure>
+<svg viewBox="0 0 840 290" role="img" aria-label="Architecture diagram: rules JSON feeding the TypeScript engine and the Python verifier; the engine's three touch points">
+    <!-- JSON source -->
+    <rect x="330" y="12" width="190" height="52" rx="8" fill="#9c3d54"/>
+    <text class="lbl-white" x="425" y="34" text-anchor="middle">stateTaxRules.json</text>
+    <text x="425" y="51" text-anchor="middle" style="font:500 10px ui-sans-serif" fill="#f6e8ec">constants + sources</text>
+
+    <path d="M360 64 L200 64 L200 92" fill="none" stroke="#9c3d54" stroke-width="1.5"/>
+    <path d="M490 64 L660 64 L660 92" fill="none" stroke="#9c3d54" stroke-width="1.5"/>
+
+    <!-- TS engine -->
+    <rect x="60" y="92" width="280" height="52" rx="8" fill="#fff" stroke="#1a2733" stroke-width="1.5"/>
+    <text class="lbl" x="200" y="114" text-anchor="middle" style="font-weight:700">stateTax.ts</text>
+    <text class="lbl-sm" x="200" y="131" text-anchor="middle">the formula + marginal rate</text>
+
+    <!-- Python verifier -->
+    <rect x="520" y="92" width="280" height="52" rx="8" fill="#fff" stroke="#5a6b7b" stroke-width="1.5" stroke-dasharray="5 3"/>
+    <text class="lbl" x="660" y="114" text-anchor="middle" style="font-weight:700">verify_plan.py</text>
+    <text class="lbl-sm" x="660" y="131" text-anchor="middle">re-derives it independently</text>
+
+    <!-- three touch points -->
+    <path d="M200 144 L200 168" fill="none" stroke="#1a2733" stroke-width="1.5"/>
+    <text class="lbl-sm" x="212" y="162">used in three places, all required:</text>
+
+    <rect x="60" y="176" width="243" height="44" rx="6" fill="#f4f7f9" stroke="#d9e1e8"/>
+    <text class="lbl-sm" x="72" y="194" style="font-weight:700">1 · the cash-flow gap</text>
+    <text class="lbl-sm" x="72" y="210">sizing what the year must fund</text>
+
+    <rect x="313" y="176" width="243" height="44" rx="6" fill="#f4f7f9" stroke="#d9e1e8"/>
+    <text class="lbl-sm" x="325" y="194" style="font-weight:700">2 · the withdrawal gross-up</text>
+    <text class="lbl-sm" x="325" y="210">drawing enough to pay the tax</text>
+
+    <rect x="566" y="176" width="234" height="44" rx="6" fill="#f4f7f9" stroke="#d9e1e8"/>
+    <text class="lbl-sm" x="578" y="194" style="font-weight:700">3 · the final reckoning</text>
+    <text class="lbl-sm" x="578" y="210">reported as taxes.stateTax</text>
+
+    <rect x="60" y="238" width="740" height="40" rx="6" fill="#fdf1e0" stroke="#b45309"/>
+    <text class="lbl-sm" x="74" y="255" style="font-weight:700;fill:#b45309">Miss any one of them and the engine under-withdraws by the state tax every single year:</text>
+    <text class="lbl-sm" x="74" y="270" style="fill:#b45309">the plan spends money it never took out, and depletion risk is understated.</text>
+</svg>
+<figcaption><b>State tax is a cash outflow, not just a reported figure.</b> The third box is the
+one people implement first and the other two are the ones they forget.</figcaption>
+</figure>
+
+<h3>The marginal rate is measured, not derived</h3>
+<p>To draw enough from an account to cover the state tax the draw itself causes, the engine needs
+Georgia's rate on the <em>next</em> dollar. That is not simply "4.99% once you're past the
+deduction", because the exclusion is capped by eligible income: while exclusion room remains,
+each extra dollar of tax-deferred withdrawal <strong>creates its own exclusion</strong> and costs
+nothing at the margin — even for a household already paying Georgia tax on other income.</p>
+
+<p>Rather than encode that reasoning twice, the engine asks the question it actually wants
+answered — it re-runs the real formula with a $1,000 probe withdrawal and measures the
+difference:</p>
+
+<pre><code><span class="cmt">// stateMarginalRate() — the finite-difference trick</span>
+const base   = incomeTax(rules, inputs);
+const bumped = incomeTax(rules, { ...inputs,
+                 taxDeferredWithdrawals: inputs.taxDeferredWithdrawals + 1000 });
+
+return (bumped - base) / 1000;   <span class="cmt">// → 0, or 0.0499, or blended</span></code></pre>
+
+<p>This gets the exclusion growth, the deduction shield, and correct blending across a threshold
+the household happens to be sitting just under — all from the one formula that is already the
+source of truth. It will also handle Virginia's phase-out band, where the marginal rate
+<em>doubles</em>, without any new code.</p>
+
+<h3>Simplifications, stated plainly</h3>
+<ul>
+    <li><strong>Frozen contingent escalators</strong> — overstates Georgia tax, as described above.</li>
+    <li><strong>Couples' accounts are pooled</strong>, so a withdrawal cannot be attributed to one
+        spouse. Georgia requires each spouse to qualify separately, so applying the combined 2×
+        cap to pooled income <em>over</em>-excludes a couple whose retirement income is lopsided.</li>
+    <li><strong>The $5,000 earned-income sublimit is not doubled for couples</strong>, because the
+        app models only one part-time income — there is no second earner to claim it.</li>
+    <li><strong>Non-medical HSA withdrawals get no exclusion</strong>, the conservative reading.</li>
+    <li><strong>State deductions are never inflated</strong> — correct, since Georgia's isn't
+        indexed. This is a deliberate asymmetry with the federal deduction, which <em>is</em>.</li>
+    <li><strong>Not modeled at all:</strong> the dependent exemption, the military retirement
+        exclusion, and any state-level credits.</li>
+</ul>
+
+<div class="note">
+    <span class="tag tag-key">Verification</span>
+    <p style="margin-top:10px">Georgia's arithmetic is re-derived independently in Python and
+    cross-checked on exported runs — <b>854 of 854 checks pass</b> across a single-filer and a
+    married-filing-jointly scenario, both carrying genuinely non-zero Georgia tax. The engine
+    also reproduces the published "zero tax bill" couple exactly on the Georgia side, pinned by a
+    regression test.</p>
+</div>
+
+<footer>
+    <p><strong>Sources.</strong> Georgia HB 463 (as passed, 2026) · O.C.G.A. § 48-7-27 · Georgia
+    DoR Form IT-511 Individual Income Tax booklet. Where the Department of Revenue's web pages
+    disagree with the booklet or the bill, the booklet and the bill win — the Retirees FAQ was
+    stale on the earned-income sublimit at the time of writing.</p>
+    <p><strong>Companion documents.</strong> <code>docs/5-state-tax-model.md</code> holds the full
+    state model with quoted statutory language and the annual-review procedure;
+    <code>docs/2-federal-tax-model.md</code> covers the federal side.</p>
+    <p>Educational projections only — not financial, tax, or legal advice. Tax constants are
+    year-specific (TY2026) and must be re-verified annually.</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -207,6 +207,12 @@ plus re-checking WA's threshold.
 
 ### 4.2 Georgia
 
+> 📊 For an illustrated walkthrough of these rules — the waterfall, the age cliff, and how the
+> engine computes them — open
+> [`state-tax-explained-georgia.html`](state-tax-explained-georgia.html) in a browser (one
+> `state-tax-explained-<state>.html` per modeled state). This section remains the authoritative
+> record of the constants and their statutory language.
+
 **Formula**
 
 ```
@@ -420,7 +426,11 @@ without a rewrite.
   expected draw rather than solved simultaneously with withdrawals (§3), so a year whose actual
   draws diverge sharply from the cash-flow gap — a large forced RMD, or a gap met mostly from
   Roth — funds somewhat too much or too little state tax. The residual lands in `netCashFlow`
-  and, when positive, is reinvested to the taxable account.
+  and, when positive, is reinvested to the taxable account. It is now the *only* remaining source
+  of underfunding: the **federal** side is solved exactly, so the same 10,000-run default plan
+  that leaked $8,743 per run before that fix leaks **$12** in Georgia and **$0** in a
+  no-income-tax state, with a worst single year of −$362 against −$2,613 before. Pinned by tests
+  in [`yearlyProjection.test.ts`](../src/lib/calculations/yearlyProjection.test.ts).
 - **Tax-smart draws are sized to the federal floor only.** The fill still targets the federal
   standard deduction even in a state whose own shield is smaller, so in Georgia a pre-62 fill
   owes 4.99% on the part above GA's $15,000 deduction. The draw is usually still worth making

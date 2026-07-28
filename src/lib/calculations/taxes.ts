@@ -268,55 +268,7 @@ export function calculateTaxOnFixedIncome(
     return Math.max(0, taxableIncome - deduction) * effectiveTaxRate;
 }
 
-/**
- * Calculates tax on a withdrawal from a tax-deferred account.
- * 
- * Tax-deferred accounts (Traditional 401k, Traditional IRA):
- * - 100% of withdrawal is taxable
- * - Simple calculation: withdrawal × effective rate
- * 
- * @param withdrawal - Withdrawal amount
- * @param effectiveTaxRate - Combined effective tax rate
- * @returns Tax on withdrawal
- * 
- * @example
- * calculateTaxOnTaxDeferredWithdrawal(10000, 0.18);
- * // Returns: $1,800
- */
-export function calculateTaxOnTaxDeferredWithdrawal(
-    withdrawal: number,
-    effectiveTaxRate: number
-): number {
-    return withdrawal * effectiveTaxRate;
-}
 
-/**
- * Calculates tax on a withdrawal from a taxable brokerage account.
- * 
- * Taxable accounts:
- * - Only the GAIN portion is taxed (not the cost basis)
- * - Cost basis = original investment (already taxed)
- * - Gain = withdrawal × (1 - cost basis percentage)
- * 
- * @param withdrawal - Withdrawal amount
- * @param costBasisPercentage - Portion that is cost basis (e.g., 0.70 = 70%)
- * @param effectiveTaxRate - Combined effective tax rate
- * @returns Tax on withdrawal
- * 
- * @example
- * calculateTaxOnTaxableWithdrawal(10000, 0.70, 0.18);
- * // Cost basis: $7,000 (not taxed)
- * // Gain: $3,000 (taxed)
- * // Tax: $3,000 * 0.18 = $540
- */
-export function calculateTaxOnTaxableWithdrawal(
-    withdrawal: number,
-    costBasisPercentage: number,
-    effectiveTaxRate: number
-): number {
-    const gainPortion = withdrawal * (1 - costBasisPercentage);
-    return gainPortion * effectiveTaxRate;
-}
 
 /**
  * Calculates tax on a withdrawal from a Roth account.
@@ -356,55 +308,7 @@ export function calculateTaxGrossUpFactor(effectiveTaxRate: number): number {
     return 1 / (1 - effectiveTaxRate);
 }
 
-/**
- * Calculates how much to withdraw from a tax-deferred account to net a specific amount.
- * 
- * This is the CRITICAL function for tax gross-up calculations.
- * 
- * @param netAmountNeeded - Amount needed after taxes
- * @param effectiveTaxRate - Combined effective tax rate
- * @returns Gross withdrawal amount (before taxes)
- * 
- * @example
- * calculateGrossWithdrawalForNet(10000, 0.18);
- * // Need $10,000 after tax at 18% rate
- * // Withdraw: $10,000 / 0.82 = $12,195.12
- * // Tax: $12,195.12 * 0.18 = $2,195.12
- * // Net: $12,195.12 - $2,195.12 = $10,000 ✓
- */
-export function calculateGrossWithdrawalForNet(
-    netAmountNeeded: number,
-    effectiveTaxRate: number
-): number {
-    if (netAmountNeeded <= 0) {
-        return 0;
-    }
 
-    const grossUpFactor = calculateTaxGrossUpFactor(effectiveTaxRate);
-    return netAmountNeeded * grossUpFactor;
-}
-
-/**
- * Calculates effective tax rate on taxable withdrawals.
- * 
- * For taxable accounts, the effective rate on the withdrawal is lower
- * because only the gain portion is taxed.
- * 
- * @param costBasisPercentage - Portion that is cost basis
- * @param effectiveTaxRate - Combined effective tax rate
- * @returns Effective tax rate on the withdrawal
- * 
- * @example
- * calculateEffectiveTaxRateOnTaxable(0.70, 0.18);
- * // Only 30% is taxable gain
- * // Effective rate: 0.18 * 0.30 = 0.054 (5.4%)
- */
-export function calculateEffectiveTaxRateOnTaxable(
-    costBasisPercentage: number,
-    effectiveTaxRate: number
-): number {
-    return effectiveTaxRate * (1 - costBasisPercentage);
-}
 
 /**
  * Iteratively calculates taxes with convergence.

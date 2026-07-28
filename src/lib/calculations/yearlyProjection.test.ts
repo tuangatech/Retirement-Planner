@@ -231,6 +231,60 @@ describe('runCompleteSimulation — married filing jointly', () => {
     });
 });
 
+// Regression: withdrawals were sized at the flat marginal rate, ignoring that each drawn dollar
+// drags up to $0.85 of Social Security into the taxable base. Every year after SS started came
+// out short — the plan spent money it never withdrew, which flatters the success rate. Before
+// the fix this ran to −$2,613 across ages 67–78 of the default plan.
+describe('withdrawals cover the year they fund', () => {
+    /**
+     * Phantom spending across a seed sweep: dollars the plan spent without withdrawing them.
+     * A depleted year genuinely cannot fund itself, so those are shortfalls, not leaks.
+     */
+    function leakage(inputs: UserInputs, seeds = 60) {
+        let worstYear = 0;
+        let totalLeak = 0;
+        for (let seed = 1; seed <= seeds; seed++) {
+            for (const p of runCompleteSimulation(inputs, createSeededRNG(seed)).projections) {
+                if (p.shortfall > 0.5) continue;
+                if (p.netCashFlow < 0) totalLeak += -p.netCashFlow;
+                if (p.netCashFlow < worstYear) worstYear = p.netCashFlow;
+            }
+        }
+        return { worstYear, leakPerRun: totalLeak / seeds };
+    }
+
+    // With no state tax the solve is exact, so nothing should leak at all.
+    it('leaks nothing in a no-income-tax state', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'TX';
+
+        const { worstYear, leakPerRun } = leakage(inputs);
+        // Was −$2,613 worst year and ~$9,000 per run under the flat-rate gross-up.
+        expect(worstYear).toBeGreaterThan(-1);
+        expect(leakPerRun).toBeLessThan(1);
+    });
+
+    // In a modeled state a small residual is expected and disclosed: the state gross-up rate is
+    // probed at the expected draw rather than solved simultaneously (docs/5-state-tax-model.md
+    // §6). It must stay small — orders of magnitude below the federal bug this replaced.
+    it('keeps the state gross-up residual negligible', () => {
+        const inputs = makeInputs();      // default state is GA
+        const { worstYear, leakPerRun } = leakage(inputs);
+        expect(worstYear).toBeGreaterThan(-500);
+        expect(leakPerRun).toBeLessThan(100);
+    });
+
+    it('holds for an early claiming age, which lands SS squarely in the phase-in', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'TX';
+        inputs.income.socialSecurity.claimingAge = 62;
+        inputs.personal.filingStatus = 'married_joint';
+        inputs.personal.spouseAgeAtRetirement = 58;
+
+        expect(leakage(inputs).worstYear).toBeGreaterThan(-1);
+    });
+});
+
 describe('state tax', () => {
     it('reports a real $0 for a no-income-tax state and folds it into the total', () => {
         const inputs = makeInputs();
