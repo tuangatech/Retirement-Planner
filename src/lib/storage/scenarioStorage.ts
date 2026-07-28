@@ -224,6 +224,14 @@ export class ScenarioStorage {
                 scenario.inputs.withdrawalStrategy.strategy = 'standard';
             }
 
+            // Backward compat: scenarios saved before state tax existed have no
+            // `stateTaxMode`. Default them to 'manual' — their saved marginal rate already
+            // has state points folded in, so computing state tax on top would tax them twice.
+            // New scenarios get 'modeled' from DEFAULT_VALUES.
+            if (scenario.inputs.tax && !scenario.inputs.tax.stateTaxMode) {
+                scenario.inputs.tax.stateTaxMode = 'manual';
+            }
+
             return scenario;
         } catch (error) {
             console.error(`Failed to load scenario ${id}:`, error);

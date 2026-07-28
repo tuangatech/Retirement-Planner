@@ -62,7 +62,7 @@ export interface WithdrawalResult {
  * @param allowNonMedicalHSA - Whether HSA can be used for non-medical after 65
  * @param priorityOrder - Withdrawal priority for tax-deferred/roth/taxable
  * @param income - Income sources (for the tax-free-room calculation)
- * @param effectiveTaxRate - Marginal tax rate above the standard-deduction floor
+ * @param effectiveTaxRate - Federal marginal tax rate above the standard-deduction floor
  * @param socialSecurityTaxablePercentage - Cap on the taxable share of SS
  * @param costBasisPercentage - Cost basis for taxable account
  * @param strategy - 'standard' uses priorityOrder only; 'tax_smart'/'roth_conversion'
@@ -74,6 +74,9 @@ export interface WithdrawalResult {
  * @param rmdAge - Age governing the RMD trigger; for MFJ pooled accounts this is the
  *   older spouse's age so RMDs start no later than required. Defaults to currentAge.
  * @param rmdStartAge - Age at which RMDs begin (this tool passes RMD_START_AGE = 75). Default 73.
+ * @param stateMarginalRate - State tax on the next dollar of ordinary withdrawal, added to the
+ *   federal rate when sizing withdrawals. 0 for unmodeled states and for states with no income
+ *   tax. Without it the engine under-withdraws by the state tax every year.
  */
 export function executeWithdrawals(
     currentAge: number,
@@ -92,9 +95,15 @@ export function executeWithdrawals(
     filingStatus: FilingStatus = 'single',
     spouseAge?: number,
     rmdAge: number = currentAge,
-    rmdStartAge: number = 73
+    rmdStartAge: number = 73,
+    stateMarginalRate: number = 0
 ): WithdrawalResult {
     const balances = { ...currentBalances };
+
+    // Withdrawals must cover their own state tax as well as federal, so every gross-up and
+    // the implied tax that reduces the net proceeds use the combined marginal rate. Using the
+    // federal rate alone here would overstate each withdrawal's net and leave the year short.
+    const marginalRate = effectiveTaxRate + stateMarginalRate;
 
     const withdrawals: WithdrawalAmounts = {
         taxDeferred: 0,
@@ -132,7 +141,9 @@ export function executeWithdrawals(
             healthcareCosts,
             nonHealthcarGap,   // FIX: was Math.max(0, cashFlowGap)
             allowNonMedicalHSA,
-            effectiveTaxRate
+            // Non-medical HSA withdrawals are ordinary income to the state as well as the IRS
+            // (docs/5-state-tax-model.md §6), so size them at the combined rate.
+            marginalRate
         );
 
         withdrawals.hsa = hsaResult.totalWithdrawal;
@@ -158,7 +169,7 @@ export function executeWithdrawals(
             const actualRMD = Math.min(rmdAmount, balances.taxDeferred);
             withdrawals.taxDeferred = actualRMD;
 
-            const taxOnRMD = calculateTaxOnTaxDeferredWithdrawal(actualRMD, effectiveTaxRate);
+            const taxOnRMD = calculateTaxOnTaxDeferredWithdrawal(actualRMD, marginalRate);
             const afterTaxRMD = actualRMD - taxOnRMD;
 
             if (afterTaxRMD >= cashFlowGap) {
@@ -237,9 +248,9 @@ export function executeWithdrawals(
         let grossNeeded = 0;
 
         if (accountType === 'tax_deferred') {
-            grossNeeded = calculateGrossWithdrawalForNet(remainingNeed, effectiveTaxRate);
+            grossNeeded = calculateGrossWithdrawalForNet(remainingNeed, marginalRate);
         } else if (accountType === 'taxable') {
-            const taxOnGains = calculateEffectiveTaxRateOnTaxable(costBasisPercentage, effectiveTaxRate);
+            const taxOnGains = calculateEffectiveTaxRateOnTaxable(costBasisPercentage, marginalRate);
             grossNeeded = calculateGrossWithdrawalForNet(remainingNeed, taxOnGains);
         } else {
             // Roth - no tax
@@ -252,9 +263,9 @@ export function executeWithdrawals(
         // Calculate actual tax and net
         let actualTax = 0;
         if (accountType === 'tax_deferred') {
-            actualTax = calculateTaxOnTaxDeferredWithdrawal(actualGross, effectiveTaxRate);
+            actualTax = calculateTaxOnTaxDeferredWithdrawal(actualGross, marginalRate);
         } else if (accountType === 'taxable') {
-            actualTax = calculateTaxOnTaxableWithdrawal(actualGross, costBasisPercentage, effectiveTaxRate);
+            actualTax = calculateTaxOnTaxableWithdrawal(actualGross, costBasisPercentage, marginalRate);
         }
 
         const actualNet = actualGross - actualTax;

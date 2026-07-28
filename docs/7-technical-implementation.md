@@ -122,7 +122,7 @@ deterministic check fails. Downloaded bundles are git-ignored.
 
 > Keep the Python `TAX_RULES` in `verify_plan.py` in sync with the TypeScript `TAX_RULES`
 > in `taxes.ts`. The tax model and its year-specific constants/sources are documented in
-> [`docs/2-tax-model.md`](2-tax-model.md).
+> [`docs/2-federal-tax-model.md`](2-federal-tax-model.md).
 
 ---
 
@@ -218,8 +218,9 @@ npm run preview      # serve the production build
 Routes: `/` (landing) → `/wizard/:step` (7 steps) → `/results`; plus `/scenarios` and
 `/compare`.
 
-Docs: [1-requirements](1-requirements.md) · [2-tax-model](2-tax-model.md) ·
-[3-withdrawal-strategy](3-withdrawal-strategy.md) · [4-married-filing-jointly](4-married-filing-jointly.md) · [6-system-design](6-system-design.md).
+Docs: [1-requirements](1-requirements.md) · [2-federal-tax-model](2-federal-tax-model.md) ·
+[3-withdrawal-strategy](3-withdrawal-strategy.md) · [4-married-filing-jointly](4-married-filing-jointly.md) ·
+[5-state-tax-model](5-state-tax-model.md) · [6-system-design](6-system-design.md).
 
 ---
 

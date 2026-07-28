@@ -1,8 +1,9 @@
-# Tax Model
+# Federal Tax Model
 
-This is the single reference for how the simulator models taxes, the constants it uses
-(and where they come from), what it deliberately does **not** model, and the roadmap for
-**married-filing-jointly (MFJ)** and **per-state income-tax** support.
+This is the single reference for how the simulator models **federal** income tax, the
+constants it uses (and where they come from), and what it deliberately does **not** model.
+Per-state income tax is a separate model with its own constants and annual-review cycle —
+see [`5-state-tax-model.md`](5-state-tax-model.md).
 
 Implementation lives in [`src/lib/calculations/taxes.ts`](../src/lib/calculations/taxes.ts)
 and is applied per year in [`yearlyProjection.ts`](../src/lib/calculations/yearlyProjection.ts).
@@ -69,14 +70,16 @@ income owing $0 federal and $0 Georgia tax. Its reasoning was verified against c
 - 2026 0% long-term capital-gains bracket up to $98,900 taxable income (MFJ).
 - RMD age 73 (born 1951–1959) / 75 (born 1960+) under SECURE 2.0.
 - Georgia exempts 100% of Social Security (doesn't count toward the cap) and up to
-  $65,000/person of retirement income at 65+; flat rate 4.99% in 2026.
+  $65,000/person of retirement income at 65+; flat rate 4.99% in 2026 (HB 463). Georgia
+  constants and their primary sources now live in [`5-state-tax-model.md`](5-state-tax-model.md).
 
 Sources: [Tax Foundation](https://taxfoundation.org/data/all/federal/2026-tax-brackets/),
 [IRS Rev. Proc. 2025-32](https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill),
 [Congress.gov CRS](https://www.congress.gov/crs-product/RL32552),
 [Kiplinger — capital gains](https://www.kiplinger.com/taxes/irs-updates-capital-gains-tax-thresholds),
 [IRS — RMDs](https://www.irs.gov/retirement-plans/retirement-plan-and-ira-required-minimum-distributions-faqs),
-[Georgia DoR](https://dor.georgia.gov/retirement-income-exclusion).
+[Georgia DoR — retirement income exclusion](https://dor.georgia.gov/retirement-income-exclusion),
+[Georgia DoR — important tax updates (2026 rate)](https://dor.georgia.gov/taxes/important-tax-updates).
 
 The tool now reproduces this qualitatively for a comparable **single** Georgia retiree
 (SS mostly untaxed; withdrawals largely shielded by the deduction floor). Exact $0 parity
@@ -88,15 +91,15 @@ requires MFJ support (below).
 - 0% / 15% / 20% long-term capital-gains brackets — brokerage gains are taxed at the flat rate.
 - Itemized deductions, tax credits, and the OBBBA senior-bonus MAGI phase-out.
 - State-specific rules (SS exemptions, retirement-income exclusions) — the flat rate is the
-  user's approximation of combined federal + state. **Per-state modules (FL/TX/GA first) are
-  on the roadmap below.**
-- **Filing status: single only** today. **Two-person MFJ is the next phase** — see the roadmap.
+  user's approximation of combined federal + state. **Per-state modules (FL/TX/GA/VA) are
+  designed in [`5-state-tax-model.md`](5-state-tax-model.md) but not yet built.**
 
 ## Roadmap
 
-The model is expanding along two axes decided in planning: **married-filing-jointly (MFJ)**
-as a first-class filing status, and **per-state income-tax modules** (starting with Georgia).
-Both are sequenced below.
+The federal model expands along one remaining axis: the **survivor's penalty** (Phase 3).
+Phase 1 (two-person MFJ) has shipped. **Per-state income tax moved to its own document** —
+see [`5-state-tax-model.md`](5-state-tax-model.md) for the FL/TX/GA/VA design, constants,
+and annual-review procedure.
 
 ### Locked-in scope (planning decisions)
 
@@ -106,9 +109,6 @@ Both are sequenced below.
 - **Accounts are pooled.** One combined set of accounts and **one representative RMD age (the
   older spouse's)** — spouses do not hold separately tracked balances. Documented as a
   simplification both here and on the Disclosures page.
-- **State scope: FL, TX, GA first.** NY/CA deferred — their graduated bracket tables (per
-  filing status, per year) are the real maintenance cost. Every other state keeps today's
-  manual "fold state into your marginal rate" behavior.
 
 ### Phase 1 — Two-person MFJ (federal)
 
@@ -144,48 +144,12 @@ Simplifications (disclosed): pooled accounts with one RMD age; both spouses assu
 the shared horizon (no survivor penalty, no mortality model); the spouse has no separate
 part-time, pension, or HSA inputs in this phase.
 
-### Phase 2 — Per-state income-tax modules (FL / TX / GA)
+### Phase 2 — Per-state income-tax modules (moved)
 
-State taxation of retirees varies along six axes — this is the maintenance surface:
-
-1. **Whether there is an income tax at all** (FL, TX: none).
-2. **Rate structure** — flat (GA) vs graduated brackets that differ by filing status (NY, CA).
-3. **Social Security treatment** — GA/NY/CA all exempt it, but ~9 states tax some.
-4. **Retirement-income exclusion** — amount, per-person vs per-return, age threshold, and
-   source-dependence (NY splits government vs private pensions; GA lumps most together; CA
-   excludes nothing).
-5. **State standard deduction / exemptions.**
-6. **Capital-gains treatment** — CA taxes long-term gains as ordinary income.
-
-| State | Income tax | SS | Retirement exclusion | Rate (2026) | Effort |
-|---|---|---|---|---|---|
-| FL | none | — | — | 0% | trivial |
-| TX | none | — | — | 0% | trivial |
-| GA | flat | exempt | $65k/person 65+ ($35k 62–64) | 4.99% (HB 463) | low |
-| NY | graduated | exempt | govt pension 100%; private/IRA $20k/person 59½+ | 4–10.9% | high (deferred) |
-| CA | graduated | exempt | none | 1–13.3% | high (deferred) |
-
-**Architecture:** a small registry under `src/lib/calculations/stateTax/`, one file per modeled
-state, with a common signature `computeStateTax(components, ages, filingStatus, year) →
-{ tax, modeled }`. FL/TX return `0`; GA implements the SS exemption + per-person
-retirement-income exclusion + GA standard deduction + flat rate. Unmodeled states fall back to
-the manual-rate behavior, so we never maintain all 50. Each module carries a
-`// review annually (YYYY law)` note and is mirrored in `verify_plan.py`. When a module is
-active, the Step 6 rate is treated as **federal-only** and the state guidance changes to
-"computed automatically."
-
-**New per-year output:** a `taxes.stateTax` field kept separate from federal tax for
-transparency in the Annual Breakdown. Touch points: `yearlyProjection.ts`, the
-`YearlyProjection.taxes` shape, `AnnualTable`, the cash-flow chart, `exportVerification.ts`,
-`verify_plan.py`, and tests.
-
-**Disclosures:** show the selected state's modeled rules in the existing Disclosures/Assumptions
-panel (not a new page) — GA renders "SS exempt / $65k per person 65+ / 4.99% flat (2026 GA law,
-review annually)"; FL/TX render "no state income tax"; unmodeled states keep the manual-rate note.
-
-GA 2026 sources: [HB 463 — 4.99% flat](https://www.countrytaxcalc.com/tax-calculator/usa/georgia/),
-[retirement-income exclusion](https://brevy.com/financial/georgia/retirement-income-tax),
-[Georgia DoR](https://dor.georgia.gov/retirement-income-exclusion).
+This phase now has its own document: [`5-state-tax-model.md`](5-state-tax-model.md). It
+covers the FL/TX/GA/VA scope, the verified per-state constants with primary sources, the
+rules-data schema, how state tax threads into the withdrawal engine, and the annual-review
+procedure. It is versioned separately because it is re-verified every year, per state.
 
 ### Phase 3 — Survivor's ("widow's") penalty (deferred)
 

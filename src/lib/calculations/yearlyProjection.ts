@@ -13,6 +13,8 @@ import {
 } from '@/lib/calculations/withdrawals';
 import { generateAccountReturns } from '@/lib/calculations/random';
 import { RMD_START_AGE } from '@/lib/calculations/rmd';
+import { computeStateTax, stateMarginalRate, type StateTaxInputs } from '@/lib/calculations/stateTax';
+import { getStateTaxRules } from '@/lib/calculations/stateTaxRules';
 
 export interface YearlyProjection {
     age: number;
@@ -41,6 +43,12 @@ export interface YearlyProjection {
         onFixedIncome: number;
         onWithdrawals: number;
         payrollTax: number;
+        /**
+         * State income tax, kept separate from the federal figures for transparency in the
+         * Annual Breakdown. Always 0 for states we don't model — in that case the user's
+         * marginal rate is carrying the state burden instead (docs/5-state-tax-model.md).
+         */
+        stateTax: number;
         total: number;
     };
 
@@ -146,10 +154,35 @@ export function calculateYearlyProjection(
         spouseAge
     );
 
-    // STEP 5: Determine cash flow gap
+    // State tax is only computed when the user opted in (or a new scenario defaulted in);
+    // 'manual' means their marginal rate already includes state points, so computing it here
+    // would tax them twice. A missing value is legacy and means 'manual'.
+    const stateRules =
+        (tax.stateTaxMode ?? 'manual') === 'modeled' ? getStateTaxRules(personal.state) : undefined;
+
+    // Federal-AGI components for the state calculation. Withdrawals are zero at this point —
+    // this pass sizes the cash-flow gap, and the final pass below sees the real draws.
+    const stateInputsBase: StateTaxInputs = {
+        year,
+        filingStatus,
+        age: currentAge,
+        spouseAge,
+        taxableSocialSecurity: incomeResult.socialSecurity,
+        pensions: incomeResult.pensions,
+        partTimeWork: incomeResult.partTimeWork,
+        rentalIncome: incomeResult.rentalIncome,
+        taxDeferredWithdrawals: 0,
+        brokerageGains: 0,
+        hsaNonMedicalWithdrawals: 0,
+    };
+
+    // STEP 5: Determine cash flow gap — state tax belongs here, not only in the final
+    // reckoning, or the year under-withdraws by exactly the state tax owed.
+    const initialStateTax = computeStateTax(stateRules, stateInputsBase).tax;
     const totalFixedIncome = incomeResult.totalBeforeWithdrawals;
     const totalExpenses = expensesResult.total;
-    const initialTotalTax = initialTaxOnIncome + incomeResult.partTimePayrollTax;
+    const initialTotalTax =
+        initialTaxOnIncome + incomeResult.partTimePayrollTax + initialStateTax;
     const cashFlowGap = totalExpenses + initialTotalTax - totalFixedIncome;
 
     // Initialize withdrawal and portfolio tracking
@@ -184,7 +217,10 @@ export function calculateYearlyProjection(
             filingStatus,
             spouseAge,
             rmdAge,
-            RMD_START_AGE
+            RMD_START_AGE,
+            // Gross up withdrawals for state tax too, computed from fixed income before the
+            // discretionary draws so the calculation stays non-circular.
+            stateMarginalRate(stateRules, stateInputsBase)
         );
 
         // Deduct withdrawals from current balances
@@ -242,6 +278,17 @@ export function calculateYearlyProjection(
         spouseAge
     );
 
+    // State income tax on the year's full picture, now that withdrawals are known.
+    const stateTax = computeStateTax(stateRules, {
+        ...stateInputsBase,
+        taxDeferredWithdrawals: withdrawalResult.withdrawals.taxDeferred,
+        brokerageGains:
+            withdrawalResult.withdrawals.taxable * (1 - (accounts.taxable.costBasisPercentage || 0.70)),
+        hsaNonMedicalWithdrawals: hsaNonMedicalWithdrawal,
+    }).tax;
+
+    const totalTax = finalTaxes.total + stateTax;
+
     // Total withdrawals and net cash flow — computed here (before returns) so any
     // surplus can be reinvested and then compounded this year.
     const totalWithdrawals =
@@ -254,7 +301,7 @@ export function calculateYearlyProjection(
         incomeResult.totalBeforeWithdrawals +
         totalWithdrawals -
         expensesResult.total -
-        finalTaxes.total;
+        totalTax;
 
     // Reinvest surplus from the withdrawal branch into the taxable account. This
     // covers both forced-RMD excess and the small over-withdrawal that arises
@@ -334,7 +381,8 @@ export function calculateYearlyProjection(
             onFixedIncome: finalTaxes.onFixedIncome,
             onWithdrawals: finalTaxes.onWithdrawals,
             payrollTax: finalTaxes.payrollTax,
-            total: finalTaxes.total,
+            stateTax,
+            total: totalTax,
         },
 
         portfolio: {

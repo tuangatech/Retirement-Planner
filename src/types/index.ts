@@ -19,7 +19,7 @@ export interface PersonalInfo {
     // spouseAgeAtRetirement + (currentAge − retirementAge). Used for per-spouse
     // age-65 deduction additions and the (older-spouse) RMD trigger. Phase 1 models
     // a couple as pooled accounts, one shared life expectancy, and no survivor
-    // penalty — see docs/2-tax-model.md.
+    // penalty — see docs/2-federal-tax-model.md.
     spouseAgeAtRetirement?: number;
 }
 
@@ -99,6 +99,20 @@ export interface MedicareCosts {
 
 export interface TaxSettings {
     combinedEffectiveRate: number;
+
+    /**
+     * Whether the engine computes the selected state's income tax itself.
+     * - 'manual'  — `combinedEffectiveRate` is federal + state, folded together by the user.
+     * - 'modeled' — `combinedEffectiveRate` is FEDERAL ONLY; state tax is computed from
+     *               `stateTaxRules.json` for the states we model.
+     *
+     * Optional so scenarios saved before state tax existed stay valid. The engine and the
+     * storage loader default a missing value to 'manual' so an old plan recomputes exactly as
+     * it did when it was saved — switching it to 'modeled' would silently tax it twice
+     * (state points are already inside its saved rate). New scenarios get 'modeled' from
+     * DEFAULT_VALUES. See docs/5-state-tax-model.md.
+     */
+    stateTaxMode?: 'manual' | 'modeled';
 }
 
 export interface SimulationSettings {

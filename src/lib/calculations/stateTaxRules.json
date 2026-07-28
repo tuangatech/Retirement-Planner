@@ -1,0 +1,63 @@
+{
+    "_comment": "Per-state income-tax constants. SOURCE OF TRUTH for both the TypeScript engine (stateTaxRules.ts) and scripts/verify_plan.py — JSON so there is one file and two readers, no hand-duplication. Every constant must be verifiable against the primary source in `sources`. Review annually: see docs/5-state-tax-model.md.",
+    "reviewedFor": 2026,
+    "states": {
+        "AK": {
+            "taxesIncome": false,
+            "sources": {
+                "noIncomeTax": "https://tax.alaska.gov/programs/whatsnew.aspx"
+            }
+        },
+        "FL": {
+            "taxesIncome": false,
+            "sources": {
+                "noIncomeTax": "https://floridarevenue.com/taxes/taxesfees/Pages/default.aspx"
+            }
+        },
+        "NH": {
+            "taxesIncome": false,
+            "note": "The Interest & Dividends Tax was repealed effective 1 Jan 2025 (HB 2, 2023 session), so NH taxes no individual income for TY2026 onward.",
+            "sources": {
+                "idTaxRepeal": "https://www.revenue.nh.gov/news-and-media/repeal-nh-interest-and-dividends-tax-now-effect"
+            }
+        },
+        "NV": {
+            "taxesIncome": false,
+            "sources": {
+                "noIncomeTax": "https://tax.nv.gov/"
+            }
+        },
+        "SD": {
+            "taxesIncome": false,
+            "sources": {
+                "noIncomeTax": "https://dor.sd.gov/individuals/"
+            }
+        },
+        "TN": {
+            "taxesIncome": false,
+            "note": "The Hall income tax on interest and dividends was fully repealed for tax years beginning 1 Jan 2021.",
+            "sources": {
+                "hallTaxRepeal": "https://www.tn.gov/revenue/taxes/hall-income-tax.html"
+            }
+        },
+        "TX": {
+            "taxesIncome": false,
+            "sources": {
+                "noIncomeTax": "https://comptroller.texas.gov/taxes/"
+            }
+        },
+        "WA": {
+            "taxesIncome": false,
+            "caveat": "Washington has no income tax, but levies a 7% excise tax on long-term capital gains above an inflation-indexed standard deduction ($278,000 for 2025), with an additional higher tier. It is NOT modeled here: retirement accounts are exempt, so it reaches only taxable-brokerage gains, and this tool applies a flat cost-basis percentage per withdrawal rather than tracking realized gains.",
+            "sources": {
+                "capitalGainsExcise": "https://dor.wa.gov/taxes-rates/other-taxes/capital-gains-tax"
+            }
+        },
+        "WY": {
+            "taxesIncome": false,
+            "sources": {
+                "noIncomeTax": "https://revenue.wyo.gov/"
+            }
+        }
+    }
+}

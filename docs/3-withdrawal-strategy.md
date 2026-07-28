@@ -29,7 +29,7 @@ work, rental) is applied, the tool covers the remaining cash-flow gap
 The available strategies are **Standard order** (steps skip #3), **Tax-smart sequencing**
 (default), and **Gap-year Roth conversions** (Advanced — documented below, not yet wired).
 Taxes are computed with the provisional-income Social Security formula and a
-standard-deduction floor (see [`docs/2-tax-model.md`](2-tax-model.md)).
+standard-deduction floor (see [`docs/2-federal-tax-model.md`](2-federal-tax-model.md)).
 
 ### Why tax-smart is the default
 

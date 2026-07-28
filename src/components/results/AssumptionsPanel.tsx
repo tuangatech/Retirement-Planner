@@ -3,12 +3,18 @@
 import { AlertTriangle, Info } from 'lucide-react';
 import type { UserInputs } from '@/types';
 import { RMD_START_AGE } from '@/lib/calculations/rmd';
+import { stateTaxDisclosure } from '@/lib/calculations/stateTax';
 
 interface AssumptionsPanelProps {
     inputs: UserInputs;
 }
 
 export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
+    const stateDisclosure = stateTaxDisclosure(inputs.personal.state);
+    // A missing mode means a scenario saved before state tax existed — it still recomputes
+    // with state folded into the marginal rate, so the disclosure must say so.
+    const stateTaxComputed = (inputs.tax.stateTaxMode ?? 'manual') === 'modeled';
+
     return (
         <div className="space-y-6">
             <div className="border-b pb-4">
@@ -145,7 +151,24 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                                 thresholds are not inflation-indexed (the "tax torpedo")
                             </li>
                             <li>Long-term capital gains taxed at the flat rate — the 0%/15%/20% brackets are NOT modeled</li>
-                            <li>No itemized deductions, tax credits, or state-specific exemptions (e.g., many states exempt Social Security and some retirement income)</li>
+                            <li>No itemized deductions or tax credits</li>
+                            {stateDisclosure && stateTaxComputed ? (
+                                <>
+                                    <li>
+                                        <strong>State tax ({inputs.personal.state}):</strong> {stateDisclosure.summary} —
+                                        computed by the tool, so the marginal rate above is your <strong>federal</strong> rate only
+                                    </li>
+                                    {stateDisclosure.caveat && (
+                                        <li className="text-amber-800">{stateDisclosure.caveat}</li>
+                                    )}
+                                </>
+                            ) : (
+                                <li>
+                                    <strong>State tax ({inputs.personal.state}) is NOT modeled</strong> — your
+                                    marginal rate is assumed to cover federal <em>and</em> state. Many states exempt
+                                    Social Security and some retirement income, so a blended rate can be well off
+                                </li>
+                            )}
                             <li>IRMAA (Medicare surcharges) estimated by user, not calculated from precise MAGI</li>
                             <li>RMDs enforced starting at age {RMD_START_AGE} (SECURE 2.0 start age for anyone born 1960+, which covers this tool's FIRE audience; born 1951–1959 would be 73){inputs.personal.filingStatus === 'married_joint' ? '. For couples, one household RMD on the pooled balance begins when the older spouse reaches 75' : ''}</li>
                             <li>

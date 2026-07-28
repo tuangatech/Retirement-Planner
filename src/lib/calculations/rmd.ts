@@ -10,7 +10,7 @@
  * - This tool models RMDs beginning at age 75 (`RMD_START_AGE`). Under SECURE 2.0 the
  *   start age is 75 for anyone born 1960 or later — which covers this tool's FIRE
  *   audience (born 1951–1959 is 73, not modeled). Using a flat 75 keeps the tool
- *   age-relative (no birth-year/calendar input). See docs/2-tax-model.md.
+ *   age-relative (no birth-year/calendar input). See docs/2-federal-tax-model.md.
  * - Based on Uniform Lifetime Table
  * - RMD = Account Balance / Life Expectancy Factor
  * - Must be taken by December 31 each year
@@ -61,7 +61,7 @@ export const RMD_TABLE: Record<number, number> = {
  * RMD start age modeled by this tool. SECURE 2.0 sets the start age at 75 for anyone
  * born 1960 or later; the FIRE audience is essentially all post-1960, so we use a flat
  * 75 and stay age-relative (no birth-year/calendar input). For MFJ the pooled RMD is
- * triggered when the OLDER spouse reaches this age. See docs/2-tax-model.md.
+ * triggered when the OLDER spouse reaches this age. See docs/2-federal-tax-model.md.
  */
 export const RMD_START_AGE = 75;
 

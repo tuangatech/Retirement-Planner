@@ -158,6 +158,10 @@ export const DEFAULT_VALUES: UserInputs = {
         // 12% reflects a typical retiree's top federal bracket; add a few points
         // for states that actually tax retirement income.
         combinedEffectiveRate: 0.12,
+        // New scenarios let the engine compute state tax for the states it models, which
+        // makes the rate above federal-only. Scenarios saved before this existed load as
+        // 'manual' so they keep computing exactly as they did (see scenarioStorage.ts).
+        stateTaxMode: 'modeled',
     },
     simulation: {
         numberOfRuns: 10000,

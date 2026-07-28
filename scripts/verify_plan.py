@@ -26,7 +26,7 @@ What is verified (deterministic, derived from inputs):
   - Cash-flow identity: Income + Withdrawals = Expenses + Taxes + Net Cash Flow
 
 The TAX_RULES table below MUST stay in sync with TAX_RULES in
-src/lib/calculations/taxes.ts. See docs/2-tax-model.md for the model and sources.
+src/lib/calculations/taxes.ts. See docs/2-federal-tax-model.md for the model and sources.
 
 What is NOT verified (stochastic):
   - Portfolio account balances (random returns each year).
@@ -83,6 +83,27 @@ TAX_RULES = {
 # Directory containing this script — bundles are expected to be saved here.
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Per-state tax constants, read from the SAME file the TypeScript engine uses. Deliberately
+# shared rather than re-declared here: a wrong constant is caught by human review against the
+# primary source, while a wrong *formula* is what this script independently re-derives.
+# See docs/5-state-tax-model.md.
+STATE_RULES_PATH = os.path.join(
+    SCRIPT_DIR, os.pardir, "src", "lib", "calculations", "stateTaxRules.json"
+)
+
+
+def load_state_tax_rules() -> dict:
+    try:
+        with open(STATE_RULES_PATH, encoding="utf-8") as f:
+            return json.load(f).get("states", {})
+    except FileNotFoundError:
+        print(f"Warning: state tax rules not found at {STATE_RULES_PATH} — "
+              "treating all states as unmodeled.")
+        return {}
+
+
+STATE_TAX_RULES = load_state_tax_rules()
+
 
 # ─── BUNDLE LOADING ─────────────────────────────────────────────────────────────
 def find_newest_bundle() -> str | None:
@@ -117,6 +138,9 @@ class Plan:
         self.med = inputs["healthcare"]["medicare"]
         self.filing = inputs["personal"].get("filingStatus") or "single"
         self.eff_rate = inputs["tax"]["combinedEffectiveRate"]
+        self.state = inputs["personal"]["state"]
+        # Absent mode = scenario saved before state tax existed; state is folded into the rate.
+        self.state_mode = inputs["tax"].get("stateTaxMode") or "manual"
         self.ss_cap = self.ss.get("taxablePercentage", TAX_RULES["ss_max_taxable_fraction"])
         self.cost_basis = inputs["accounts"]["taxable"].get("costBasisPercentage", 0.70)
         # MFJ (Phase 1): spouse SS stream + spouse age for per-spouse deduction seniors.
@@ -293,6 +317,21 @@ class Plan:
         wd_taxable = max(0.0, wd_base - ded_left)
         return (fixed_taxable + wd_taxable) * self.eff_rate
 
+    # -- state tax --
+    def expected_state_tax(self) -> float:
+        """Expected state income tax for any year.
+
+        Only states with no individual income tax are modeled today, so every modeled state
+        owes $0 and unmodeled states report $0 (their burden is folded into the user's
+        marginal rate). Georgia and Virginia add real per-year formulas here.
+        """
+        if self.state_mode != "modeled":
+            return 0.0
+        rules = STATE_TAX_RULES.get(self.state)
+        if rules is None or not rules.get("taxesIncome", False):
+            return 0.0
+        raise NotImplementedError(f"No state-tax formula for {self.state}")
+
 
 # ─── CHECK HELPERS ──────────────────────────────────────────────────────────────
 def within_tol(actual: float, expected: float, tol: float) -> bool:
@@ -380,10 +419,15 @@ def verify(bundle: dict, percentile: str, tol: float) -> int:
             exp["living"] + exp["healthcarePremiums"] + exp["healthcareOutOfPocket"] + exp["oneTimeExpenses"],
             issues)
 
-        chk("Total Tax = Fixed-income + Payroll + Withdrawal",
+        # `stateTax` is absent from bundles exported before state tax was modeled.
+        state_tax = tax.get("stateTax", 0.0)
+
+        chk("Total Tax = Fixed-income + Payroll + Withdrawal + State",
             tax["total"],
-            tax["onFixedIncome"] + tax["payrollTax"] + tax["onWithdrawals"],
+            tax["onFixedIncome"] + tax["payrollTax"] + tax["onWithdrawals"] + state_tax,
             issues)
+
+        chk("State Tax", state_tax, plan.expected_state_tax(), issues)
 
         # Independent recomputation of the tax model (provisional-income SS +
         # standard-deduction floor + flat marginal rate).

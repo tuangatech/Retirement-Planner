@@ -9,8 +9,8 @@ import { Info, MapPin, Check, Lock } from 'lucide-react';
 import { RetirementTimeline } from './RetirementTimeline';
 import { ScopeBadge } from '@/components/common/ScopeBadge';
 import { RMD_START_AGE } from '@/lib/calculations/rmd';
-
-const NO_TAX_STATES = ['AK', 'FL', 'NV', 'NH', 'SD', 'TN', 'TX', 'WA', 'WY'];
+import { isStateModeled } from '@/lib/calculations/stateTaxRules';
+import { stateTaxDisclosure } from '@/lib/calculations/stateTax';
 
 type StrategyKey = 'standard' | 'tax_smart' | 'roth_conversion';
 
@@ -58,7 +58,10 @@ export function Screen4Assumptions() {
     const { inputs, updateTax, updateSimulation, updateWithdrawalStrategy } = useInputs();
     const { tax, simulation, mode, personal, income } = inputs;
     const isAdvanced = mode === 'advanced';
-    const isNoTaxState = NO_TAX_STATES.includes(personal.state);
+    const stateModeled = isStateModeled(personal.state);
+    const disclosure = stateTaxDisclosure(personal.state);
+    // A missing mode is a legacy scenario: it keeps computing with state folded into the rate.
+    const stateComputed = stateModeled && (tax.stateTaxMode ?? 'manual') === 'modeled';
     const isMFJ = personal.filingStatus === 'married_joint';
     const selected: StrategyKey = inputs.withdrawalStrategy.strategy ?? 'tax_smart';
 
@@ -74,7 +77,9 @@ export function Screen4Assumptions() {
                 <h3 className="font-semibold text-lg mb-3">Tax &amp; Inflation</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium mb-1">Marginal Tax Rate</label>
+                        <label className="block text-sm font-medium mb-1">
+                            {stateComputed ? 'Federal Marginal Tax Rate' : 'Marginal Tax Rate'}
+                        </label>
                         <div className="relative">
                             <input type="number" value={(tax.combinedEffectiveRate * 100).toFixed(1)}
                                 onChange={(e) => updateTax({ combinedEffectiveRate: parseFloat(e.target.value) / 100 || 0 })}
@@ -83,6 +88,7 @@ export function Screen4Assumptions() {
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
                             Applied <em>above</em> the standard deduction. Use a bracket rate, not a blended one — the tool models the deduction and SS formula for you.
+                            {stateComputed && <> Enter your <strong>federal</strong> rate only; {personal.state} tax is computed separately.</>}
                         </p>
                     </div>
                     <div>
@@ -124,16 +130,36 @@ export function Screen4Assumptions() {
 
                 {/* State-tax guidance */}
                 <div className="mt-3">
-                    {isNoTaxState ? (
+                    {stateModeled ? (
                         <div className="bg-green-50 border border-green-200 rounded-md p-3 flex gap-2">
                             <MapPin className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                            <p className="text-sm text-green-800"><strong>{personal.state}</strong> has no state income tax — use your federal marginal rate only (e.g., 10–12%).</p>
+                            <div className="text-sm text-green-800">
+                                <p><strong>{personal.state}:</strong> {disclosure?.summary} — use your federal marginal rate only (e.g., 10–12%).</p>
+                                {disclosure?.caveat && (
+                                    <p className="mt-1 text-xs text-green-900">{disclosure.caveat}</p>
+                                )}
+                                {!stateComputed && (
+                                    <label className="mt-2 flex items-start gap-2 text-xs text-green-900">
+                                        <input
+                                            type="checkbox"
+                                            checked={false}
+                                            onChange={() => updateTax({ stateTaxMode: 'modeled' })}
+                                            className="mt-0.5"
+                                        />
+                                        <span>
+                                            Compute {personal.state} state tax automatically. This scenario was saved
+                                            before state tax was modeled, so its rate still has state points folded in —
+                                            drop them from the rate above when you switch.
+                                        </span>
+                                    </label>
+                                )}
+                            </div>
                         </div>
                     ) : (
                         <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex gap-2">
                             <MapPin className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                             <p className="text-sm text-amber-800">
-                                <strong>{personal.state}:</strong> many states exempt Social Security and part of retirement income. Add only your state’s rate on income it truly taxes — often <strong>0–5%</strong>.
+                                <strong>{personal.state}</strong> isn’t modeled yet. Many states exempt Social Security and part of retirement income — add only your state’s rate on income it truly taxes, often <strong>0–5%</strong>.
                             </p>
                         </div>
                     )}
