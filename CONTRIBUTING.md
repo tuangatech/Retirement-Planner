@@ -115,8 +115,9 @@ These are the things a well-meaning PR breaks most often. Each one exists for a 
    `'tax_smart'` (see `src/lib/calculations/yearlyProjection.ts`); if you touch that default,
    explain the migration story in the PR.
 
-6. **Tax constants are year-specific.** They're documented with sources in `docs/2-tax-model.md`.
-   Update the doc in the same PR as the constant, and cite the IRS/SSA/CMS source.
+6. **Tax constants are year-specific.** Federal constants are documented with sources in
+   `docs/2-federal-tax-model.md`; per-state constants in `docs/5-state-tax-model.md`.
+   Update the doc in the same PR as the constant, and cite the IRS/SSA/CMS or state DoR source.
 
 7. **Never overstate.** UI copy must not imply a benefit the user won't actually get. If you
    simplify or cap something, surface it in the Disclosures tab and the docs. Hiding a
@@ -203,7 +204,7 @@ the exported JSON bundle, which makes the problem reproducible instead of a gues
 
 ## ❓ Questions
 
-Open an issue. For anything touching tax or withdrawal logic, read `docs/2-tax-model.md` and
+Open an issue. For anything touching tax or withdrawal logic, read `docs/2-federal-tax-model.md` and
 `docs/3-withdrawal-strategy.md` first — the answer is often already written down, with sources.
 
 By contributing, you agree your contributions are licensed under the [MIT License](LICENSE).

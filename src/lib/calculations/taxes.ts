@@ -96,7 +96,7 @@ export function calculateTaxableSocialSecurity(
  * The age-65 addition and senior bonus are counted **per senior**: a single filer
  * contributes one senior once age ≥ 65; for MFJ, pass the spouse's age via
  * `spouseAge` so a second senior is counted once the spouse turns 65. (Pooled-couple
- * simplification — see docs/2-tax-model.md.)
+ * simplification — see docs/2-federal-tax-model.md.)
  */
 export function calculateStandardDeduction(
     currentAge: number,

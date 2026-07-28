@@ -230,3 +230,58 @@ describe('runCompleteSimulation — married filing jointly', () => {
         expect(lifetimeTax(mfj)).toBeLessThan(lifetimeTax(single));
     });
 });
+
+describe('state tax', () => {
+    it('reports a real $0 for a no-income-tax state and folds it into the total', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'TX';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(7));
+        for (const p of r.projections) {
+            expect(p.taxes.stateTax).toBe(0);
+            expect(p.taxes.total).toBeCloseTo(
+                p.taxes.onFixedIncome + p.taxes.onWithdrawals + p.taxes.payrollTax + p.taxes.stateTax,
+                6
+            );
+        }
+    });
+
+    it('reports $0 for an unmodeled state — its burden stays inside the marginal rate', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'CA';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(7));
+        expect(r.projections.every(p => p.taxes.stateTax === 0)).toBe(true);
+    });
+
+    // Legacy scenarios load with stateTaxMode 'manual'; they must compute exactly as before.
+    it('manual mode produces identical results to modeled mode while every state is $0', () => {
+        const manual = makeInputs();
+        manual.personal.state = 'FL';
+        manual.tax.stateTaxMode = 'manual';
+
+        const modeled = makeInputs();
+        modeled.personal.state = 'FL';
+        modeled.tax.stateTaxMode = 'modeled';
+
+        const a = runCompleteSimulation(manual, createSeededRNG(11));
+        const b = runCompleteSimulation(modeled, createSeededRNG(11));
+        expect(a.finalBalance).toBe(b.finalBalance);
+        expect(a.ageOfDepletion).toBe(b.ageOfDepletion);
+    });
+
+    it('keeps the cash-flow identity: income + withdrawals = expenses + tax + net', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'WA';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(3));
+        for (const p of r.projections) {
+            const lhs = p.income.totalBeforeWithdrawals + p.portfolio.withdrawals.total;
+            const rhs = p.expenses.total + p.taxes.total + p.netCashFlow;
+            expect(lhs).toBeCloseTo(rhs, 4);
+        }
+    });
+});

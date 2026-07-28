@@ -80,7 +80,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
             // Expenses breakdown
             'Living Expenses', 'Healthcare Premiums', 'Healthcare Out-of-Pocket', 'One-Time Expenses', 'Total Expenses',
             // Taxes breakdown
-            'Income Tax', 'Payroll Tax', 'Withdrawal Tax', 'Total Tax',
+            'Income Tax', 'Payroll Tax', 'Withdrawal Tax', 'State Tax', 'Total Tax',
             // Withdrawals by account
             'Tax-Deferred Withdrawal', 'Roth Withdrawal', 'Taxable Withdrawal', 'HSA Withdrawal', 'Total Withdrawals',
             // HSA details
@@ -112,6 +112,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
             p.taxes.onFixedIncome.toFixed(0),
             p.taxes.payrollTax.toFixed(0),
             p.taxes.onWithdrawals.toFixed(0),
+            p.taxes.stateTax.toFixed(0),
             p.taxes.total.toFixed(0),
             // Withdrawals
             p.portfolio.withdrawals.taxDeferred.toFixed(0),
@@ -354,6 +355,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                                                 { label: 'Income tax', value: p.taxes.onFixedIncome },
                                                 { label: 'Withdrawal tax', value: p.taxes.onWithdrawals },
                                                 { label: 'Payroll tax', value: p.taxes.payrollTax },
+                                                { label: 'State tax', value: p.taxes.stateTax },
                                             ]}
                                         />
 

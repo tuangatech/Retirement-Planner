@@ -16,10 +16,10 @@ disclosure of limitations.
 accumulation-phase growth. Users provide **projected retirement balances**, and the tool
 models the **retirement phase only** (retirement age → life expectancy).
 
-**Companion docs:** [`2-tax-model.md`](2-tax-model.md) (tax model + constants),
+**Companion docs:** [`2-federal-tax-model.md`](2-federal-tax-model.md) (federal tax model + constants),
 [`3-withdrawal-strategy.md`](3-withdrawal-strategy.md), [`4-married-filing-jointly.md`](4-married-filing-jointly.md) (couples model),
+[`5-state-tax-model.md`](5-state-tax-model.md) (per-state tax model),
 [`6-system-design.md`](6-system-design.md), [`7-technical-implementation.md`](7-technical-implementation.md).
-*(Slot 5 is reserved for the per-state tax model.)*
 
 ---
 
@@ -32,7 +32,7 @@ Establishes the timeline and tax context that drive duration and phase transitio
 - **Retirement age** (50–75) — the simulation's starting point.
 - **Life expectancy** (70–110, default 90) — planning horizon.
 - **State** (50 states + DC) — reference/guidance only; no state-specific tax modeling yet
-  (per-state modules FL/TX/GA are a roadmap item — see [`2-tax-model.md`](2-tax-model.md)).
+  (per-state modules FL/TX/GA/VA are designed but not yet built — see [`5-state-tax-model.md`](5-state-tax-model.md)).
 - **Filing status** — **single** or **married filing jointly**. MFJ reveals spouse age and
   (in Step 4) spouse Social Security. The couples model is specified in [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
 
@@ -65,7 +65,7 @@ allowed); multiple accounts of a type are summed into one.
 ### 3.1 Account Types
 
 1. **Tax-Deferred (Traditional 401k/IRA):** withdrawals taxed as ordinary income; subject to
-   RMDs starting **age 75** (SECURE 2.0, born 1960+ — the FIRE audience; see [`2-tax-model.md`](2-tax-model.md)).
+   RMDs starting **age 75** (SECURE 2.0, born 1960+ — the FIRE audience; see [`2-federal-tax-model.md`](2-federal-tax-model.md)).
 2. **Roth (Roth 401k/IRA):** withdrawals tax-free; no RMDs.
 3. **Taxable (Brokerage):** only gains taxed on withdrawal; user sets **cost-basis %** (default 70%).
 4. **HSA (Health Savings Account):** healthcare withdrawals tax-free at any age; non-medical
@@ -169,7 +169,7 @@ inflates at the healthcare rate. HSA covers total healthcare (premiums + OOP) ta
 Captures the two effects that dominate retiree taxation — **provisional-income taxation of
 Social Security** and the **standard-deduction "tax-free floor"** — then applies a single
 **marginal** rate above the floor. Full specification, constants (with sources), MFJ details,
-and RMD age in [`2-tax-model.md`](2-tax-model.md).
+and RMD age in [`2-federal-tax-model.md`](2-federal-tax-model.md).
 
 ### 6.1 Marginal Rate (above the deduction)
 
@@ -349,8 +349,8 @@ Roughly in priority order (living list; not commitments):
 1. **Survivor's penalty & mortality for couples** — first-death transition (MFJ→single,
    deduction/IRMAA drop, smaller SS ends) and probabilistic mortality. Highest-value couples
    gap; see [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
-2. **Per-state tax modules** — real state tax starting with FL/TX/GA (SS exemptions,
-   retirement-income exclusions); see [`2-tax-model.md`](2-tax-model.md).
+2. **Per-state tax modules** — real state tax starting with FL/TX/GA/VA (SS exemptions,
+   retirement-income exclusions, age deductions); designed in [`5-state-tax-model.md`](5-state-tax-model.md).
 3. **Gap-year Roth conversions** — the Advanced withdrawal tier (UI stub exists).
 4. **Asset allocation / correlations per account** — stocks/bonds mix and diversification.
 5. **Dynamic spending / guardrails** (e.g. Guyton-Klinger).

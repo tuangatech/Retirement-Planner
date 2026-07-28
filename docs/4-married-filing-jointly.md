@@ -3,7 +3,7 @@
 How the simulator models a two-person household, what we deliberately share vs. keep
 separate between spouses, and where we sit relative to other retirement tools. The tax
 mechanics (MFJ standard deduction, provisional-income SS, RMD age) live in
-[`2-tax-model.md`](2-tax-model.md); this document is the couples design and roadmap.
+[`2-federal-tax-model.md`](2-federal-tax-model.md); this document is the couples design and roadmap.
 
 ## Design principle: one "you-anchored" timeline
 
@@ -87,7 +87,7 @@ which is why it heads the roadmap.
   pooled accounts, two-track healthcare. Shared horizon, no survivor penalty.
 - **Phase 2 (next, highest value):** survivor's ("widow's") penalty — a mortality /
   first-death model, the MFJ→single filing transition, and dropping the smaller SS. See the
-  survivor-penalty notes in [`2-tax-model.md`](2-tax-model.md).
+  survivor-penalty notes in [`2-federal-tax-model.md`](2-federal-tax-model.md).
 - **Later:** per-spouse life expectancy and different retirement dates; separate per-spouse
   accounts (true per-account RMD timing); spousal/survivor SS benefit rules.
 

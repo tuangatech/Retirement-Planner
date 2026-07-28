@@ -13,6 +13,7 @@ import { CollapsibleHelpPanel } from '@/components/common/CollapsibleHelpPanel';
 import { HelpPopover } from '@/components/common/HelpPopover';
 import { InlineGuidance } from '@/components/common/InlineGuidance';
 import { ScopeBadge } from '@/components/common/ScopeBadge';
+import { isStateModeled } from '@/lib/calculations/stateTaxRules';
 
 const MIN_PHASE_SPENDING = 1000;
 
@@ -218,11 +219,25 @@ export function Screen1Plan() {
                             onChange={(e) => updatePersonal({ state: e.target.value as USState })}
                             className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
                         >
-                            {US_STATES.map(state => (
-                                <option key={state.value} value={state.value}>{state.label}</option>
-                            ))}
+                            {/* Grouped rather than filtered: every state stays selectable so a
+                                saved scenario keeps the user's real state and upgrades for free
+                                when that state gets modeled. */}
+                            <optgroup label="Tax computed automatically">
+                                {US_STATES.filter(s => isStateModeled(s.value)).map(state => (
+                                    <option key={state.value} value={state.value}>{state.label}</option>
+                                ))}
+                            </optgroup>
+                            <optgroup label="Not modeled — add your state’s rate manually">
+                                {US_STATES.filter(s => !isStateModeled(s.value)).map(state => (
+                                    <option key={state.value} value={state.value}>{state.label}</option>
+                                ))}
+                            </optgroup>
                         </select>
-                        <p className="text-xs text-gray-500 mt-1">Tax guidance only; state rules aren’t modeled</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                            {isStateModeled(personal.state)
+                                ? `${personal.state} state tax is computed for you`
+                                : 'Tax guidance only; this state’s rules aren’t modeled'}
+                        </p>
                     </div>
                 </div>
 

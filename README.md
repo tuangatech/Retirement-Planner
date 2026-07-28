@@ -221,10 +221,10 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 ## 📖 Documentation
 
 - **[1-requirements.md](docs/1-requirements.md)** — product requirements
-- **[2-tax-model.md](docs/2-tax-model.md)** — tax logic, constants/sources, and MFJ roadmap
+- **[2-federal-tax-model.md](docs/2-federal-tax-model.md)** — federal tax logic, constants/sources
 - **[3-withdrawal-strategy.md](docs/3-withdrawal-strategy.md)** — withdrawal order and tax-efficiency suggestions
 - **[4-married-filing-jointly.md](docs/4-married-filing-jointly.md)** — married-filing-jointly (couples) model and roadmap
-- *5- — reserved for the per-state tax model (FL/TX/GA)*
+- **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (FL/TX/GA/VA), constants and sources
 - **[6-system-design.md](docs/6-system-design.md)** — architecture and design
 - **[7-technical-implementation.md](docs/7-technical-implementation.md)** — implementation guide (incl. verification workflow)
 

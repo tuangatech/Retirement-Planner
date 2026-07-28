@@ -50,6 +50,42 @@ describe('executeWithdrawals', () => {
         expect(r.rmdExcess).toBeGreaterThan(0);
     });
 
+    // The state marginal rate is the one state-tax touch point that can be exercised with a
+    // nonzero value before Georgia/Virginia ship, so it is tested directly here.
+    it('grosses up a tax-deferred draw for state tax as well as federal', () => {
+        const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 0, hsa: 0 };
+        const tdOnly: Array<'taxable' | 'tax_deferred' | 'roth'> = ['tax_deferred', 'taxable', 'roth'];
+
+        const federalOnly = executeWithdrawals(
+            65, 20_000, balances, 0, false, tdOnly, noIncome, 0.12, 0.85, 0.7,
+            'standard', 2026, 1, 'single', undefined, 65, 75, 0
+        );
+        const withState = executeWithdrawals(
+            65, 20_000, balances, 0, false, tdOnly, noIncome, 0.12, 0.85, 0.7,
+            'standard', 2026, 1, 'single', undefined, 65, 75, 0.05
+        );
+
+        // Need $20k net: 20,000 / (1 − 0.12) = 22,727 federal-only,
+        // vs 20,000 / (1 − 0.17) = 24,096 once a 5% state rate is added.
+        expect(federalOnly.withdrawals.taxDeferred).toBeCloseTo(20_000 / 0.88, 0);
+        expect(withState.withdrawals.taxDeferred).toBeCloseTo(20_000 / 0.83, 0);
+        expect(withState.withdrawals.taxDeferred).toBeGreaterThan(federalOnly.withdrawals.taxDeferred);
+
+        // Both still net the amount actually needed — the point of the gross-up.
+        expect(withState.withdrawals.taxDeferred - withState.taxOnWithdrawals).toBeCloseTo(20_000, 0);
+        expect(withState.shortfall).toBeCloseTo(0, 6);
+    });
+
+    it('leaves withdrawals unchanged when the state marginal rate is 0', () => {
+        const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 0, hsa: 0 };
+        const args = [65, 20_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7] as const;
+        const withoutArg = executeWithdrawals(...args);
+        const withZero = executeWithdrawals(
+            ...args, 'standard', 2026, 1, 'single', undefined, 65, 73, 0
+        );
+        expect(withZero.withdrawals).toEqual(withoutArg.withdrawals);
+    });
+
     it('reports a shortfall when all accounts are exhausted', () => {
         const balances: AccountBalances = { taxDeferred: 0, roth: 0, taxable: 1_000, hsa: 0 };
         const r = executeWithdrawals(65, 50_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7);

@@ -17,8 +17,8 @@ python3 scripts/verify_plan.py   # independent cross-check of an exported JSON b
   expenses, withdrawals, hsa, random, yearlyProjection). Tests are co-located `*.test.ts`.
 - `src/workers/monte-carlo.worker.ts` — runs 10,000 sims off the main thread (fixed count).
 - `src/contexts/` — InputsContext (inputs) + ResultsContext (worker). `src/pages/`, `src/components/`.
-- `docs/` — 1-requirements, 2-tax-model, 3-withdrawal-strategy, 4-married-filing-jointly, (5 reserved: state tax),
-  6-system-design, 7-technical-implementation.
+- `docs/` — 1-requirements, 2-federal-tax-model, 3-withdrawal-strategy, 4-married-filing-jointly,
+  5-state-tax-model, 6-system-design, 7-technical-implementation.
 - Import alias: `@/` → `src/`. Indentation: 4 spaces.
 
 ## Key invariants (don't break)
@@ -29,7 +29,7 @@ python3 scripts/verify_plan.py   # independent cross-check of an exported JSON b
 - **Tax model:** IRS provisional-income SS + standard-deduction floor + one marginal rate above
   it. **Single and married-filing-jointly** filers — MFJ combines both spouses' SS for provisional
   income and *pools* accounts under one RMD start age (the older spouse's); the survivor's penalty
-  is not modeled. See `docs/2-tax-model.md` and `docs/4-married-filing-jointly.md`. Constants are
+  is not modeled. See `docs/2-federal-tax-model.md` and `docs/4-married-filing-jointly.md`. Constants are
   year-specific.
 - **Saved scenarios** store inputs only (results recomputed on load). Never silently change how
   an old scenario was computed — legacy `withdrawalStrategy.strategy` defaults to `'tax_smart'`
