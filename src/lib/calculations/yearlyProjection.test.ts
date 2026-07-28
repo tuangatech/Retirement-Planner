@@ -272,6 +272,55 @@ describe('state tax', () => {
         expect(a.ageOfDepletion).toBe(b.ageOfDepletion);
     });
 
+    // Georgia is the first modeled state with a nonzero bill, so it is where the cash-flow-gap
+    // and final-tax touch points finally get end-to-end coverage (docs §9).
+    it('GA: charges real tax in the gap years and folds it into the total', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'GA';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(7));
+        const gapYears = r.projections.filter(p => p.age < 62);
+        const later = r.projections.filter(p => p.age >= 65);
+
+        // No retirement exclusion before 62, then $65,000/person from 65 — so the GA bill is
+        // front-loaded into exactly the years the tax-smart strategy draws hardest.
+        expect(gapYears.some(p => p.taxes.stateTax > 0)).toBe(true);
+        const gapTax = gapYears.reduce((s, p) => s + p.taxes.stateTax, 0);
+        const laterTax = later.reduce((s, p) => s + p.taxes.stateTax, 0);
+        expect(gapTax).toBeGreaterThan(laterTax);
+
+        for (const p of r.projections) {
+            expect(p.taxes.total).toBeCloseTo(
+                p.taxes.onFixedIncome + p.taxes.onWithdrawals + p.taxes.payrollTax + p.taxes.stateTax,
+                6
+            );
+        }
+    });
+
+    // Regression: the gross-up rate is probed at the year's expected draw, not at fixed income
+    // alone. Probing fixed income leaves a 58-year-old with no pension reading 0% — GA's $15k
+    // deduction swallows the probe — so the entire state bill went unfunded and the first year
+    // spent money it never withdrew (netCashFlow = −stateTax exactly).
+    it('GA: funds the state bill from withdrawals in the first year', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'GA';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const first = runCompleteSimulation(inputs, createSeededRNG(7)).projections[0];
+        expect(first.taxes.stateTax).toBeGreaterThan(0);
+        expect(first.netCashFlow).toBeGreaterThanOrEqual(0);
+    });
+
+    it('GA in manual mode reports $0 — a legacy scenario is not taxed twice', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'GA';
+        inputs.tax.stateTaxMode = 'manual';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(7));
+        expect(r.projections.every(p => p.taxes.stateTax === 0)).toBe(true);
+    });
+
     it('keeps the cash-flow identity: income + withdrawals = expenses + tax + net', () => {
         const inputs = makeInputs();
         inputs.personal.state = 'WA';

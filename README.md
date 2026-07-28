@@ -45,12 +45,15 @@ Read this before trusting a number. The app's **Disclosures** tab shows the same
 figures filled in — none of it is buried in a footnote.
 
 **What it models** — US federal taxes for **single** and **married filing jointly** filers ·
+**state income tax for 10 states** (the nine with no individual income tax, plus Georgia's
+age-tiered retirement exclusion) ·
 Social Security (claiming age, COLA, earnings test, provisional-income taxability) ·
 RMDs from age 75 · Medicare premiums and IRMAA · pre-Medicare healthcare · HSA (incl. age-65+
 flexibility) · pensions, part-time work, and rental income · phase-based spending (Go-Go /
 Slow-Go / No-Go) · three withdrawal strategies, including gap-year Roth conversions.
 
-**What it deliberately does *not* model** — pre-retirement accumulation · **state income tax** ·
+**What it deliberately does *not* model** — pre-retirement accumulation · **state income tax for
+the other 41 states** (fold your rate into the marginal rate yourself) ·
 ACA subsidies for pre-Medicare coverage · **long-term care** (often the largest single retirement
 risk) · the survivor's penalty for couples · per-spouse accounts (couples' balances are pooled) ·
 variable inflation · dynamic spending guardrails · fat-tail crashes · fees and transaction costs ·
@@ -181,7 +184,9 @@ rmd.ts               Required Minimum Distributions (IRS Uniform Lifetime Table)
 socialSecurity.ts    Claiming-age adjustment, COLA, earnings test
 income.ts            Pensions, part-time work, rental income
 expenses.ts          Phase-based spending + healthcare (pre-Medicare & Medicare)
-taxes.ts             Effective-rate model + iterative gross-up
+taxes.ts             Federal model: provisional-income SS, deduction floor, gross-up
+stateTax.ts          State model: per-state formulas + the gross-up's state marginal rate
+stateTaxRules.json   Per-state constants w/ primary sources (also read by verify_plan.py)
 withdrawals.ts       Withdrawal sequencing, RMD enforcement, HSA-first
 hsa.ts               HSA tax-advantaged withdrawal logic
 yearlyProjection.ts  Orchestrates all modules for one year
@@ -222,7 +227,7 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 - **[2-federal-tax-model.md](docs/2-federal-tax-model.md)** — federal tax logic, constants/sources
 - **[3-withdrawal-strategy.md](docs/3-withdrawal-strategy.md)** — withdrawal order and tax-efficiency suggestions
 - **[4-married-filing-jointly.md](docs/4-married-filing-jointly.md)** — married-filing-jointly (couples) model and roadmap
-- **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (FL/TX/GA/VA), constants and sources
+- **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (10 states live incl. GA), constants and sources
 - **[6-system-design.md](docs/6-system-design.md)** — architecture and design
 - **[7-technical-implementation.md](docs/7-technical-implementation.md)** — implementation guide (incl. verification workflow)
 
@@ -249,8 +254,8 @@ Contributions are welcome — including from people who don't write code.
   disagrees with the app, that's a great bug report.
 - **Challenge an assumption.** If you know the tax, Medicare, or Social Security rules better than
   the code does, cite the source and we'll fix it or document the simplification.
-- **Close a known gap.** State income tax, ACA subsidies, and the survivor's penalty are all
-  documented, unbuilt, and well-scoped.
+- **Close a known gap.** Virginia's state tax module, ACA subsidies, and the survivor's penalty
+  are all documented, unbuilt, and well-scoped.
 
 Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first — the engine has hard invariants (seeded RNG,
 exactly two `rng()` calls per simulated year, pure calculation modules) that are easy to break by

@@ -155,8 +155,9 @@ export const DEFAULT_VALUES: UserInputs = {
     tax: {
         // Marginal rate applied to taxable income ABOVE the standard deduction
         // (the model now handles deductions + the SS provisional formula itself).
-        // 12% reflects a typical retiree's top federal bracket; add a few points
-        // for states that actually tax retirement income.
+        // 12% reflects a typical retiree's top federal bracket. For a state the engine
+        // models this is federal-only; otherwise add a few points for a state that
+        // actually taxes retirement income (docs/5-state-tax-model.md §2 Rule 2).
         combinedEffectiveRate: 0.12,
         // New scenarios let the engine compute state tax for the states it models, which
         // makes the rate above federal-only. Scenarios saved before this existed load as

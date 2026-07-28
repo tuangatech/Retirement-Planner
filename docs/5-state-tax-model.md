@@ -4,10 +4,10 @@ How the simulator models **state** income tax, which states are modeled, the ver
 constants with their primary sources, and the procedure for re-verifying them every year.
 Federal tax is a separate model — see [`2-federal-tax-model.md`](2-federal-tax-model.md).
 
-**Status: PR 1 of 3 shipped** (§9). The engine, the rules data, the wizard surface, and the
-verifier are in place, and the **nine no-income-tax states are live**. Georgia (§4.2) and
-Virginia (§4.3) are specified here but not yet implemented — both still fall back to the manual
-marginal rate.
+**Status: PRs 1–2 of 3 shipped** (§9). The engine, the rules data, the wizard surface, and the
+verifier are in place; the **nine no-income-tax states and Georgia (§4.2) are live**. Virginia
+(§4.3) is specified here but not yet implemented — it still falls back to the manual marginal
+rate.
 
 Implementation: [`stateTax.ts`](../src/lib/calculations/stateTax.ts) (logic) +
 [`stateTaxRules.json`](../src/lib/calculations/stateTaxRules.json) (constants, read by both the
@@ -20,9 +20,9 @@ re-checked by [`scripts/verify_plan.py`](../scripts/verify_plan.py).
 
 ## 1. Scope
 
-**Modeled: the nine states with no individual income tax, plus GA and VA — eleven in total.**
-Every other state keeps the manual behavior: the user folds their state's rate into the single
-marginal rate on Screen 4.
+**Modeled: the nine states with no individual income tax, plus GA and VA — eleven in total**
+(ten are live; VA is designed here but not yet implemented). Every other state keeps the manual
+behavior: the user folds their state's rate into the single marginal rate on Screen 4.
 
 The nine no-income-tax states cost almost nothing to model (`taxesIncome: false` → `return 0`)
 and need no annual formula review, only a check that none of them has enacted an income tax:
@@ -62,7 +62,10 @@ Two effects in the modeled states are impossible to express as a single added-on
 - **Georgia's exclusion starts at age 62** ($35,000) and reaches $65,000 only at 65. An
   early retiree pays GA tax on essentially all tax-deferred draws until 62, then watches the
   bill fall toward zero. The state bill is front-loaded into exactly the gap years the
-  tax-smart withdrawal strategy targets.
+  tax-smart withdrawal strategy targets. The shipped module bears this out: on the default
+  plan (retire at 58, $50k spending) GA tax runs $602 → $728 across ages 58–61 and is **$0
+  from 62 onward**, once the exclusion covers the draws. No single added-on percentage
+  reproduces that shape.
 - **Virginia's age deduction phases out dollar-for-dollar**, which *doubles* the marginal rate
   inside the phase-out band (§4.3).
 
@@ -105,9 +108,11 @@ when a state module is active:
 - The wizard label and the state-guidance box on
   [Screen4Assumptions.tsx](../src/components/wizard/Screen4Assumptions.tsx) must say
   "federal marginal rate" and "your state's tax is computed automatically."
-- `socialSecurity.taxablePercentage` becomes a **federal-only** cap. Its help text must stop
-  suggesting the user lower it to approximate a state SS exemption, or the exemption gets
-  applied twice.
+- `socialSecurity.taxablePercentage` becomes a **federal-only** cap: lowering it in a modeled
+  state exempts the benefit twice. The wizard help text on
+  [Screen2SavingsIncome.tsx](../src/components/wizard/Screen2SavingsIncome.tsx) never mentioned
+  state exemptions, so it needed no change — but
+  [`1-requirements.md`](1-requirements.md) §4.1 did, and now states the distinction.
 
 §7 covers keeping this from re-valuing already-saved scenarios.
 
@@ -115,16 +120,22 @@ when a state module is active:
 
 ## 3. How state tax threads through the engine
 
-State tax is a real cash outflow. It must enter the model in **three** places:
+State tax is a real cash outflow. It must enter the model in **four** places:
 
 1. **The initial cash-flow gap** — [`yearlyProjection.ts`](../src/lib/calculations/yearlyProjection.ts)
    STEP 4/5, where `initialTotalTax` sets `cashFlowGap`.
 2. **The withdrawal gross-up** — [`withdrawals.ts`](../src/lib/calculations/withdrawals.ts)
    STEP 2, which divides by a single flat rate.
-3. **The final tax computation** — `calculateTotalTaxes`, reported as a new
+3. **The tax-smart fill** — [`withdrawals.ts`](../src/lib/calculations/withdrawals.ts) STEP 1.5.
+   This one is easy to miss (PR 1 did) because the fill bypasses the gross-up entirely: it is
+   sized to the *federal* deduction floor, so its federal tax is ~0 and the code treated net as
+   equal to gross. A state applies its own, much smaller shield — Georgia's $15,000 standard
+   deduction, with no retirement exclusion at all before 62 — so the fill can owe state tax, and
+   the year must withdraw for it.
+4. **The final tax computation** — `calculateTotalTaxes`, reported as a
    `taxes.stateTax` field folded into `taxes.total`.
 
-**All three are required.** Adding state tax only at (3) makes the engine under-withdraw by
+**All four are required.** Adding state tax only at (4) makes the engine under-withdraw by
 the state tax every year: `netCashFlow` goes negative and the plan spends money it never
 withdrew, understating depletion risk. Over-withdrawal is harmless by comparison —
 [`yearlyProjection.ts`](../src/lib/calculations/yearlyProjection.ts) reinvests surplus to the
@@ -132,15 +143,34 @@ taxable account.
 
 ### Breaking the circularity
 
-State tax depends on withdrawals, which depend on total tax. Break the loop the way
-`calculateTaxFreeTaxDeferredRoom` does: compute a **state marginal rate** from fixed income
-*before* discretionary draws, pass it into `executeWithdrawals` as an add-on to the gross-up
-rate, and let the reinvest-surplus path absorb the residual.
+State tax depends on withdrawals, which depend on total tax. Break the loop by computing a
+**state marginal rate** up front, passing it into `executeWithdrawals` as an add-on to the
+gross-up rate, and letting the reinvest-surplus path absorb the residual. Two details hide inside
+that sentence, and both were got wrong on the first attempt — they are worth stating precisely.
 
-The state marginal rate is piecewise-constant, so this is cheap:
+**Probe the rate at the year's expected draw, not at fixed income alone.** The obvious move is
+to mirror `calculateTaxFreeTaxDeferredRoom` and evaluate the rate on fixed income before
+discretionary draws. That reads **0%** for the case that matters most: a 58-year-old retiring
+in Georgia with no pension has no fixed income, so a probe against it never clears GA's $15,000
+standard deduction — while the actual draws needed to fund the year clear it easily. The whole
+state bill then goes unfunded and `netCashFlow` comes out at exactly `−stateTax` every gap
+year. Probing at `cashFlowGap` instead — the year's own spending need, already computed and
+still not circular — funds it. Treating the entire gap as ordinary income overstates the rate
+when the gap is met from Roth or cost basis, which errs toward over-withdrawal.
+
+**Take the rate as a finite difference, not per-state algebra.** "Past the deduction ⇒ 4.99%"
+is wrong for Georgia, because the exclusion is *capped by eligible income*: while exclusion room
+remains, each extra dollar of tax-deferred draw creates a dollar of exclusion and is untaxed at
+the margin — even for a household already paying GA tax on other income. `stateMarginalRate`
+therefore re-runs the one real formula over a $1,000 probe withdrawal and divides. That gets the
+exclusion growth, the deduction shield, and (when VA lands) its doubled phase-out band for free,
+and it blends correctly across a threshold the household is sitting just under.
+
+The resulting rate is still effectively piecewise-constant:
 
 - **No-income-tax states** → always 0.
-- **GA** → 0 while the household is under its exclusion + standard deduction; otherwise 4.99%.
+- **GA** → 0 under the exclusion + standard deduction *and* while exclusion room remains;
+  otherwise 4.99%.
 - **VA** → 0 below the filing threshold; the bracket rate (5.75% for any realistic retiree);
   **doubled inside the age-deduction phase-out band** (§4.3).
 
@@ -154,8 +184,13 @@ stateTaxable = max(0, stateAGI − stateBenefit − stateStandardDeduction − s
 stateTax     = applyRate(stateTaxable)
 ```
 
-Use the `federallyTaxableSS` the provisional-income formula already produced — it is what
-actually landed in federal AGI, so subtracting it is exact, not an approximation.
+In the code that subtraction is structural rather than arithmetic. `StateTaxInputs` carries the
+*components* of federal AGI — pensions, part-time work, rental, tax-deferred withdrawals,
+brokerage gains, non-medical HSA withdrawals — and simply never includes Social Security, so
+`stateAGI` is exact by construction and no SS figure has to be passed in correctly. It also
+means the field cannot drift: PR 1 declared a `taxableSocialSecurity` input and populated it
+with the *gross* benefit, which went unnoticed only because nothing read it yet. A state that
+genuinely taxes SS would add the federally taxable amount back here.
 
 ---
 
@@ -194,7 +229,15 @@ HSA-for-healthcare (never in federal AGI), Social Security (already subtracted),
 non-medical withdrawals (§6).
 
 MFJ gets up to 2× the tier amount, subject to each spouse qualifying separately — see the
-attribution simplification in §6.
+attribution simplification in §6. Two decisions the statute leaves to the implementation:
+
+- **Each spouse's tier comes from their own age**, then the two are summed. A 66-year-old with a
+  60-year-old spouse gets $65,000, not $130,000 and not 2 × $35,000.
+- **The earned-income sublimit stays $5,000 for MFJ**, not $10,000. IT-511 makes it per
+  taxpayer, but this tool models only one part-time income
+  ([`1-requirements.md`](1-requirements.md) §4.3 — a spouse's earned income is not an input), so
+  there is no second earner to claim it. Doubling a sublimit on income the model cannot attribute
+  would compound the over-exclusion in §6 rather than offset it.
 
 **Constants (TY2026)**
 
@@ -319,28 +362,31 @@ do not repeat that pattern for 11+ states.
 > separately implemented. A wrong constant is caught by human review against the primary
 > source; a wrong formula is caught by the verifier.
 
-Shape the eleven modeled states need (the income-taxing variant lands with GA and VA):
+Shape the eleven modeled states need. What is committed today is the no-income-tax arm plus
+everything Georgia needs; the lines marked `// VA` are what the Virginia PR adds. `reviewedFor`
+is one top-level field in the JSON rather than per state — the whole file is reviewed together.
 
 ```ts
 type StateTaxRules = {
     state: USState;
-    reviewedFor: number;                    // tax year these constants were verified against
     sources: Record<string, string>;        // constant name → primary-source URL
+    caveat?: string;                        // user-facing: WA's excise tax, GA's frozen escalators
+    note?: string;                          // maintainer-facing rationale
 } & (
-    | { taxesIncome: false; caveat?: string }   // caveat: e.g. WA's capital-gains excise tax
+    | { taxesIncome: false }
     | {
         taxesIncome: true;
         socialSecurity: 'exempt';           // widen when a state that taxes SS is added
         rate:
             | { kind: 'flat'; rate: number }
-            | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> };
-        // Year-keyed: pick the entry whose range covers the tax year, else the last one.
+            | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> };  // VA
+        // Year-keyed: the last entry already in force, else the earliest (`pickForYear`).
         standardDeduction: Array<{ fromYear: number; single: number; married: number }>;
-        personalExemption?: { perFiler: number; age65Addition: number };
+        personalExemption?: { perFiler: number; age65Addition: number };                      // VA
         retirementBenefit?:
             | { kind: 'ga_exclusion'; tiers: Array<{ fromYear: number; age62: number; age65: number }>;
                 earnedIncomeSublimit: number }
-            | { kind: 'va_age_deduction'; perPerson: number; minAge: number;
+            | { kind: 'va_age_deduction'; perPerson: number; minAge: number;                  // VA
                 threshold: { single: number; married: number }; reductionPerDollar: number };
     }
 );
@@ -362,12 +408,24 @@ without a rewrite.
   simplification as the pooled RMD in
   [`4-married-filing-jointly.md`](4-married-filing-jointly.md). Virginia is unaffected — its
   age deduction is already household-level.
+- **Georgia's earned-income sublimit is not doubled for MFJ** ($5,000, not $10,000) because only
+  one part-time income is modeled — see §4.2.
 - **HSA non-medical withdrawals (65+) are fully taxed by the state.** Georgia's exclusion
   enumerates specific categories — interest, dividends, net rental, capital gains, royalties,
   pensions, annuities, limited earned income. A non-qualified HSA distribution is federal
   "other income" and is none of those, so the plain reading denies the exclusion. Conservative,
   and near-zero impact since `allowNonMedicalAfter65` defaults to `false`.
 - **Frozen contingent escalators** (GA rate and standard deduction) — overstates GA tax.
+- **The state gross-up rate is an estimate, not the year's exact state tax.** It is probed at the
+  expected draw rather than solved simultaneously with withdrawals (§3), so a year whose actual
+  draws diverge sharply from the cash-flow gap — a large forced RMD, or a gap met mostly from
+  Roth — funds somewhat too much or too little state tax. The residual lands in `netCashFlow`
+  and, when positive, is reinvested to the taxable account.
+- **Tax-smart draws are sized to the federal floor only.** The fill still targets the federal
+  standard deduction even in a state whose own shield is smaller, so in Georgia a pre-62 fill
+  owes 4.99% on the part above GA's $15,000 deduction. The draw is usually still worth making
+  (it shrinks future RMDs and the SS torpedo), and the state tax on it *is* now withdrawn for —
+  but the strategy does not optimise against the state, and the UI must not call it "tax-free".
 - **Virginia's 2030 deduction cliff is modeled as enacted** — likely overstates VA tax from
   2030 onward.
 - **State standard deductions are not inflated.** Neither GA's nor VA's is statutorily indexed;
@@ -400,6 +458,13 @@ Mirror the precedent set by `withdrawalStrategy.strategy`:
 Old plans then compute bit-identically and new plans get the module. Opting an old plan in is
 also the moment to prompt the user to drop the state points from their rate.
 
+**One consequence worth knowing about Georgia specifically:** `DEFAULT_VALUES.personal.state` is
+`'GA'` and `stateTaxMode` defaults to `'modeled'`, so shipping Georgia changed the out-of-the-box
+numbers every new user sees — the default plan (retire at 58) now shows a few hundred dollars of
+GA tax in its first four years. That is correct behavior, not a regression: saved scenarios are
+protected by the `'manual'` default, and a *new* plan in Georgia genuinely owes Georgia tax. Any
+future state that becomes the default carries the same consequence.
+
 ---
 
 ## 8. Wizard surface
@@ -407,9 +472,12 @@ also the moment to prompt the user to drop the state points from their rate.
 **Keep all 51 entries in the Step 1 state selector.** Group them with native `<optgroup>`:
 
 ```
-── Tax computed automatically ──   AK FL GA NH NV SD TN TX VA WA WY
-── Not modeled — add your state's rate manually ──   (the remaining 40)
+── Tax computed automatically ──   AK FL GA NH NV SD TN TX WA WY   (VA joins when it lands)
+── Not modeled — add your state's rate manually ──   (the remaining 41)
 ```
+
+Both groups are derived from `isStateModeled`, so Georgia moved between them the moment its
+rules entry existed — no UI change was needed, and Virginia will move the same way.
 
 **Do not replace the list with "modeled states + Other."** Three reasons:
 
@@ -440,21 +508,24 @@ change, not part of this work.
 
 Three PRs. The integration risk and the formulas are deliberately separated.
 
-1. **Plumbing + the nine no-income-tax states.** Rules JSON and typed wrapper, `stateTax.ts`,
-   the three engine touch points, `taxes.stateTax` output, the `stateTaxMode` flag and its
+1. ✅ **Plumbing + the nine no-income-tax states.** Rules JSON and typed wrapper, `stateTax.ts`,
+   the engine touch points, `taxes.stateTax` output, the `stateTaxMode` flag and its
    legacy default, `verify_plan.py` mirror, wizard optgroups and conditional copy, WA
    disclosure. Every modeled state returns 0, so the only thing under test is the wiring.
-2. **Georgia.** Exclusion tiers, the TY2027 step-up, earned-income sublimit, tests.
+2. ✅ **Georgia.** Exclusion tiers, the TY2027 step-up, earned-income sublimit, tests.
 3. **Virginia.** Brackets, age-deduction phase-out, the doubled marginal rate in the gross-up,
    the 2030 cliff, tests.
 
 `verify_plan.py` must move in PR 1, not later: its `Total Tax = Fixed + Payroll + Withdrawal`
 check fails as soon as `taxes.stateTax` exists and is nonzero.
 
-**Coverage limit of PR 1, stated plainly:** with every modeled state at zero, the cash-flow-gap
-and final-tax touch points can only be tested with a zero value. The gross-up is the exception —
-`executeWithdrawals` takes the state marginal rate as a plain parameter, so a nonzero value is
-tested directly there. End-to-end nonzero coverage arrives with GA in PR 2.
+**What PR 1's zero-only coverage hid.** With every modeled state at zero, the cash-flow-gap and
+final-tax touch points could only be tested with a zero value; only the gross-up took a nonzero
+rate directly, as a plain parameter to `executeWithdrawals`. Georgia's end-to-end coverage then
+surfaced two defects the wiring tests could not see: the tax-smart fill never charged state tax
+at all (§3, touch point 3), and the marginal rate probed from fixed income read 0% for an early
+retiree, leaving the whole bill unfunded (§3). Both are fixed. The lesson generalises — a
+touch point exercised only with zero is a touch point not yet tested.
 
 ---
 
@@ -499,7 +570,9 @@ State constants are year-specific. Once a year, and whenever a modeled state pas
    and the annual instruction booklet** over state DoR web pages, which go stale and sometimes
    contradict each other — cross-check at least two sources per constant and reconcile any
    disagreement against the bill before changing a number.
-2. Bump `reviewedFor` in `stateTaxRules.ts` and update the quoted language in §4.
+2. Bump `reviewedFor` in `stateTaxRules.json` (one top-level field for the whole file;
+   `stateTaxRules.ts` re-exports it as `STATE_RULES_REVIEWED_FOR`) and update the quoted
+   language in §4.
 3. Re-check the **contingent** escalators (Rule 1): if a Georgia revenue trigger actually
    fired, the frozen value changes. That is a constants update, not a model change.
 4. Run `npm test` and `python3 scripts/verify_plan.py` on a fresh export.

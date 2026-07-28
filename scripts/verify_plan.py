@@ -105,6 +105,19 @@ def load_state_tax_rules() -> dict:
 STATE_TAX_RULES = load_state_tax_rules()
 
 
+def pick_for_year(schedule: list, year: int) -> dict:
+    """Entry from a year-keyed schedule governing `year`.
+
+    The last entry already in force, or the earliest one for years before the schedule
+    starts. Mirrors `pickForYear` in stateTax.ts.
+    """
+    chosen = schedule[0]
+    for entry in schedule:
+        if entry["fromYear"] <= year:
+            chosen = entry
+    return chosen
+
+
 # ─── BUNDLE LOADING ─────────────────────────────────────────────────────────────
 def find_newest_bundle() -> str | None:
     """Return the newest retirement-verification-*.json saved in scripts/."""
@@ -318,19 +331,62 @@ class Plan:
         return (fixed_taxable + wd_taxable) * self.eff_rate
 
     # -- state tax --
-    def expected_state_tax(self) -> float:
-        """Expected state income tax for any year.
+    def _state_standard_deduction(self, rules: dict, year: int) -> float:
+        entry = pick_for_year(rules["standardDeduction"], year)
+        return entry["married"] if self.filing == "married_joint" else entry["single"]
 
-        Only states with no individual income tax are modeled today, so every modeled state
-        owes $0 and unmodeled states report $0 (their burden is folded into the user's
-        marginal rate). Georgia and Virginia add real per-year formulas here.
+    def _ga_exclusion(self, rules: dict, row: dict, gains: float) -> float:
+        """Georgia's retirement-income exclusion: per person, age-tiered, capped by that
+        person's eligible income. Pooled accounts cannot attribute a withdrawal to a spouse,
+        so the combined cap is applied to combined income (docs/5-state-tax-model.md §6)."""
+        benefit = rules["retirementBenefit"]
+        tiers = pick_for_year(benefit["tiers"], int(row["year"]))
+
+        def tier(age: int) -> float:
+            if age >= 65:
+                return tiers["age65"]
+            return tiers["age62"] if age >= 62 else 0.0
+
+        age = int(row["age"])
+        sp_age = self.spouse_age(age)
+        cap = tier(age) + (tier(sp_age) if sp_age is not None else 0.0)
+
+        # Enumerated categories only. A non-medical HSA distribution is federal "other
+        # income" and matches none of them, so it gets no exclusion.
+        inc = row["income"]
+        eligible = (inc["pensions"] + inc["rentalIncome"] + gains
+                    + row["portfolio"]["withdrawals"]["taxDeferred"]
+                    + min(inc["partTimeWork"], benefit["earnedIncomeSublimit"]))
+        return min(cap, eligible)
+
+    def expected_state_tax(self, row: dict) -> float:
+        """Expected state income tax for one projection row.
+
+        Unmodeled states report $0 (their burden is folded into the user's marginal rate) and
+        the nine no-income-tax states owe a real $0. Georgia is re-derived here; Virginia is
+        not yet implemented in the engine.
         """
         if self.state_mode != "modeled":
             return 0.0
         rules = STATE_TAX_RULES.get(self.state)
         if rules is None or not rules.get("taxesIncome", False):
             return 0.0
-        raise NotImplementedError(f"No state-tax formula for {self.state}")
+        if self.state != "GA":
+            raise NotImplementedError(f"No state-tax formula for {self.state}")
+
+        inc = row["income"]
+        wd = row["portfolio"]["withdrawals"]
+        hsa_nonmed = max(0.0, wd["hsa"] - row["portfolio"]["hsaForHealthcare"])
+        gains = wd["taxable"] * (1 - self.cost_basis)
+
+        # State AGI = federal AGI − federally taxable SS. Georgia exempts Social Security, so
+        # it is simply never added; state deductions are not inflated (they are not indexed).
+        agi = (inc["pensions"] + inc["partTimeWork"] + inc["rentalIncome"]
+               + wd["taxDeferred"] + gains + hsa_nonmed)
+
+        exclusion = self._ga_exclusion(rules, row, gains)
+        deduction = self._state_standard_deduction(rules, int(row["year"]))
+        return max(0.0, agi - exclusion - deduction) * rules["rate"]["rate"]
 
 
 # ─── CHECK HELPERS ──────────────────────────────────────────────────────────────
@@ -427,7 +483,7 @@ def verify(bundle: dict, percentile: str, tol: float) -> int:
             tax["onFixedIncome"] + tax["payrollTax"] + tax["onWithdrawals"] + state_tax,
             issues)
 
-        chk("State Tax", state_tax, plan.expected_state_tax(), issues)
+        chk("State Tax", state_tax, plan.expected_state_tax(p), issues)
 
         # Independent recomputation of the tax model (provisional-income SS +
         # standard-deduction floor + flat marginal rate).

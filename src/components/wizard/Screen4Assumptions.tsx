@@ -38,7 +38,7 @@ const STRATEGIES: StrategyCard[] = [
         key: 'tax_smart',
         tier: 'Recommended',
         name: 'Tax-smart sequencing',
-        does: 'Each gap year, draw tax-deferred up to the standard-deduction floor (≈ tax-free), then taxable, then Roth. Uses the free room yearly and shrinks future RMDs.',
+        does: 'Each gap year, draw tax-deferred up to the federal standard-deduction floor (≈ federally tax-free), then taxable, then Roth. Uses the free room yearly and shrinks future RMDs.',
         real: 'In your lower-income years — after retiring, before Social Security and RMDs — draw tax-deferred first up to the top of your standard deduction, then taxable and Roth. Confirm the exact amount with your custodian or CPA near year-end.',
         bestFor: 'Most people. Automatic in the tool.',
     },

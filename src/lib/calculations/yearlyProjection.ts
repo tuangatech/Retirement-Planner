@@ -160,14 +160,14 @@ export function calculateYearlyProjection(
     const stateRules =
         (tax.stateTaxMode ?? 'manual') === 'modeled' ? getStateTaxRules(personal.state) : undefined;
 
-    // Federal-AGI components for the state calculation. Withdrawals are zero at this point —
-    // this pass sizes the cash-flow gap, and the final pass below sees the real draws.
+    // Federal-AGI components for the state calculation, Social Security excluded because every
+    // modeled state exempts it. Withdrawals are zero at this point — this pass sizes the
+    // cash-flow gap, and the final pass below sees the real draws.
     const stateInputsBase: StateTaxInputs = {
         year,
         filingStatus,
         age: currentAge,
         spouseAge,
-        taxableSocialSecurity: incomeResult.socialSecurity,
         pensions: incomeResult.pensions,
         partTimeWork: incomeResult.partTimeWork,
         rentalIncome: incomeResult.rentalIncome,
@@ -218,9 +218,19 @@ export function calculateYearlyProjection(
             spouseAge,
             rmdAge,
             RMD_START_AGE,
-            // Gross up withdrawals for state tax too, computed from fixed income before the
-            // discretionary draws so the calculation stays non-circular.
-            stateMarginalRate(stateRules, stateInputsBase)
+            // Gross up withdrawals for state tax too. The rate is probed at the year's
+            // *expected* draw rather than at fixed income alone: an early retiree with little
+            // fixed income but a large withdrawal need is exactly whom Georgia taxes hardest
+            // (no retirement exclusion before 62), and probing from fixed income alone reads
+            // 0% there — leaving the whole state bill unfunded and letting the year spend
+            // money it never withdrew. The cash-flow gap is the best non-circular proxy for
+            // the draws. Treating all of it as ordinary income overstates the rate whenever
+            // the gap is met from Roth or cost basis; that errs toward over-withdrawal, which
+            // the surplus reinvestment below absorbs.
+            stateMarginalRate(stateRules, {
+                ...stateInputsBase,
+                taxDeferredWithdrawals: cashFlowGap,
+            })
         );
 
         // Deduct withdrawals from current balances
