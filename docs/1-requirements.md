@@ -31,8 +31,11 @@ Establishes the timeline and tax context that drive duration and phase transitio
 
 - **Retirement age** (50–75) — the simulation's starting point.
 - **Life expectancy** (70–110, default 90) — planning horizon.
-- **State** (50 states + DC) — reference/guidance only; no state-specific tax modeling yet
-  (per-state modules FL/TX/GA/VA are designed but not yet built — see [`5-state-tax-model.md`](5-state-tax-model.md)).
+- **State** (50 states + DC) — **ten states are modeled**: the nine with no individual income
+  tax (AK, FL, NH, NV, SD, TN, TX, WA, WY) and **Georgia**. For those, state tax is computed
+  and the marginal rate in Step 6 becomes **federal-only**. Every other state is guidance only:
+  fold your state's rate into that marginal rate yourself. Virginia is specified but not yet
+  built — see [`5-state-tax-model.md`](5-state-tax-model.md).
 - **Filing status** — **single** or **married filing jointly**. MFJ reveals spouse age and
   (in Step 4) spouse Social Security. The couples model is specified in [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
 
@@ -117,8 +120,10 @@ Non-portfolio income reduces withdrawal needs.
 - **COLA** (default 3.0%), compounding from claiming year.
 - **Earnings test** if claiming before FRA while working (2025 threshold ~$23,400; $1 withheld
   per $2 over; recalculated at FRA, not permanently lost).
-- **SS taxable %** (0–85%, default 85%): a **cap** on the IRS provisional-income formula (§6);
-  lowering it approximates a state SS exemption.
+- **SS taxable %** (0–85%, default 85%): a **cap** on the IRS provisional-income formula (§6).
+  In an unmodeled state, lowering it approximates a state SS exemption; in a **modeled** state
+  it is a federal-only cap — the state's SS exemption is already applied, so lowering it would
+  exempt the benefit twice.
 - **MFJ:** each spouse enters their own benefit + claiming age; the two streams are **summed**
   before the provisional formula. COLA and taxable % are shared household values. See [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
 
@@ -169,7 +174,9 @@ inflates at the healthcare rate. HSA covers total healthcare (premiums + OOP) ta
 Captures the two effects that dominate retiree taxation — **provisional-income taxation of
 Social Security** and the **standard-deduction "tax-free floor"** — then applies a single
 **marginal** rate above the floor. Full specification, constants (with sources), MFJ details,
-and RMD age in [`2-federal-tax-model.md`](2-federal-tax-model.md).
+and RMD age in [`2-federal-tax-model.md`](2-federal-tax-model.md). **State** income tax is a
+separate model with its own constants and annual-review cycle, covering ten states today
+(§2.1) — see [`5-state-tax-model.md`](5-state-tax-model.md).
 
 ### 6.1 Marginal Rate (above the deduction)
 
@@ -184,10 +191,12 @@ and RMD age in [`2-federal-tax-model.md`](2-federal-tax-model.md).
 - **Not taxed:** Roth, HSA-for-healthcare, taxable-account cost basis.
 
 **Guidance (single):** 10–12% for most retirees; 22% when taxable income is well into six
-figures; add a few points only for states that actually tax retirement income.
+figures. In a **modeled** state this is your federal rate only; otherwise add a few points if
+your state actually taxes retirement income.
 
-**Not modeled:** full 10–37% brackets, 0/15/20% capital-gains brackets, itemized
-deductions/credits, and state-specific exemptions.
+**Not modeled:** full 10–37% brackets, 0/15/20% capital-gains brackets, and itemized
+deductions/credits. State-specific exemptions are modeled for the ten states in §2.1 and
+approximated by the user's rate everywhere else.
 
 ### 6.2 Payroll Tax
 
@@ -228,14 +237,19 @@ Honest disclosure sets realistic expectations. Displayed prominently on results:
   no fat-tail crashes; no rebalancing.
 - **Tax:** single marginal rate above the deduction (not full brackets); SS via provisional
   formula (0–85%, capped); standard deduction modeled (base + age-65 + senior bonus); LTCG at
-  the flat rate; IRMAA user-estimated; no itemized deductions/credits/state exemptions.
+  the flat rate; IRMAA user-estimated; no itemized deductions/credits.
+- **State tax:** computed for the ten modeled states, with each one's own caveats named (e.g.
+  Georgia's frozen contingent rate cuts, Washington's unmodeled capital-gains excise tax); for
+  every other state the panel says plainly that state tax is **not** modeled and the user's
+  marginal rate is carrying it.
 - **Healthcare:** Medicare base + inflation; out-of-pocket estimated; **long-term care NOT
   modeled** ($50k–150k+/yr); no ACA subsidies; HSA covers healthcare first.
 - **Spending:** constant within each phase; no market-based or dynamic adjustments.
 - **Mortality / couples:** fixed life expectancy (no distribution); for MFJ, both spouses
   assumed alive to a shared horizon — **the survivor's penalty is not modeled** (see [`4-married-filing-jointly.md`](4-married-filing-jointly.md)).
 - **Not modeled:** pre-retirement accumulation, long-term care, actual brackets, dynamic
-  spending, estate planning, inflation variability, ACA subsidies, Roth conversions, state taxes.
+  spending, estate planning, inflation variability, ACA subsidies, Roth conversions, and state
+  tax outside the ten modeled states.
 
 **Disclaimer:** educational projections only; not financial, tax, or legal advice.
 
@@ -349,8 +363,9 @@ Roughly in priority order (living list; not commitments):
 1. **Survivor's penalty & mortality for couples** — first-death transition (MFJ→single,
    deduction/IRMAA drop, smaller SS ends) and probabilistic mortality. Highest-value couples
    gap; see [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
-2. **Per-state tax modules** — real state tax starting with FL/TX/GA/VA (SS exemptions,
-   retirement-income exclusions, age deductions); designed in [`5-state-tax-model.md`](5-state-tax-model.md).
+2. **Per-state tax modules (in progress)** — the nine no-income-tax states and Georgia have
+   shipped; **Virginia** (age deduction with its dollar-for-dollar phase-out, graduated
+   brackets, 2030 deduction cliff) is next, then NY/CA. See [`5-state-tax-model.md`](5-state-tax-model.md).
 3. **Gap-year Roth conversions** — the Advanced withdrawal tier (UI stub exists).
 4. **Asset allocation / correlations per account** — stocks/bonds mix and diversification.
 5. **Dynamic spending / guardrails** (e.g. Guyton-Klinger).
@@ -370,9 +385,9 @@ one market shock; inflation is constant; spending is constant within a phase.
 
 **Scope constraints:** US-only; single or MFJ (couples modeled per [`4-married-filing-jointly.md`](4-married-filing-jointly.md), no
 survivor penalty yet); no pre-retirement accumulation; fixed life expectancy; simplified tax
-(marginal rate + deduction floor, no full brackets); no long-term care; no state taxes yet;
-no ACA subsidies; no Roth conversions yet; no dynamic spending. Client-side only; localStorage
-is unencrypted ("don't use on shared computers"); no SSN/account numbers/names required.
+(marginal rate + deduction floor, no full brackets); no long-term care; state tax for ten states
+only (§2.1); no ACA subsidies; no Roth conversions yet; no dynamic spending. Client-side only;
+localStorage is unencrypted ("don't use on shared computers"); no SSN/account numbers/names required.
 
 **Required disclaimer (results page):** *"Educational projections only. Not financial, tax, or
 legal advice. Actual outcomes will vary due to market performance, tax-law changes, healthcare
@@ -401,7 +416,12 @@ qualified professionals (CFP, CPA, attorney) before making decisions."*
 
 ---
 
-**Document version:** 1.5 · **Last updated:** 2026-07-25 · **Status:** implemented, evolving.
+**Document version:** 1.6 · **Last updated:** 2026-07-28 · **Status:** implemented, evolving.
+
+**Changes from v1.5:** state income tax is now modeled for **ten** states — the nine with no
+individual income tax plus **Georgia** (§2.1, §4.1, §6, §8.2, §13, §14). The marginal rate is
+federal-only in a modeled state, and the SS taxable-% cap becomes federal-only with it. Virginia
+remains specified but unbuilt. See [`5-state-tax-model.md`](5-state-tax-model.md).
 
 **Changes from v1.4:** added married-filing-jointly support and the [`4-married-filing-jointly.md`](4-married-filing-jointly.md)
 couples model (§2.1, §4.1, §5, §6, §8.2, §11); RMD start age corrected to 75 (SECURE 2.0);

@@ -15,7 +15,10 @@ It is independently re-checked by [`scripts/verify_plan.py`](../scripts/verify_p
    `calculateTaxableSocialSecurity()` computes provisional income = (all AGI items except
    SS) + ½ of SS benefits, then applies the tiered 0% / up-to-50% / up-to-85% formula.
    The result is capped at the user's `taxablePercentage` setting (default 0.85, the
-   statutory max). A user may lower it to approximate a state SS exemption.
+   statutory max). In an **unmodeled** state a user may lower it to approximate a state SS
+   exemption; in a **modeled** state it is a federal-only cap, because the state module
+   already exempts SS and lowering it would exempt the benefit twice
+   ([`5-state-tax-model.md`](5-state-tax-model.md) §2, Rule 2).
 
 2. **Standard-deduction "tax-free floor."** `calculateStandardDeduction()` = base
    standard deduction + age-65 addition (once age ≥ 65) + the 2025–2028 OBBBA senior
@@ -37,7 +40,8 @@ It is independently re-checked by [`scripts/verify_plan.py`](../scripts/verify_p
 
 5. **Payroll tax** (7.65% FICA) applies only to part-time work income, separately.
 
-6. **Withdrawal gross-up** still sizes withdrawals at the flat rate (conservative); any
+6. **Withdrawal gross-up** still sizes withdrawals at the flat rate (conservative) — plus the
+   state marginal rate when a state module is active, so a draw covers its state tax too. Any
    resulting over-withdrawal surplus is reinvested to the taxable account in
    `yearlyProjection.ts` so no cash leaks.
 
@@ -81,25 +85,37 @@ Sources: [Tax Foundation](https://taxfoundation.org/data/all/federal/2026-tax-br
 [Georgia DoR — retirement income exclusion](https://dor.georgia.gov/retirement-income-exclusion),
 [Georgia DoR — important tax updates (2026 rate)](https://dor.georgia.gov/taxes/important-tax-updates).
 
-The tool now reproduces this qualitatively for a comparable **single** Georgia retiree
-(SS mostly untaxed; withdrawals largely shielded by the deduction floor). Exact $0 parity
-requires MFJ support (below).
+**Georgia side: reproduced exactly.** With MFJ and the Georgia module both shipped, the couple's
+$80,400 — $43,200 of it Social Security — owes **$0 Georgia tax**: SS is exempt, and the
+remaining $37,200 sits inside their $130,000 combined retirement exclusion. This is pinned by a
+regression test in [`stateTax.test.ts`](../src/lib/calculations/stateTax.test.ts).
+
+**Federal side: still not exactly $0**, and the reason is a documented limitation rather than a
+missing feature. The PDF's federal zero leans on the **0% long-term capital-gains bracket** in
+the list above, which this tool does not model — brokerage gains are taxed at the flat marginal
+rate. Take the couple's non-SS $37,200 as *tax-deferred* withdrawals instead and the federal bill
+is **$993.60**: taxable SS $18,580 + withdrawals $37,200 = $55,780 against a $47,500 deduction,
+taxed at 12%. Also pinned by a test ([`taxes.test.ts`](../src/lib/calculations/taxes.test.ts)),
+so the gap stays visible rather than being rediscovered. The qualitative result holds — SS mostly
+untaxed, withdrawals largely shielded by the deduction floor — and closing it fully means
+modeling the LTCG brackets, not fixing a bug.
 
 ## What is NOT modeled (simplifications)
 
 - Full 10–37% progressive brackets — a single flat marginal rate is used above the floor.
 - 0% / 15% / 20% long-term capital-gains brackets — brokerage gains are taxed at the flat rate.
 - Itemized deductions, tax credits, and the OBBBA senior-bonus MAGI phase-out.
-- State-specific rules (SS exemptions, retirement-income exclusions) — the flat rate is the
-  user's approximation of combined federal + state. **Per-state modules (FL/TX/GA/VA) are
-  designed in [`5-state-tax-model.md`](5-state-tax-model.md) but not yet built.**
+- State-specific rules **outside the ten modeled states** (the nine with no individual income
+  tax, plus Georgia) — there, the flat rate remains the user's approximation of combined federal
+  + state. Inside a modeled state the engine computes state tax and this rate is federal-only.
+  See [`5-state-tax-model.md`](5-state-tax-model.md); Virginia is designed but not yet built.
 
 ## Roadmap
 
 The federal model expands along one remaining axis: the **survivor's penalty** (Phase 3).
 Phase 1 (two-person MFJ) has shipped. **Per-state income tax moved to its own document** —
-see [`5-state-tax-model.md`](5-state-tax-model.md) for the FL/TX/GA/VA design, constants,
-and annual-review procedure.
+see [`5-state-tax-model.md`](5-state-tax-model.md) for the per-state design, constants, and
+annual-review procedure; the nine no-income-tax states and Georgia are live, Virginia is next.
 
 ### Locked-in scope (planning decisions)
 
@@ -144,12 +160,13 @@ Simplifications (disclosed): pooled accounts with one RMD age; both spouses assu
 the shared horizon (no survivor penalty, no mortality model); the spouse has no separate
 part-time, pension, or HSA inputs in this phase.
 
-### Phase 2 — Per-state income-tax modules (moved)
+### Phase 2 — Per-state income-tax modules (moved, partly shipped)
 
 This phase now has its own document: [`5-state-tax-model.md`](5-state-tax-model.md). It
-covers the FL/TX/GA/VA scope, the verified per-state constants with primary sources, the
-rules-data schema, how state tax threads into the withdrawal engine, and the annual-review
-procedure. It is versioned separately because it is re-verified every year, per state.
+covers the per-state scope, the verified constants with primary sources, the rules-data schema,
+how state tax threads into the withdrawal engine, and the annual-review procedure. It is
+versioned separately because it is re-verified every year, per state. Shipped so far: the nine
+no-income-tax states and Georgia; Virginia is specified but not yet built.
 
 ### Phase 3 — Survivor's ("widow's") penalty (deferred)
 

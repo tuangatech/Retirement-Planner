@@ -76,6 +76,33 @@ describe('executeWithdrawals', () => {
         expect(withState.shortfall).toBeCloseTo(0, 6);
     });
 
+    // Regression: the tax-smart fill is sized to the FEDERAL deduction floor, so its federal
+    // tax is ~0 — but a state applies its own, smaller shield. Treating the fill as net = gross
+    // left the year short by the state tax on it every single year.
+    it('charges state tax on the tax-smart fill, which the federal floor does not shield', () => {
+        const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 0, hsa: 0 };
+        const args = [60, 20_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7] as const;
+
+        const federalOnly = executeWithdrawals(
+            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, 0
+        );
+        const withState = executeWithdrawals(
+            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, 0.0499
+        );
+
+        // At 60 the floor is the $16,100 base deduction, so both fill $16,100 first, then
+        // top up from tax-deferred at the combined marginal rate.
+        //   federal only: 16,100 + 3,900/0.88   = $20,531.82
+        //   with GA:      16,100 + 4,703.39/0.8301 = $21,765.93
+        // Before the fix the state case drew only $20,798 — $968 short of covering the year.
+        expect(federalOnly.withdrawals.taxDeferred).toBeCloseTo(20_531.8, 0);
+        expect(withState.withdrawals.taxDeferred).toBeCloseTo(21_765.9, 0);
+
+        // The invariant that matters: each still nets exactly the $20,000 the year needed.
+        expect(federalOnly.withdrawals.taxDeferred - federalOnly.taxOnWithdrawals).toBeCloseTo(20_000, 0);
+        expect(withState.withdrawals.taxDeferred - withState.taxOnWithdrawals).toBeCloseTo(20_000, 0);
+    });
+
     it('leaves withdrawals unchanged when the state marginal rate is 0', () => {
         const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 0, hsa: 0 };
         const args = [65, 20_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7] as const;

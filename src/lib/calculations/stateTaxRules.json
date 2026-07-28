@@ -14,6 +14,30 @@
                 "noIncomeTax": "https://floridarevenue.com/taxes/taxesfees/Pages/default.aspx"
             }
         },
+        "GA": {
+            "taxesIncome": true,
+            "socialSecurity": "exempt",
+            "rate": { "kind": "flat", "rate": 0.0499 },
+            "standardDeduction": [{ "fromYear": 2026, "single": 15000, "married": 30000 }],
+            "retirementBenefit": {
+                "kind": "ga_exclusion",
+                "tiers": [
+                    { "fromYear": 2026, "age62": 35000, "age65": 65000 },
+                    { "fromYear": 2027, "age62": 35000, "age65": 70000 }
+                ],
+                "earnedIncomeSublimit": 5000
+            },
+            "note": "HB 463's further rate cuts (-0.125%/yr toward a 3.99% floor) and standard-deduction increases (+$375/+$750/yr) are CONTINGENT on revenue triggers, so both are frozen at their TY2026 values — see docs/5-state-tax-model.md §2 Rule 1. The TY2027 exclusion step-up to $70,000 is unconditional in the same bill, so it IS modeled. No age-65 addition to the standard deduction exists under the flat-tax structure. Constants come from the enacted bill text and IT-511, NOT the DoR web pages, which are stale and contradict each other on the earned-income sublimit.",
+            "caveat": "Georgia tax is likely overstated: HB 463's scheduled rate cuts and standard-deduction increases depend on state revenue triggers, so both stay frozen at TY2026 values (4.99%; $15,000 single / $30,000 married). Note that tax-smart withdrawals sized to the federal deduction floor can still owe Georgia tax before age 62, when the retirement exclusion has not yet begun. For couples, the per-person exclusion is applied to pooled household income, which over-excludes when only one spouse has retirement income.",
+            "sources": {
+                "rate": "https://www.legis.ga.gov/api/legislation/document/20252026/249080",
+                "standardDeduction": "https://www.legis.ga.gov/api/legislation/document/20252026/249080",
+                "exclusionStepUp2027": "https://www.legis.ga.gov/api/legislation/document/20252026/249080",
+                "retirementExclusion": "https://dor.georgia.gov/document/document/2025-it-511-individual-income-tax-booklet/download",
+                "earnedIncomeSublimit": "https://dor.georgia.gov/document/document/2025-it-511-individual-income-tax-booklet/download",
+                "socialSecurityExempt": "https://dor.georgia.gov/document/document/2025-it-511-individual-income-tax-booklet/download"
+            }
+        },
         "NH": {
             "taxesIncome": false,
             "note": "The Interest & Dividends Tax was repealed effective 1 Jan 2025 (HB 2, 2023 session), so NH taxes no individual income for TY2026 onward.",

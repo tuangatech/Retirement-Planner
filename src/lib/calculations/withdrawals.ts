@@ -226,9 +226,15 @@ export function executeWithdrawals(
 
             if (fillAmount > 0) {
                 withdrawals.taxDeferred += fillAmount;
-                // Within the deduction floor → ~0 marginal tax, so the net proceeds equal
-                // the gross draw. Reduce the remaining need accordingly.
-                cashFlowGap -= fillAmount;
+                // Federally the draw sits inside the deduction floor, so its federal tax is
+                // ~0 and gross ≈ net. State tax is a different matter: the floor this fill is
+                // sized to is the *federal* one, while a state applies its own, much smaller
+                // shield (Georgia's $15k standard deduction, with no retirement exclusion at
+                // all before age 62). So the fill can owe state tax, and charging it here is
+                // what keeps the year from spending money it never withdrew.
+                const stateTaxOnFill = fillAmount * stateMarginalRate;
+                taxOnWithdrawals += stateTaxOnFill;
+                cashFlowGap -= fillAmount - stateTaxOnFill;
             }
         }
     }

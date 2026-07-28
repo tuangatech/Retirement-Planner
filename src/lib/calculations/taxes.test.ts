@@ -141,6 +141,23 @@ describe('calculateTotalTaxes (aggregation)', () => {
         expect(t.total).toBeCloseTo(5400.24, 2);
     });
 
+    // docs/2-federal-tax-model.md's verified reference: a Georgia couple both 65+ with $80,400
+    // gross, $43,200 of it Social Security. Georgia's side really is $0 (pinned in
+    // stateTax.test.ts); the federal side is not, because the PDF's federal zero leans on the
+    // 0% long-term capital-gains bracket this tool deliberately does not model. Taking the
+    // non-SS $37,200 as tax-deferred withdrawals instead:
+    //   taxable SS 18,580 + withdrawals 37,200        = 55,780 base
+    //   deduction 32,200 + 1,650×2 + senior 6,000×2   = 47,500
+    //   (55,780 − 47,500) × 12%                       = $993.60
+    it('leaves a small federal bill for the zero-tax-bill couple — the 0% LTCG bracket is not modeled', () => {
+        const t = calculateTotalTaxes(
+            { ...income, socialSecurity: 43200 },
+            { taxDeferred: 37200, roth: 0, taxable: 0 },
+            0.12, 0.85, 0.7, 0, /* age */ 66, /* year */ 2026, 1, 0, 'married_joint', true, /* spouseAge */ 66,
+        );
+        expect(t.total).toBeCloseTo(993.6, 2);
+    });
+
     it('never taxes Roth withdrawals', () => {
         const withRoth = calculateTotalTaxes(
             income, { taxDeferred: 0, roth: 50000, taxable: 0 },
