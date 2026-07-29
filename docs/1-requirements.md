@@ -350,10 +350,10 @@ and print (includes assumptions, static charts, no interactive elements).
 
 ## 12. TECHNICAL SPECIFICATIONS
 
-- **Stack:** React 18 + TypeScript, Vite, Tailwind + shadcn/ui, Recharts, React Router v6,
-  React Context + React Hook Form/Zod. No backend.
+- **Stack:** React 19 + TypeScript 5, Vite 8, Tailwind 3 + shadcn/ui, Recharts 3, React Router v7,
+  React Context. No form library — inputs are controlled components with HTML-level bounds. No backend.
 - **Engine:** pure, unit-tested TypeScript modules in `src/lib/calculations/` (taxes, rmd,
-  socialSecurity, income, expenses, withdrawals, hsa, random, yearlyProjection); Monte Carlo
+  socialSecurity, income, expenses, withdrawals, hsa, random, stateTax, yearlyProjection); Monte Carlo
   runs in a **Web Worker** (fixed 10,000 runs). Determinism: seeded Mulberry32, 2 `rng()` calls
   per simulated year.
 - **Storage/Export:** localStorage (inputs only, JSON); CSV + JSON verification-bundle export.

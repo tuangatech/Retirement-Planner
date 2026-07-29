@@ -7,7 +7,7 @@ A privacy-first, Monte Carlo simulation-based retirement planning tool that help
 [![CI](https://github.com/tuangatech/retirement-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/tuangatech/retirement-planner/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.2-blue)](https://reactjs.org/)
+[![React](https://img.shields.io/badge/React-19-blue)](https://react.dev/)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 ### 👉 [**Try the live demo**](https://retirement-planner-blond.vercel.app/) — no install, runs entirely in your browser
@@ -50,7 +50,8 @@ age-tiered retirement exclusion and Virginia's means-tested age deduction) ·
 Social Security (claiming age, COLA, earnings test, provisional-income taxability) ·
 RMDs from age 75 · Medicare premiums and IRMAA · pre-Medicare healthcare · HSA (incl. age-65+
 flexibility) · pensions, part-time work, and rental income · phase-based spending (Go-Go /
-Slow-Go / No-Go) · three withdrawal strategies, including gap-year Roth conversions.
+Slow-Go / No-Go) · two active withdrawal strategies — standard priority order and tax-smart
+deduction-floor filling (a third, gap-year Roth conversions, is scaffolded but disabled).
 
 **What it deliberately does *not* model** — pre-retirement accumulation · **state income tax for
 the other 40 states** (fold your rate into the marginal rate yourself) ·
@@ -73,15 +74,15 @@ Several of these gaps are open, well-scoped contribution opportunities — see
 
 ## 🛠️ Tech Stack
 
-- **React 18** + **TypeScript 5** — UI and type-safe logic
-- **Vite 5** — build tool and dev server
-- **React Router 6** — client-side routing (Landing → Wizard → Results → Scenarios/Compare)
+- **React 19** + **TypeScript 5** — UI and type-safe logic
+- **Vite 8** — build tool and dev server (Rolldown bundler)
+- **React Router 7** — client-side routing (Landing → Wizard → Results → Scenarios/Compare)
 - **Tailwind CSS 3** + **shadcn/ui** (Radix UI primitives) — styling and components
-- **Recharts 2** — charts · **Lucide** — icons
+- **Recharts 3** — charts · **Lucide** — icons
 - **React Context API** — global state (no Redux)
 - **Web Workers** — Monte Carlo runs off the main thread
 - **localStorage** — scenario persistence (inputs only, not results)
-- **Vitest** — unit tests for the calculation engine
+- **Vitest 4** — unit tests for the calculation engine · **ESLint 9** (flat config) — linting
 
 ---
 
@@ -91,8 +92,9 @@ Several of these gaps are open, well-scoped contribution opportunities — see
 
 ### Prerequisites
 
-- **Node.js** v18+ and **npm** v9+
-- A modern browser with Web Worker support (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
+- **Node.js** 20.19+ or 22.12+ (required by Vite 8) and **npm** v10+
+- A current evergreen browser with Web Worker support. Vite 8 builds to
+  `baseline-widely-available` rather than a fixed target, so there is no pinned minimum version
 
 ### Installation
 
