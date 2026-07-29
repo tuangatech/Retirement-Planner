@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Privacy-first retirement **simulator** (React 18 + TS + Vite). Client-side Monte Carlo, no
+Privacy-first retirement **simulator** (React 19 + TS + Vite 8). Client-side Monte Carlo, no
 backend. "Tell me what you'll have at retirement, and I'll tell you if it lasts."
 
 ## Commands
