@@ -252,6 +252,7 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                         <h4 className="font-semibold mb-2">Financial:</h4>
                         <ul className="list-disc list-inside space-y-1">
                             <li><strong>The 10% early-withdrawal penalty</strong> on tax-deferred (401k/IRA) withdrawals before age 59½ — and the strategies that legitimately avoid it (Roth conversion ladder, 72(t)/SEPP, the rule of 55). If you retire before 59½ this plan understates the tax on those draws</li>
+                            <li><strong>Non-income state and local taxes</strong> — sales, property, excise, and estate/inheritance taxes. A state with no income tax is not automatically a low-tax state: several fund themselves through high property or sales tax instead, so this tool's state figure is not a total tax burden</li>
                             <li>Asset correlations between accounts</li>
                             <li>Sequence of returns risk mitigation strategies</li>
                             <li>Dynamic asset allocation (glide paths)</li>

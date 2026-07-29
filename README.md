@@ -57,7 +57,8 @@ the other 40 states** (fold your rate into the marginal rate yourself) ·
 ACA subsidies for pre-Medicare coverage · **long-term care** (often the largest single retirement
 risk) · the survivor's penalty for couples · per-spouse accounts (couples' balances are pooled) ·
 variable inflation · dynamic spending guardrails · fat-tail crashes · fees and transaction costs ·
-home equity, mortgages, and property taxes.
+home equity and mortgages · **non-income state and local taxes** (sales, property, excise) — a
+no-income-tax state is not necessarily a low-tax state.
 
 **Key simplifications** — one marginal rate above the standard deduction rather than the full
 10–37% brackets · long-term capital gains taxed at that same flat rate (no 0/15/20% brackets) ·
