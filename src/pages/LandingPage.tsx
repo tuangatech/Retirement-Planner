@@ -115,7 +115,7 @@ export default function LandingPage() {
                                     <li>• Long-term care (out of scope)</li>
                                     <li>• Simplified tax approach</li>
                                     <li>• Fixed life expectancy input</li>
-                                    <li>• Independent account returns</li>
+                                    <li>• ACA subsidies &amp; early-withdrawal penalties (out of scope)</li>
                                 </ul>
                             </div>
                         </div>
@@ -138,6 +138,7 @@ export default function LandingPage() {
                                     <li>• Pre-Medicare healthcare costs</li>
                                     <li>• HSA tax-free coverage</li>
                                     <li>• Part-time work scenarios</li>
+                                    <li>• State income tax for 11 states</li>
                                 </ul>
                             </div>
                         </div>
@@ -207,9 +208,9 @@ export default function LandingPage() {
                     </p>
 
                     <div className="grid md:grid-cols-3 gap-8 mb-12">
-                        <StepCard number="1" title="Your Plan" description="Filing status, your retirement timeline, and planned spending across three retirement phases" />
+                        <StepCard number="1" title="Your Plan" description="Filing status, your state, your retirement timeline, and planned spending across three retirement phases" />
                         <StepCard number="2" title="Savings & Income" description="Add your investment accounts (401k, Roth, HSA, taxable) and income sources (Social Security, pensions)" />
-                        <StepCard number="3-4" title="Healthcare & Strategy" description="Model pre-Medicare and Medicare costs, set tax rates and withdrawal order, then run Monte Carlo analysis" />
+                        <StepCard number="3-4" title="Healthcare & Strategy" description="Model pre-Medicare and Medicare costs, set your federal tax rate and withdrawal order, then run Monte Carlo analysis" />
                     </div>
 
                 </div>
