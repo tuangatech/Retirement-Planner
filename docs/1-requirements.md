@@ -29,7 +29,10 @@ Establishes the timeline and tax context that drive duration and phase transitio
 
 ### 2.1 Personal Information
 
-- **Retirement age** (50–75) — the simulation's starting point.
+- **Retirement age** (40–75) — the simulation's starting point. Below 59½ the plan understates
+  tax on tax-deferred draws: the 10% early-withdrawal penalty is not modeled, nor are the
+  strategies that avoid it (Roth conversion ladder, 72(t)/SEPP, rule of 55). Disclosed in the
+  Assumptions panel.
 - **Life expectancy** (70–110, default 90) — planning horizon.
 - **State** (50 states + DC) — **eleven states are modeled**: the nine with no individual income
   tax (AK, FL, NH, NV, SD, TN, TX, WA, WY), **Georgia** and **Virginia**. For those, state tax is
@@ -317,7 +320,7 @@ and print (includes assumptions, static charts, no interactive elements).
 
 ## 10. VALIDATION & ERROR HANDLING
 
-- **Ages:** retirement 50–75; life 70–110 and > retirement age; sequential phases; Medicare 65
+- **Ages:** retirement 40–75; life 70–110 and > retirement age; sequential phases; Medicare 65
   and RMD 75 are automatic (not user input).
 - **Amounts:** non-negative (returns may be negative); cost basis 0–100%; rates within range.
 - **Logical:** SS claiming 62–70; earnings-test warning when claiming before FRA while working;

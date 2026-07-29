@@ -181,10 +181,10 @@ export function Screen1Plan() {
                             value={retirementAge}
                             onChange={(e) => updatePersonal({ retirementAge: parseInt(e.target.value) || 0 })}
                             className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                            min="50"
+                            min="40"
                             max="75"
                         />
-                        <p className="text-xs text-gray-500 mt-1">When you stop working (50-75)</p>
+                        <p className="text-xs text-gray-500 mt-1">When you stop working (40-75)</p>
                     </div>
                     {isMFJ && (
                         <div>

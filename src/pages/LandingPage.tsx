@@ -115,7 +115,7 @@ export default function LandingPage() {
                                     <li>• Long-term care (out of scope)</li>
                                     <li>• Simplified tax approach</li>
                                     <li>• Fixed life expectancy input</li>
-                                    <li>• Independent account returns</li>
+                                    <li>• ACA subsidies &amp; early-withdrawal penalties (out of scope)</li>
                                 </ul>
                             </div>
                         </div>
@@ -129,15 +129,16 @@ export default function LandingPage() {
                                 Built for Early Retirement
                             </h3>
                             <p className="text-slate-600 mb-4">
-                                Retiring at 55? 58? 62? We're built for early retirement with detailed pre-Medicare healthcare modeling, HSA integration, and Social Security earnings test.
+                                Retiring at 45? 52? 58? We're built for early retirement with detailed pre-Medicare healthcare modeling, HSA integration, and Social Security earnings test.
                             </p>
                             <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-sm text-teal-900">
                                 <p className="font-semibold mb-2">What we include:</p>
                                 <ul className="space-y-1 text-sm">
-                                    <li>• Retirement ages 50-75</li>
+                                    <li>• Retirement ages 40-75</li>
                                     <li>• Pre-Medicare healthcare costs</li>
                                     <li>• HSA tax-free coverage</li>
                                     <li>• Part-time work scenarios</li>
+                                    <li>• State income tax for 11 states</li>
                                 </ul>
                             </div>
                         </div>
@@ -177,7 +178,7 @@ export default function LandingPage() {
                         <div>
                             <p className="text-sm font-semibold text-green-700 uppercase tracking-wide mb-3">Good fit</p>
                             <ul className="space-y-2 text-slate-700">
-                                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Early retirees &amp; FIRE planners (age 50–65)</span></li>
+                                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Early retirees &amp; FIRE planners (age 40–65)</span></li>
                                 <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>DIY investors who want to stress-test their plan</span></li>
                                 <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Anyone with pre-Medicare healthcare exposure</span></li>
                                 <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-1" /><span>Couples filing jointly (accounts modeled as pooled)</span></li>
@@ -207,9 +208,9 @@ export default function LandingPage() {
                     </p>
 
                     <div className="grid md:grid-cols-3 gap-8 mb-12">
-                        <StepCard number="1" title="Your Plan" description="Filing status, your retirement timeline, and planned spending across three retirement phases" />
+                        <StepCard number="1" title="Your Plan" description="Filing status, your state, your retirement timeline, and planned spending across three retirement phases" />
                         <StepCard number="2" title="Savings & Income" description="Add your investment accounts (401k, Roth, HSA, taxable) and income sources (Social Security, pensions)" />
-                        <StepCard number="3-4" title="Healthcare & Strategy" description="Model pre-Medicare and Medicare costs, set tax rates and withdrawal order, then run Monte Carlo analysis" />
+                        <StepCard number="3-4" title="Healthcare & Strategy" description="Model pre-Medicare and Medicare costs, set your federal tax rate and withdrawal order, then run Monte Carlo analysis" />
                     </div>
 
                 </div>
