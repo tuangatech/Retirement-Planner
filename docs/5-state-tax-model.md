@@ -24,6 +24,11 @@ re-checked by [`scripts/verify_plan.py`](../scripts/verify_plan.py).
 live. Every other state keeps the manual behavior: the user folds their state's rate into the
 single marginal rate on Screen 4.
 
+**Modeled means income tax only.** No state's sales, property, excise, or estate tax is modeled,
+in any of the eleven. That asymmetry matters most for the nine no-income-tax states, where the
+engine returns a true $0 that is easy to misread as a low total burden — several of them fund
+themselves through property or sales tax instead. Disclosed in the Assumptions panel.
+
 The nine no-income-tax states cost almost nothing to model (`taxesIncome: false` → `return 0`)
 and need no annual formula review, only a check that none of them has enacted an income tax:
 
