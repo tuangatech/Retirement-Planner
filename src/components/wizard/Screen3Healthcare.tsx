@@ -131,6 +131,8 @@ export function Screen3Healthcare() {
                                     })
                                 }
                                 className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                step="25"
+                                min="0"
                             />
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Typical: $600–1,200/month per person</p>
@@ -150,6 +152,8 @@ export function Screen3Healthcare() {
                                     })
                                 }
                                 className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                step="100"
+                                min="0"
                             />
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Deductibles, copays, prescriptions</p>
@@ -206,6 +210,8 @@ export function Screen3Healthcare() {
                                     })
                                 }
                                 className="w-full pl-7 pr-10 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                step="5"
+                                min="0"
                             />
                             <span className="absolute right-3 top-2 text-gray-500">/mo</span>
                         </div>
@@ -240,6 +246,8 @@ export function Screen3Healthcare() {
                                     })
                                 }
                                 className="w-full pl-7 pr-10 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                step="5"
+                                min="0"
                             />
                             <span className="absolute right-3 top-2 text-gray-500">/mo</span>
                         </div>
@@ -276,6 +284,8 @@ export function Screen3Healthcare() {
                                     })
                                 }
                                 className="w-full pl-7 pr-10 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                step="5"
+                                min="0"
                             />
                             <span className="absolute right-3 top-2 text-gray-500">/mo</span>
                         </div>
@@ -349,6 +359,8 @@ export function Screen3Healthcare() {
                                             })
                                         }
                                         className="w-full pl-7 pr-10 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                        step="10"
+                                        min="0"
                                     />
                                     <span className="absolute right-3 top-2 text-gray-500">/mo</span>
                                 </div>
@@ -398,6 +410,8 @@ export function Screen3Healthcare() {
                                         })
                                     }
                                     className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                    step="100"
+                                    min="0"
                                 />
                             </div>
                             <p className="text-xs text-gray-500 mt-1">Default: ${DEFAULT_VALUES.healthcare.medicare.outOfPocketByPhase.phase1.toLocaleString()}/year (active, healthy)</p>
@@ -420,6 +434,8 @@ export function Screen3Healthcare() {
                                         })
                                     }
                                     className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                    step="100"
+                                    min="0"
                                 />
                             </div>
                             <p className="text-xs text-gray-500 mt-1">Default: ${DEFAULT_VALUES.healthcare.medicare.outOfPocketByPhase.phase2.toLocaleString()}/year (more care needed)</p>
@@ -442,6 +458,8 @@ export function Screen3Healthcare() {
                                         })
                                     }
                                     className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                                    step="100"
+                                    min="0"
                                 />
                             </div>
                             <p className="text-xs text-gray-500 mt-1">Default: ${DEFAULT_VALUES.healthcare.medicare.outOfPocketByPhase.phase3.toLocaleString()}/year (significant needs)</p>

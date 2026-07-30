@@ -231,7 +231,7 @@ export function Screen2SavingsIncome() {
                                 <span className="absolute left-3 top-2 text-gray-500">$</span>
                                 <input type="number" value={income.socialSecurity.monthlyBenefitAtFRA}
                                     onChange={(e) => updateSocialSecurity({ monthlyBenefitAtFRA: parseFloat(e.target.value) || 0 })}
-                                    className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                    className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" min="0" step="50" />
                             </div>
                             <p className="text-xs text-gray-500 mt-1">From ssa.gov/myaccount</p>
                         </div>
@@ -243,7 +243,7 @@ export function Screen2SavingsIncome() {
                             <div className="relative">
                                 <input type="number" value={(income.socialSecurity.colaRate * 100).toFixed(1)}
                                     onChange={(e) => updateSocialSecurity({ colaRate: parseFloat(e.target.value) / 100 || 0 })}
-                                    className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="0.1" />
+                                    className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="0.1" min="0" max="10" />
                                 <span className="absolute right-3 top-2 text-gray-500">%</span>
                             </div>
                             <p className="text-xs text-gray-500 mt-1">Default {(DEFAULT_VALUES.income.socialSecurity.colaRate * 100).toFixed(1)}%</p>
@@ -354,7 +354,7 @@ export function Screen2SavingsIncome() {
                                                         <span className="absolute left-3 top-2 text-gray-500 text-sm">$</span>
                                                         <input type="number" value={pension.monthlyAmount}
                                                             onChange={(e) => handlePensionChange(pension.id, 'monthlyAmount', parseFloat(e.target.value) || 0)}
-                                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="100" min="0" />
+                                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="50" min="0" />
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
@@ -416,7 +416,7 @@ export function Screen2SavingsIncome() {
                                         <span className="absolute left-3 top-2 text-gray-500">$</span>
                                         <input type="number" value={income.partTimeWork.annualIncome}
                                             onChange={(e) => updatePartTimeWork({ annualIncome: parseFloat(e.target.value) || 0 })}
-                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="1000" min="0" />
                                     </div>
                                 </div>
                                 <div>
@@ -463,7 +463,7 @@ export function Screen2SavingsIncome() {
                                         <span className="absolute left-3 top-2 text-gray-500">$</span>
                                         <input type="number" value={income.rentalIncome.annualNetIncome}
                                             onChange={(e) => updateRentalIncome({ annualNetIncome: parseFloat(e.target.value) || 0 })}
-                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" />
+                                            className="w-full pl-7 pr-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500" step="1000" min="0" />
                                     </div>
                                 </div>
                                 <div>
