@@ -8,6 +8,72 @@
                 "noIncomeTax": "https://tax.alaska.gov/programs/whatsnew.aspx"
             }
         },
+        "CA": {
+            "taxesIncome": true,
+            "socialSecurity": "exempt",
+            "rate": {
+                "kind": "graduated_by_status",
+                "single": [
+                    { "upTo": 11079, "rate": 0.01 },
+                    { "upTo": 26264, "rate": 0.02 },
+                    { "upTo": 41452, "rate": 0.04 },
+                    { "upTo": 57542, "rate": 0.06 },
+                    { "upTo": 72724, "rate": 0.08 },
+                    { "upTo": 371479, "rate": 0.093 },
+                    { "upTo": 445771, "rate": 0.103 },
+                    { "upTo": 742953, "rate": 0.113 },
+                    { "upTo": null, "rate": 0.123 }
+                ],
+                "married": [
+                    { "upTo": 22158, "rate": 0.01 },
+                    { "upTo": 52528, "rate": 0.02 },
+                    { "upTo": 82904, "rate": 0.04 },
+                    { "upTo": 115084, "rate": 0.06 },
+                    { "upTo": 145448, "rate": 0.08 },
+                    { "upTo": 742958, "rate": 0.093 },
+                    { "upTo": 891542, "rate": 0.103 },
+                    { "upTo": 1485906, "rate": 0.113 },
+                    { "upTo": null, "rate": 0.123 }
+                ]
+            },
+            "standardDeduction": [
+                {
+                    "fromYear": 2025,
+                    "single": 5706,
+                    "married": 11412
+                }
+            ],
+            "exemptionCredit": {
+                "perFiler": 168,
+                "age65Addition": 168,
+                "phaseOut": {
+                    "threshold": {
+                        "single": 252203,
+                        "married": 504411
+                    },
+                    "reductionPerIncrement": {
+                        "single": 6,
+                        "married": 12
+                    },
+                    "increment": 2500
+                }
+            },
+            "surtax": {
+                "threshold": 1000000,
+                "rate": 0.01
+            },
+            "note": "California indexes brackets, the standard deduction, and the exemption credit to the California CPI each year (R&TC §17041(h)), but the adjustment factor for a given tax year depends on CPI data through June of THAT year (§17041(h)(1)) — so unlike GA/VA's forward-enacted schedules, CA's current-year figures cannot be finalized in advance. FTB's own 2026 Form 540-ES instructions confirm this: they direct taxpayers estimating 2026 tax to use the 2025 rate table and the 2025 exemption credit amount. This entry therefore uses TY2025's closed-out, fully confirmed figures (dated accordingly) rather than a projection. Bracket dollar thresholds were cross-derived from EDD's official 2026 payroll withholding schedule, whose Method B tables publish rates at exactly 1.1x the real marginal rate (a known CA withholding markup); dividing back out recovers the statutory brackets, and the extra breakpoint the withholding table inserts for married filers independently confirms the Behavioral Health Services Tax's $1,000,000 threshold is NOT doubled for joint returns (it lands at $1,000,000 combined, not $2,000,000). The exemption credit ($168 / $168 senior addition) is likewise EDD's Table 4 allowance-credit figure rather than a direct FTB Form 540 citation, since ftb.ca.gov blocks automated fetches; R&TC §17054(c) confirms the senior addition shares the same $52 (1987) base and the same annual indexing clause as the base personal credit in §17054(a), so the two must be equal in any given year. Not modeled: the dependent exemption credit and the blind exemption (retirees rarely have dependents — same reasoning as Georgia's unmodeled dependent exemption, docs/5-state-tax-model.md §6). Capital gains are taxed as ordinary income — California has no preferential rate.",
+            "caveat": "California's bracket, standard-deduction, and exemption-credit figures are indexed to California CPI but cannot be finalized until partway through the year they cover, so this plan uses the last officially confirmed tax year (2025) — the true current-year figures, once published, will differ modestly (CA's own inflation adjustment is typically 2-4%/year). California also levies a 1% Behavioral Health Services Tax (formerly the Mental Health Services Tax) on taxable income above $1,000,000 — a threshold that does NOT double for joint filers, a real marriage penalty at that income level.",
+            "sources": {
+                "brackets": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17041.&lawCode=RTC",
+                "bracketAmounts": "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf",
+                "standardDeduction": "https://www.ftb.ca.gov/forms/2026/2026-540-es-instructions.pdf",
+                "exemptionCredit": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17054.&lawCode=RTC",
+                "exemptionCreditAmount": "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf",
+                "behavioralHealthServicesTax": "https://www.ftb.ca.gov/forms/2026/2026-540-es-instructions.pdf",
+                "socialSecurityExempt": "https://www.ftb.ca.gov/file/personal/income-types/social-security.html"
+            }
+        },
         "FL": {
             "taxesIncome": false,
             "sources": {

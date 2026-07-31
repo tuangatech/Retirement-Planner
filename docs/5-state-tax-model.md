@@ -4,10 +4,10 @@ How the simulator models **state** income tax, which states are modeled, the ver
 constants with their primary sources, and the procedure for re-verifying them every year.
 Federal tax is a separate model — see [`2-federal-tax-model.md`](2-federal-tax-model.md).
 
-**Status: all three PRs shipped** (§9). The engine, the rules data, the wizard surface, and the
-verifier are in place, and **all eleven modeled states are live** — the nine with no income tax,
-Georgia (§4.2) and Virginia (§4.3). Every other state still folds its burden into the user's
-manual marginal rate.
+**Status: four PRs shipped** (§9). The engine, the rules data, the wizard surface, and the
+verifier are in place, and **all twelve modeled states are live** — the nine with no income tax,
+Georgia (§4.2), Virginia (§4.3), and California (§4.4). Every other state still folds its burden
+into the user's manual marginal rate.
 
 Implementation: [`stateTax.ts`](../src/lib/calculations/stateTax.ts) (logic) +
 [`stateTaxRules.json`](../src/lib/calculations/stateTaxRules.json) (constants, read by both the
@@ -20,9 +20,9 @@ re-checked by [`scripts/verify_plan.py`](../scripts/verify_plan.py).
 
 ## 1. Scope
 
-**Modeled: the nine states with no individual income tax, plus GA and VA — eleven in total**, all
-live. Every other state keeps the manual behavior: the user folds their state's rate into the
-single marginal rate on Screen 4.
+**Modeled: the nine states with no individual income tax, plus GA, VA, and CA — twelve in
+total**, all live. Every other state keeps the manual behavior: the user folds their state's
+rate into the single marginal rate on Screen 4.
 
 **Modeled means income tax only.** No state's sales, property, excise, or estate tax is modeled,
 in any of the eleven. That asymmetry matters most for the nine no-income-tax states, where the
@@ -39,10 +39,13 @@ and need no annual formula review, only a check that none of them has enacted an
 | NH | Interest & Dividends tax **repealed effective 1 Jan 2025** (HB 2, 2023 session) |
 | WA | No income tax, but a **capital-gains excise tax** applies above a high threshold — see below |
 
-GA and VA cover *structurally different* retiree benefits — GA gives a per-person,
-income-type-scoped **exclusion**; VA gives a household-level, means-tested **age deduction** —
-and between them exercise every field the rules schema needs for both a flat-rate and a
-graduated-rate state. NY and CA are deferred; §10 records what they would add.
+GA, VA, and CA cover *structurally different* retiree benefits and rate shapes — GA gives a
+per-person, income-type-scoped **exclusion** under a flat rate; VA gives a household-level,
+means-tested **age deduction** under a single graduated schedule; CA has **no retiree benefit at
+all**, but its brackets vary by filing status, its personal/senior exemption is a **credit**
+applied after tax rather than a deduction from taxable income, and it adds a flat **surtax**
+above $1,000,000. Between the three, every field the rules schema carries is exercised. NY is
+deferred; §10 records what it would add.
 
 ### Washington's capital-gains excise tax: disclosed, not modeled
 
@@ -62,7 +65,7 @@ income tax" for WA without that caveat.
 
 ### Why a blended rate is not good enough
 
-Two effects in the modeled states are impossible to express as a single added-on percentage:
+Three effects in the modeled states are impossible to express as a single added-on percentage:
 
 - **Georgia's exclusion starts at age 62** ($35,000) and reaches $65,000 only at 65. An
   early retiree pays GA tax on essentially all tax-deferred draws until 62, then watches the
@@ -74,6 +77,11 @@ Two effects in the modeled states are impossible to express as a single added-on
 - **Virginia's age deduction phases out dollar-for-dollar**, which *doubles* the marginal rate
   to ~11.5% inside a $12,000-wide band and drops it back to 5.75% above it (§4.3). The rate is
   not even monotonic in income, let alone constant.
+- **California's Behavioral Health Services Tax adds a full extra point** above $1,000,000 of
+  taxable income — 12.3% below the line, 13.3% above it — and the threshold does not double for
+  joint filers, so the same combined income owes different tax married than single (§4.4). Rare
+  at this tool's typical income levels, but a draw large enough to cross the line is exactly the
+  case a flat rate mis-sizes, the same failure mode as Virginia's band.
 
 ---
 
@@ -189,22 +197,31 @@ the engine. For reference, its shape is:
   **doubled to 11.5% inside the age-deduction phase-out band**, and back to 5.75% above it
   (§4.3). Not monotonic — the only place in this engine where withdrawing *more* lowers the
   marginal rate.
+- **CA** → 0 below the standard deduction, then 1%–12.3% up the bracket schedule (by filing
+  status), with the exemption credit stepping down $6–$12 at a time as $2,500 increments of AGI
+  pass by, and **+1 point above $1,000,000 taxable** from the surtax (§4.4). No age or income-
+  type scoping at all — the only modeled state where a retiree's benefit is exactly $0.
 
 **Result: the state gross-up is exact, not an estimate.** Across a 60-seed sweep of the default
 plan, phantom spending fell from ~$12 per run to **$0.52** in Georgia (worst single year −$362 →
-**−$0.21**), and Virginia — carrying roughly 9× Georgia's lifetime bill — leaks the same
-sub-dollar rounding as a no-income-tax state. What remains is the $1 convergence threshold in
-`solveGrossForNet`, which can now fall either side of zero rather than always over-withdrawing.
+**−$0.21**), and Virginia and California — carrying materially different tax bills — leak the
+same sub-dollar rounding as a no-income-tax state (Virginia **$0.74**, California **$0.68**,
+worst year −$0.26). What remains is the $1 convergence threshold in `solveGrossForNet`, which can
+now fall either side of zero rather than always over-withdrawing.
 
-### Both income-taxing states compute from federal AGI
+### All three income-taxing states compute from federal AGI
 
 No new income plumbing is needed — every input already exists inside `calculateTotalTaxes`:
 
 ```
-stateAGI     = federalAGI − federallyTaxableSS       (both states exempt SS)
+stateAGI     = federalAGI − federallyTaxableSS       (every modeled state exempts SS)
 stateTaxable = max(0, stateAGI − stateBenefit − stateStandardDeduction − stateExemptions)
-stateTax     = applyRate(stateTaxable)
+stateTax     = max(0, applyRate(stateTaxable) − exemptionCredit) + surtax
 ```
+
+`exemptionCredit` and `surtax` are both $0 for GA and VA — California is the only state where the
+personal/senior exemption is a *credit* subtracted after `applyRate` rather than folded into
+`stateExemptions` before it, and the only one with a flat add-on above a threshold (§4.4).
 
 In the code that subtraction is structural rather than arithmetic. `StateTaxInputs` carries the
 *components* of federal AGI — pensions, part-time work, rental, tax-deferred withdrawals,
@@ -371,6 +388,95 @@ birth year instead of an age (the same reasoning behind `RMD_START_AGE` in
 [`rmd.ts`](../src/lib/calculations/rmd.ts)). Also not modeled: the blind exemption, military
 benefits subtraction, and conformity adjustments.
 
+### 4.4 California
+
+California has **no retirement-income benefit of any kind** — no age-tiered exclusion like
+Georgia, no age deduction like Virginia. Ordinary income is ordinary income at any age. Its
+complexity is structural instead: brackets vary by filing status (unlike Virginia's single
+schedule), the personal/senior exemption is a *credit* subtracted from computed tax rather than
+a deduction from taxable income, and a flat surtax applies above $1,000,000.
+
+**Formula**
+
+```
+caAGI      = federalAGI − federallyTaxableSS
+caTaxable  = max(0, caAGI − standardDeduction)                    (no benefit to subtract)
+bracketTax = applyBrackets(caTaxable, ratesForFilingStatus)
+credit     = max(0, perFiler×filers + age65Addition×seniors − phaseOutReduction)
+regularTax = max(0, bracketTax − credit)
+surtax     = 0.01 × max(0, caTaxable − 1,000,000)                 (never doubled for MFJ)
+caTax      = regularTax + surtax
+```
+
+**Exemption credit phase-out** — R&TC §17054: the credit shrinks $6 (single/MFS) or $12
+(married) per $2,500 increment of state AGI over the threshold, floored at $0:
+
+```
+increments = ceil(max(0, agi − threshold) / 2,500)
+credit     = max(0, baseCredit − increments × reductionPerIncrement)
+```
+
+A step function, not Virginia's smooth dollar-for-dollar phase-out — the credit only drops when
+cumulative AGI crosses a new $2,500 line, so it adds at most a $6–$12 blip to the bill at each
+crossing rather than elevating the marginal *rate* the way Virginia's deduction does. The
+withdrawal gross-up prices that blip correctly anyway, because it re-evaluates this whole
+function at each candidate draw rather than assuming linearity (§3) — the mechanism built for
+Virginia's much larger effect turned out to generalize for free.
+
+**Behavioral Health Services Tax** (Prop 63; renamed from the Mental Health Services Tax by
+Prop 1, 2024) — confirmed directly from FTB's own 2026 Form 540-ES instructions, which show it
+computed on Form 540 line 19 taxable income and added on a separate line, *not* reducible by
+credits:
+
+> "Behavioral Health Services Tax (previously Mental Health Services Tax) – If your taxable
+> income … is more than $1,000,000, complete the worksheet below. … Tax rate – 1%."
+
+The $1,000,000 threshold does **not** double for joint filers — confirmed both by that
+instruction (one universal subtraction on the combined-household Form 540, with no
+filing-status-specific line) and independently, by cross-checking where CA's official 2026
+payroll withholding schedule inserts an extra bracket for married filers (see below). Two
+people each earning $700,000 owe no surtax individually; married and filing jointly on the same
+combined $1,400,000, they owe 1% of $400,000 — a real marriage penalty.
+
+**Why these are TY2025 constants, not TY2026.** California indexes brackets, the standard
+deduction, and the exemption credit to the California CPI annually (R&TC §17041(h)), but the
+adjustment factor for a given tax year depends on CPI data through **June of that same year**
+(§17041(h)(1)) — unlike Georgia's and Virginia's forward-enacted, dated schedules, California's
+current-year figures cannot exist in advance. FTB's own 2026 Form 540-ES instructions confirm
+this directly: they tell taxpayers estimating 2026 tax to compute it "using the 2025 tax table"
+and to take the exemption credit "from the 2025 instructions for Form 540." This module does the
+same — it holds TY2025's closed-out, fully confirmed figures, dated accordingly in the schema,
+rather than a projection. This makes California's annual review different in kind from Georgia's
+and Virginia's: re-verify against the *closed* year's Form 540 booklet once it is confirmed, not
+against a forecast of the year in progress (§11).
+
+**Constants (TY2025)**
+
+| Constant | Single | Married | Primary source |
+|---|---|---|---|
+| Brackets | 1% $0 / 2% $11,079 / 4% $26,264 / 6% $41,452 / 8% $57,542 / 9.3% $72,724 / 10.3% $371,479 / 11.3% $445,771 / 12.3% $742,953 | 1% $0 / 2% $22,158 / 4% $52,528 / 6% $82,904 / 8% $115,084 / 9.3% $145,448 / 10.3% $742,958 / 11.3% $891,542 / 12.3% $1,485,906 | R&TC [§17041](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17041.&lawCode=RTC) (schedule + indexing mechanism); dollar thresholds cross-derived from [EDD's 2026 withholding schedule](https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf) |
+| Standard deduction | $5,706 | $11,412 | FTB [2026 Form 540-ES instructions](https://www.ftb.ca.gov/forms/2026/2026-540-es-instructions.pdf), line 2b |
+| Personal exemption credit | $168 | $336 (2×$168) | R&TC [§17054](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17054.&lawCode=RTC)(a); dollar amount from EDD's Table 4 allowance credit |
+| Senior (65+) addition | +$168/qualifying spouse | same | R&TC §17054(c) — same $52 (1987) base and indexing clause as (a), so must equal it in any given year |
+| Credit phase-out | $6 per $2,500 over $252,203 | $12 per $2,500 over $504,411 | R&TC §17054; secondary-sourced (TaxBuzz, LegalClarity) — not independently pulled from the code section text |
+| Behavioral Health Services Tax | 1% over $1,000,000, not doubled for MFJ | same | FTB 2026 Form 540-ES instructions, Behavioral Health Services Tax worksheet |
+| Social Security | exempt | same | [FTB — Social Security](https://www.ftb.ca.gov/file/personal/income-types/social-security.html) |
+| Capital gains | ordinary rates, no preference | same | California has no preferential capital-gains rate |
+
+**On the bracket derivation.** ftb.ca.gov returns HTTP 403 to automated fetches, so the bracket
+dollar thresholds above were recovered from CA's official EDD payroll-withholding schedule
+instead: its Method B tables publish rates at exactly **1.1×** the real marginal rate (a known
+CA withholding markup, confirmed by dividing every published rate by 1.1 and recovering exactly
+1% / 2% / 4% / 6% / 8% / 9.3% / 10.3% / 11.3% / 12.3%). The thresholds themselves need no such
+adjustment. Cross-checking *where* the withholding table inserts its extra married-filer
+breakpoint (at $1,000,000, not at 2×$742,953=$1,485,906) independently confirmed the surtax's
+non-doubling behavior before the FTB instructions document made it explicit.
+
+Not modeled: the exemption-credit high-income phase-out is implemented (above), but the
+dependent exemption credit and the blind exemption are not — retirees rarely have dependents,
+the same reasoning as Georgia's unmodeled dependent exemption (§6). No local income tax exists
+in California, so unlike New York there is nothing to add there.
+
 ---
 
 ## 5. Rules data: schema and where it lives
@@ -391,9 +497,11 @@ do not repeat that pattern for 11+ states.
 > separately implemented. A wrong constant is caught by human review against the primary
 > source; a wrong formula is caught by the verifier.
 
-Shape the eleven modeled states need — all of it now committed. The lines marked `// VA` are
-Virginia's additions; `filingThreshold` is Virginia-only too. `reviewedFor` is one top-level field
-in the JSON rather than per state — the whole file is reviewed together.
+Shape the twelve modeled states need — all of it now committed. The lines marked `// VA` are
+Virginia's additions and `// CA` are California's; `filingThreshold` is Virginia-only,
+`exemptionCredit` and `surtax` are California-only. `reviewedFor` is one top-level field in the
+JSON rather than per state — the whole file is reviewed together, even though California's own
+entry is internally dated a year behind GA/VA (§4.4).
 
 ```ts
 type StateTaxRules = {
@@ -408,10 +516,20 @@ type StateTaxRules = {
         socialSecurity: 'exempt';           // widen when a state that taxes SS is added
         rate:
             | { kind: 'flat'; rate: number }
-            | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> };  // VA
+            | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> }   // VA
+            | { kind: 'graduated_by_status';                                                  // CA
+                single: Array<{ upTo: number | null; rate: number }>;
+                married: Array<{ upTo: number | null; rate: number }> };
         // Year-keyed: the last entry already in force, else the earliest (`pickForYear`).
         standardDeduction: Array<{ fromYear: number; single: number; married: number }>;
         personalExemption?: { perFiler: number; age65Addition: number };                      // VA
+        exemptionCredit?: {                                                                   // CA
+            perFiler: number; age65Addition: number;
+            phaseOut: { threshold: { single: number; married: number };
+                        reductionPerIncrement: { single: number; married: number };
+                        increment: number };
+        };
+        surtax?: { threshold: number; rate: number };                                         // CA
         filingThreshold?: { single: number; married: number };                                // VA
         retirementBenefit?:
             | { kind: 'ga_exclusion'; tiers: Array<{ fromYear: number; age62: number; age65: number }>;
@@ -423,9 +541,11 @@ type StateTaxRules = {
 ```
 
 `retirementBenefit` is a discriminated union rather than a generalized "exclusion" record —
-two structurally different benefits do not justify an abstraction over benefits nobody has
-written yet. §10 lists what NY and CA would add, which is what is needed to widen it later
-without a rewrite.
+structurally different benefits do not justify an abstraction over benefits nobody has written
+yet, and California proves the point the other way: it needs the field to exist but never
+populates it. `exemptionCredit` and `surtax` are separate top-level fields rather than folded
+into `retirementBenefit` because they apply to every CA filer, not just retirees. §10 lists what
+NY would add, which is what is needed to widen the schema further without a rewrite.
 
 ---
 
@@ -450,8 +570,9 @@ without a rewrite.
   It used to multiply the draw by a single probed rate, which left ~$12 per run of phantom spending
   in Georgia. It now re-runs the state's own formula at each candidate draw (§3), so the residual
   is only `solveGrossForNet`'s $1 convergence threshold: **$0.52 per run in Georgia, $0.74 in
-  Virginia, $0.45 in Texas** — indistinguishable from a state with no income tax. Pinned by tests
-  in [`yearlyProjection.test.ts`](../src/lib/calculations/yearlyProjection.test.ts).
+  Virginia, $0.68 in California, $0.45 in Texas** — indistinguishable from a state with no income
+  tax. Pinned by tests in
+  [`yearlyProjection.test.ts`](../src/lib/calculations/yearlyProjection.test.ts).
 - **The gross-up treats every taxable draw as ordinary state income.** The callback takes one
   `draws` figure, so a brokerage gain and a non-medical HSA distribution are priced as
   tax-deferred income. Exact for both in Virginia (no income-type scoping, no capital-gains
@@ -472,10 +593,20 @@ without a rewrite.
   [`yearlyProjection.ts`](../src/lib/calculations/yearlyProjection.ts) does inflate because it
   genuinely is indexed — do not "fix" the inconsistency.
 - **Washington's capital-gains excise tax is not modeled** — see §1 for the threshold and why.
-- **No local income taxes** (relevant when NY lands: NYC and Yonkers).
+- **No local income taxes** (relevant when NY lands: NYC and Yonkers; California has none).
 - **No part-year or multi-state residency.** One state for the whole retirement.
-- **No state-level credits**, dependent exemptions, itemized deductions, or conformity
-  adjustments.
+- **No state-level credits beyond the modeled ones** (California's personal/senior exemption
+  credit, including its phase-out) — no CalEITC, dependent credits, itemized deductions, or
+  conformity adjustments.
+- **California's exemption-credit phase-out is implemented but only secondary-sourced.** The
+  $6/$12-per-$2,500 mechanism and the $252,203/$504,411 thresholds come from tax-prep
+  publications (TaxBuzz, LegalClarity), not an independently pulled quote of R&TC §17054's
+  phase-out subsection — flagged for a follow-up primary-source check, though the effect is at
+  most $168–$336 and only reachable above $252k/$504k of retirement income (§4.4).
+- **California's brackets, standard deduction, and exemption credit are TY2025 constants**, not
+  TY2026 — a structural consequence of CA's indexing depending on same-year CPI data that cannot
+  exist until the year is nearly over, confirmed by FTB's own 2026 estimated-tax instructions
+  (§4.4). The true current-year figures, once finalized, will differ modestly.
 
 ---
 
@@ -544,7 +675,7 @@ change, not part of this work.
 
 ## 9. Delivery plan
 
-Three PRs. The integration risk and the formulas are deliberately separated.
+Four PRs. The integration risk and the formulas are deliberately separated.
 
 1. ✅ **Plumbing + the nine no-income-tax states.** Rules JSON and typed wrapper, `stateTax.ts`,
    the engine touch points, `taxes.stateTax` output, the `stateTaxMode` flag and its
@@ -554,6 +685,10 @@ Three PRs. The integration risk and the formulas are deliberately separated.
 3. ✅ **Virginia.** Brackets, age-deduction phase-out, the 2030 cliff, the filing threshold,
    tests. The "doubled marginal rate in the gross-up" line turned out to be the wrong framing:
    the fix was to stop computing a rate at all and pass the state formula itself (§3).
+4. ✅ **California.** Brackets by filing status, the credit-based exemption and its phase-out,
+   the Behavioral Health Services Tax, tests. No new touch points or gross-up mechanism needed —
+   the function-based design built for Virginia's phase-out priced California's surtax kink and
+   credit step-downs correctly on the first attempt.
 
 `verify_plan.py` must move in PR 1, not later: its `Total Tax = Fixed + Payroll + Withdrawal`
 check fails as soon as `taxes.stateTax` exists and is nonzero.
@@ -571,41 +706,38 @@ touch point exercised only with zero is a touch point not yet tested.
 multiplies — and Georgia passed every test while the engine still linearised the state side.
 Virginia's phase-out band, where the marginal rate genuinely varies *within* a single draw, is what
 exposed it (§3). Generalising again: **a state whose formula is linear cannot test whether you
-assumed linearity.** The remaining candidates (§10) all have graduated rates, so this particular
-trap should not recur — but the shape of the mistake will.
+assumed linearity.** California's graduated, by-status brackets plus its surtax kink is a second,
+independent case that could have exposed the same class of bug — it didn't need to, because the
+function-based design generalised cleanly the first time.
 
 ---
 
-## 10. Schema survey: what NY and CA would add
+## 10. Schema survey: what NY would add
 
-Neither is implemented, and neither state's constants are verified here. This table exists so
-the schema in §5 can be widened later without a rewrite — it answers "what fields does each
-state force?", not "what are the numbers?"
+Not implemented, and its constants are not verified here. This table exists so the schema in §5
+can be widened later without a rewrite — it answers "what fields does each state force?", not
+"what are the numbers?"
 
-| Dimension | FL/TX | GA | VA | NY | CA |
+| Dimension | FL/TX | GA | VA | CA | NY |
 |---|---|---|---|---|---|
 | Income tax | none | flat | graduated | graduated | graduated |
-| Brackets vary by filing status | — | n/a | **no** | **yes** | **yes** |
-| Brackets indexed annually | — | n/a | no | yes | **yes** |
+| Brackets vary by filing status | — | n/a | no | **yes** | **yes** |
+| Brackets indexed annually | — | n/a | no | **yes** | yes |
 | Social Security | — | exempt | exempt | exempt | exempt |
-| Retiree benefit shape | — | per-person income-type **exclusion** | household **means-tested deduction** | **per-source exclusion** | **none** |
-| Benefit is source-dependent | — | no (most income lumped) | no | **yes** (government pension 100%; private/IRA $20k) | — |
-| Age threshold | — | 62 / 65 | 65 | **59½** (non-integer) | — |
+| Retiree benefit shape | — | per-person income-type **exclusion** | household **means-tested deduction** | **none** | **per-source exclusion** |
+| Benefit is source-dependent | — | no (most income lumped) | no | — | **yes** (government pension 100%; private/IRA $20k) |
+| Age threshold | — | 62 / 65 | 65 | — | **59½** (non-integer) |
 | Means-tested | — | no | **yes** (AFAGI, $1:$1) | no | no |
-| Personal exemption | — | dependents only | deduction | deduction | **credit, not deduction** |
-| Local surcharge | — | no | no | **yes** (NYC, Yonkers) | no (but 1% MHST over $1M) |
+| Personal exemption | — | dependents only | deduction | **credit, not deduction** | deduction |
+| Local surcharge | — | no | no | no (but 1% BHST over $1M) | **yes** (NYC, Yonkers) |
 | Capital gains | — | ordinary | ordinary | ordinary | ordinary |
 
-**What NY forces:** bracket tables keyed by filing status; a *source-partitioned* exclusion;
-a non-integer age threshold; locality surcharges.
+**What NY forces:** bracket tables keyed by filing status (California already forced this,
+§4.4); a *source-partitioned* exclusion; a non-integer age threshold; locality surcharges.
 
 **Open product question, to settle before NY research begins:** NY's exclusion splits
 government from private pension income. Our `Pension` type has no such flag, so NY requires a
 new wizard input and a change to the input model — a product decision, not a tax-module one.
-
-**What CA forces:** annually-indexed bracket tables (a maintenance cost every year, not just
-on law changes) and personal exemptions as **credits applied after tax is computed**, which is
-an ordering change rather than a new field.
 
 ---
 
@@ -623,6 +755,14 @@ State constants are year-specific. Once a year, and whenever a modeled state pas
 3. Re-check the **contingent** escalators (Rule 1): if a Georgia revenue trigger actually
    fired, the frozen value changes. That is a constants update, not a model change.
 4. Run `npm test` and `python3 scripts/verify_plan.py` on a fresh export.
+
+**California's review is in arrears, not in advance (§4.4).** GA and VA can be re-verified as
+soon as a new tax year's statute or enacted schedule is public — sometimes months before that
+year begins. California's brackets, deduction, and exemption credit cannot be finalized until
+after the CPI look-back window for that year closes, so there is nothing to re-verify against
+until the *closed* year's FTB Form 540 booklet is published (typically the following January).
+Re-verifying "TY2026" before then would mean re-deriving another provisional EDD withholding
+projection, not confirming a final number — wait for the real booklet instead.
 
 **Using an LLM for this:** treat it as a *change detector*, never as the source of truth —
 "here is the 2027 IT-511 and our committed Georgia constants; tell me which moved and quote
@@ -649,6 +789,12 @@ the success rate shifts a couple of points and nothing looks broken.
 [Virginia Tax — Deductions](https://www.tax.virginia.gov/deductions) ·
 [Virginia Tax — Subtractions](https://www.tax.virginia.gov/subtractions)
 
-**Survey only, constants not verified** — [NY — Information for seniors](https://www.tax.ny.gov/pit/file/information_for_seniors.htm) ·
-[CA FTB — Social Security](https://www.ftb.ca.gov/file/personal/income-types/social-security.html) ·
-[CA FTB Pub. 1005 — Pension and Annuity Guidelines](https://www.ftb.ca.gov/forms/2024/2024-1005-publication.pdf)
+**California** — [R&TC § 17041 (rate schedule + indexing)](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17041.&lawCode=RTC) ·
+[R&TC § 17054 (exemption credits)](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17054.&lawCode=RTC) ·
+[FTB 2026 Form 540-ES instructions](https://www.ftb.ca.gov/forms/2026/2026-540-es-instructions.pdf) (standard deduction, Behavioral Health Services Tax worksheet, and the note directing 2026 estimates to the 2025 tables) ·
+[EDD California Withholding Schedules for 2026](https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf) (bracket dollar thresholds and the exemption allowance credit, both cross-derived — see §4.4) ·
+[FTB — Social Security](https://www.ftb.ca.gov/file/personal/income-types/social-security.html) ·
+ftb.ca.gov itself returns HTTP 403 to automated fetches, which is why the above lean on
+leginfo.legislature.ca.gov and EDD instead.
+
+**Survey only, constants not verified** — [NY — Information for seniors](https://www.tax.ny.gov/pit/file/information_for_seniors.htm)

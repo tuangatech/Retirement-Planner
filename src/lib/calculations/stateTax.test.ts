@@ -37,6 +37,11 @@ function vaTax(overrides: Partial<StateTaxInputs> = {}): number {
     return computeStateTax(getStateTaxRules('VA'), { ...INPUTS, ...overrides }).tax;
 }
 
+/** California tax for `INPUTS` with the given fields replaced. */
+function caTax(overrides: Partial<StateTaxInputs> = {}): number {
+    return computeStateTax(getStateTaxRules('CA'), { ...INPUTS, ...overrides }).tax;
+}
+
 /**
  * Average state rate over $1,000 more tax-deferred withdrawal.
  *
@@ -72,8 +77,8 @@ describe('computeStateTax', () => {
     });
 
     it('reports an unmodeled state as not modeled, so the UI does not claim otherwise', () => {
-        // CA is deliberately deferred — the user's marginal rate carries its burden.
-        const result = computeStateTax(getStateTaxRules('CA'), INPUTS);
+        // NY is deliberately deferred — the user's marginal rate carries its burden.
+        const result = computeStateTax(getStateTaxRules('NY'), INPUTS);
         expect(result.tax).toBe(0);
         expect(result.modeled).toBe(false);
     });
@@ -311,6 +316,100 @@ describe('Virginia', () => {
     });
 });
 
+// California has no age-tiered exclusion or age deduction at all — ordinary income is ordinary
+// income. Its complexity is structural instead: brackets vary by filing status, the personal/
+// senior exemption is a CREDIT subtracted from tax rather than a deduction from taxable income,
+// and a 1% surtax applies above $1,000,000 of taxable income (docs/5-state-tax-model.md §4.4).
+describe('computeStateTax — California', () => {
+    it('taxes AGI above the standard deduction through the single bracket schedule', () => {
+        // AGI $88,000 − $5,706 standard deduction = $82,294 taxable, landing in the 9.3% bracket.
+        // Bracket tax $4,091.98 − $168 exemption credit (not 65) = $3,923.98.
+        expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 88000 })).toBeCloseTo(3923.98, 2);
+    });
+
+    it('uses the married bracket schedule and doubles the exemption credit, not the single one', () => {
+        // Same $88,000 AGI, but married brackets are wider and the credit doubles to $336.
+        expect(
+            caTax({
+                ...PENSION_ONLY,
+                filingStatus: 'married_joint',
+                age: 62,
+                spouseAge: 60,
+                pensions: 88000,
+            })
+        ).toBeCloseTo(1455.38, 2);
+    });
+
+    it('adds the age-65 credit addition per qualifying spouse, on top of the base credit', () => {
+        expect(caTax({ ...PENSION_ONLY, age: 65, pensions: 88000 })).toBeCloseTo(3755.98, 2);
+        expect(
+            caTax({
+                ...PENSION_ONLY,
+                filingStatus: 'married_joint',
+                age: 66,
+                spouseAge: 67,
+                pensions: 88000,
+            })
+        ).toBeCloseTo(1119.38, 2);
+    });
+
+    it('owes $0 below the standard deduction — the credit cannot make tax negative', () => {
+        expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 5000 })).toBe(0);
+    });
+
+    // R&TC §17054: the credit shrinks $6 (single) per $2,500 of state AGI over the threshold,
+    // floored at $0 — a step function, not Virginia's smooth dollar-for-dollar phase-out.
+    describe('exemption credit phase-out', () => {
+        it('applies no reduction at or below the threshold', () => {
+            expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 252203 })).toBeCloseTo(19194.86, 2);
+        });
+
+        it('reduces the credit by one $6 increment for $1 over the threshold', () => {
+            // Crossing the line costs $6 of credit — i.e. the bill jumps $6 more than the
+            // bracket tax on that single extra dollar alone would predict.
+            const at = (pensions: number) => caTax({ ...PENSION_ONLY, age: 62, pensions });
+            expect(at(252204) - at(252203)).toBeCloseTo(0.093 + 6, 2);
+        });
+
+        it('floors the credit at $0 once fully phased out, rather than going negative', () => {
+            // $252,203 + 40 x $2,500 fully exhausts the $168 credit (40 x $6 = $240 > $168).
+            expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 350000 })).toBeCloseTo(28457.98, 2);
+        });
+    });
+
+    // Prop 63 / FTB Form 540-ES: the $1,000,000 threshold does NOT double for joint filers —
+    // a real marriage penalty, and the reason it is tested explicitly rather than assumed.
+    describe('Behavioral Health Services Tax (formerly Mental Health Services Tax)', () => {
+        it('adds 1% of taxable income above $1,000,000', () => {
+            expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 1050000 })).toBeCloseTo(109727.71, 2);
+        });
+
+        it('owes no surtax for two singles who would each owe it if their income were combined', () => {
+            const eachAlone = caTax({ ...PENSION_ONLY, age: 62, pensions: 525000 });
+            const combinedMarried = caTax({
+                ...PENSION_ONLY,
+                filingStatus: 'married_joint',
+                age: 62,
+                spouseAge: 60,
+                pensions: 1050000,
+            });
+            // $525,000 each: neither individually crosses $1,000,000 taxable, so no surtax.
+            expect(eachAlone).toBeCloseTo(46946.36, 2);
+            // The same combined income filed jointly crosses the UNDOUBLED $1,000,000 line.
+            expect(combinedMarried).toBeCloseTo(94278.6, 2);
+            expect(combinedMarried).toBeGreaterThan(eachAlone * 2);
+        });
+
+        it('is not reduced by the exemption credit — it is added after', () => {
+            // At $1,050,000 the credit is fully phased out anyway (agi far past $252,203), so
+            // this pins the ordering: surtax sits outside the max(0, bracketTax − credit) floor.
+            const withSurtax = caTax({ ...PENSION_ONLY, age: 62, pensions: 1050000 });
+            const withoutSurtaxIncome = caTax({ ...PENSION_ONLY, age: 62, pensions: 1000000 });
+            expect(withSurtax).toBeGreaterThan(withoutSurtaxIncome);
+        });
+    });
+});
+
 // What the withdrawal gross-up actually depends on. A state's marginal rate is NOT its headline
 // rate, and it is not even constant across one year's draw — which is why `executeWithdrawals`
 // takes the whole state formula as a function (docs/5-state-tax-model.md §3).
@@ -394,11 +493,21 @@ describe('marginal rate on the next dollar of withdrawal', () => {
         expect(blended).toBeLessThan(inBand);
         expect(blended).toBeCloseTo((12000 * 0.115 + 18000 * 0.0575) / 30000, 6);
     });
+
+    it('CA: is the bracket rate on an ordinary draw — no exclusion or deduction ever narrows it', () => {
+        // $88,000 of pension sits taxable income ($82,294) inside the 9.3% bracket, away from
+        // both the credit phase-out and the $1,000,000 surtax line.
+        expect(marginalRate('CA', { ...PENSION_ONLY, age: 62, pensions: 88000 })).toBeCloseTo(0.093, 6);
+    });
+
+    it('CA: gains one extra point above $1,000,000 taxable, from the surtax', () => {
+        expect(marginalRate('CA', { ...PENSION_ONLY, age: 62, pensions: 1050000 })).toBeCloseTo(0.133, 6);
+    });
 });
 
 describe('state tax rules data', () => {
-    it('models the nine no-income-tax states plus Georgia and Virginia', () => {
-        expect(modeledStates().sort()).toEqual([...NO_INCOME_TAX_STATES, 'GA', 'VA'].sort());
+    it('models the nine no-income-tax states plus Georgia, Virginia, and California', () => {
+        expect(modeledStates().sort()).toEqual([...NO_INCOME_TAX_STATES, 'CA', 'GA', 'VA'].sort());
     });
 
     it('records the tax year the constants were verified against', () => {
@@ -423,6 +532,7 @@ describe('state tax rules data', () => {
         expect(isStateModeled('FL')).toBe(true);
         expect(isStateModeled('GA')).toBe(true);
         expect(isStateModeled('VA')).toBe(true);
+        expect(isStateModeled('CA')).toBe(true);
         expect(isStateModeled('NY')).toBe(false);
     });
 });
@@ -451,5 +561,16 @@ describe('stateTaxDisclosure', () => {
 
     it('discloses that frozen contingent escalators overstate GA tax', () => {
         expect(stateTaxDisclosure('GA')?.caveat).toMatch(/revenue trigger/i);
+    });
+
+    it('summarises CA with its graduated top rate and the surtax note', () => {
+        const disclosure = stateTaxDisclosure('CA');
+        expect(disclosure?.summary).toContain('12.30%');
+        expect(disclosure?.summary).toMatch(/Social Security is exempt/);
+        expect(disclosure?.summary).toMatch(/1% surtax above \$1,000,000/);
+    });
+
+    it('discloses that CA figures are dated to the last confirmed tax year', () => {
+        expect(stateTaxDisclosure('CA')?.caveat).toMatch(/cannot be finalized/i);
     });
 });

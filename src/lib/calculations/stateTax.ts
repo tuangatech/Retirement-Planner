@@ -16,13 +16,15 @@
  * the state tax every year and the plan "spends" money it never took out.
  *
  * Scope today: the nine states with no individual income tax, plus Georgia (flat rate, per-person
- * retirement exclusion) and Virginia (graduated brackets, household age deduction).
+ * retirement exclusion), Virginia (graduated brackets, household age deduction), and California
+ * (brackets by filing status, a credit-based exemption, and a flat surtax above $1,000,000).
  */
 
 import type { USState } from '@/types';
 import type { FilingStatus } from './taxes';
 import {
     getStateTaxRules,
+    type CaExemptionCredit,
     type GaExclusion,
     type IncomeTaxRules,
     type StateTaxRules,
@@ -185,6 +187,36 @@ function personalExemptions(rules: IncomeTaxRules, inputs: StateTaxInputs): numb
     return exemption.perFiler * filers + exemption.age65Addition * countAtLeastAge(inputs, 65);
 }
 
+/**
+ * California's personal/senior exemption credit, phased out $6 (single/MFS) or $12 (married)
+ * per $2,500 increment of state AGI over the threshold (R&TC §17054), floored at $0.
+ *
+ * A step function, not a smooth dollar-for-dollar reduction like Virginia's age deduction: the
+ * credit only drops when cumulative AGI crosses a new $2,500 line, so it does not create an
+ * elevated marginal *rate* the way Virginia's phase-out does — it adds at most a $6-$12 blip at
+ * each crossing. The withdrawal gross-up (§3) prices that blip correctly anyway, because it
+ * already re-evaluates this whole formula at each candidate draw rather than assuming linearity.
+ *
+ * Phased out against state AGI rather than federal AGI: the two differ only by the excluded SS
+ * amount, which is immaterial at the $252k+/$504k+ incomes where this phase-out even starts.
+ */
+function caExemptionCredit(credit: CaExemptionCredit, inputs: StateTaxInputs, agi: number): number {
+    const filers = inputs.filingStatus === 'married_joint' ? 2 : 1;
+    const base = credit.perFiler * filers + credit.age65Addition * countAtLeastAge(inputs, 65);
+
+    const threshold =
+        inputs.filingStatus === 'married_joint'
+            ? credit.phaseOut.threshold.married
+            : credit.phaseOut.threshold.single;
+    const perIncrement =
+        inputs.filingStatus === 'married_joint'
+            ? credit.phaseOut.reductionPerIncrement.married
+            : credit.phaseOut.reductionPerIncrement.single;
+
+    const increments = Math.ceil(Math.max(0, agi - threshold) / credit.phaseOut.increment);
+    return Math.max(0, base - increments * perIncrement);
+}
+
 /** Marginal-bracket tax. `upTo: null` marks the top bracket. */
 function applyBrackets(
     brackets: Array<{ upTo: number | null; rate: number }>,
@@ -237,9 +269,28 @@ function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
         agi - benefit - standardDeduction - personalExemptions(rules, inputs)
     );
 
-    return rules.rate.kind === 'flat'
-        ? taxable * rules.rate.rate
-        : applyBrackets(rules.rate.brackets, taxable);
+    const bracketTax =
+        rules.rate.kind === 'flat'
+            ? taxable * rules.rate.rate
+            : rules.rate.kind === 'graduated'
+              ? applyBrackets(rules.rate.brackets, taxable)
+              : applyBrackets(
+                    inputs.filingStatus === 'married_joint' ? rules.rate.married : rules.rate.single,
+                    taxable
+                );
+
+    // California's exemption credit reduces computed TAX, not taxable income (§4.4) — the
+    // opposite ordering from Virginia's deduction-style personalExemption above.
+    const credit =
+        rules.exemptionCredit === undefined ? 0 : caExemptionCredit(rules.exemptionCredit, inputs, agi);
+    const regularTax = Math.max(0, bracketTax - credit);
+
+    // The Behavioral Health Services Tax is computed on taxable income directly and is not
+    // reducible by the exemption credit — it is added after, per FTB's own worksheet (§4.4).
+    const surtax =
+        rules.surtax === undefined ? 0 : rules.surtax.rate * Math.max(0, taxable - rules.surtax.threshold);
+
+    return regularTax + surtax;
 }
 
 /**
@@ -281,7 +332,9 @@ export function stateTaxDisclosure(
     const rate =
         rules.rate.kind === 'flat'
             ? `${(rules.rate.rate * 100).toFixed(2)}% flat rate`
-            : `graduated rates to ${(rules.rate.brackets[rules.rate.brackets.length - 1].rate * 100).toFixed(2)}%`;
+            : rules.rate.kind === 'graduated'
+              ? `graduated rates to ${(rules.rate.brackets[rules.rate.brackets.length - 1].rate * 100).toFixed(2)}%`
+              : `graduated rates to ${(rules.rate.single[rules.rate.single.length - 1].rate * 100).toFixed(2)}%`;
 
     const benefit =
         rules.retirementBenefit === undefined
@@ -290,5 +343,10 @@ export function stateTaxDisclosure(
               ? '; Social Security is exempt and an age-tiered retirement-income exclusion applies from age 62'
               : '; Social Security is exempt and an income-tested age deduction applies from age 65';
 
-    return { summary: rate + benefit, caveat: rules.caveat };
+    const surtax =
+        rules.surtax === undefined
+            ? ''
+            : `; plus a ${(rules.surtax.rate * 100).toFixed(0)}% surtax above $${rules.surtax.threshold.toLocaleString()} taxable income`;
+
+    return { summary: rate + benefit + surtax, caveat: rules.caveat };
 }

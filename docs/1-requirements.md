@@ -34,10 +34,10 @@ Establishes the timeline and tax context that drive duration and phase transitio
   strategies that avoid it (Roth conversion ladder, 72(t)/SEPP, rule of 55). Disclosed in the
   Assumptions panel.
 - **Life expectancy** (70–110, default 90) — planning horizon.
-- **State** (50 states + DC) — **eleven states are modeled**: the nine with no individual income
-  tax (AK, FL, NH, NV, SD, TN, TX, WA, WY), **Georgia** and **Virginia**. For those, state tax is
-  computed and the marginal rate in Step 6 becomes **federal-only**. Every other state is guidance
-  only: fold your state's rate into that marginal rate yourself — see
+- **State** (50 states + DC) — **twelve states are modeled**: the nine with no individual income
+  tax (AK, FL, NH, NV, SD, TN, TX, WA, WY), **Georgia**, **Virginia**, and **California**. For
+  those, state tax is computed and the marginal rate in Step 6 becomes **federal-only**. Every
+  other state is guidance only: fold your state's rate into that marginal rate yourself — see
   [`5-state-tax-model.md`](5-state-tax-model.md).
 - **Filing status** — **single** or **married filing jointly**. MFJ reveals spouse age and
   (in Step 4) spouse Social Security. The couples model is specified in [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
@@ -181,7 +181,7 @@ Captures the two effects that dominate retiree taxation — **provisional-income
 Social Security** and the **standard-deduction "tax-free floor"** — then applies a single
 **marginal** rate above the floor. Full specification, constants (with sources), MFJ details,
 and RMD age in [`2-federal-tax-model.md`](2-federal-tax-model.md). **State** income tax is a
-separate model with its own constants and annual-review cycle, covering eleven states today
+separate model with its own constants and annual-review cycle, covering twelve states today
 (§2.1) — see [`5-state-tax-model.md`](5-state-tax-model.md).
 
 ### 6.1 Marginal Rate (above the deduction)
@@ -201,7 +201,7 @@ figures. In a **modeled** state this is your federal rate only; otherwise add a 
 your state actually taxes retirement income.
 
 **Not modeled:** full 10–37% brackets, 0/15/20% capital-gains brackets, and itemized
-deductions/credits. State-specific exemptions are modeled for the eleven states in §2.1 and
+deductions/credits. State-specific exemptions are modeled for the twelve states in §2.1 and
 approximated by the user's rate everywhere else.
 
 ### 6.2 Payroll Tax
@@ -373,9 +373,9 @@ Roughly in priority order (living list; not commitments):
 1. **Survivor's penalty & mortality for couples** — first-death transition (MFJ→single,
    deduction/IRMAA drop, smaller SS ends) and probabilistic mortality. Highest-value couples
    gap; see [`4-married-filing-jointly.md`](4-married-filing-jointly.md).
-2. **Per-state tax modules (in progress)** — the nine no-income-tax states and Georgia have
-   shipped; **Virginia** (age deduction with its dollar-for-dollar phase-out, graduated
-   brackets, 2030 deduction cliff) is next, then NY/CA. See [`5-state-tax-model.md`](5-state-tax-model.md).
+2. **Per-state tax modules (in progress)** — the nine no-income-tax states, Georgia, Virginia,
+   and **California** (brackets by filing status, credit-based exemption, Behavioral Health
+   Services Tax surtax) have shipped; **NY** is next. See [`5-state-tax-model.md`](5-state-tax-model.md).
 3. **Gap-year Roth conversions** — the Advanced withdrawal tier (UI stub exists).
 4. **Asset allocation / correlations per account** — stocks/bonds mix and diversification.
 5. **Dynamic spending / guardrails** (e.g. Guyton-Klinger).
@@ -395,7 +395,7 @@ one market shock; inflation is constant; spending is constant within a phase.
 
 **Scope constraints:** US-only; single or MFJ (couples modeled per [`4-married-filing-jointly.md`](4-married-filing-jointly.md), no
 survivor penalty yet); no pre-retirement accumulation; fixed life expectancy; simplified tax
-(marginal rate + deduction floor, no full brackets); no long-term care; state tax for eleven
+(marginal rate + deduction floor, no full brackets); no long-term care; state tax for twelve
 states only (§2.1); no ACA subsidies; no Roth conversions yet; no dynamic spending. Client-side only;
 localStorage is unencrypted ("don't use on shared computers"); no SSN/account numbers/names required.
 
@@ -426,7 +426,14 @@ qualified professionals (CFP, CPA, attorney) before making decisions."*
 
 ---
 
-**Document version:** 1.6 · **Last updated:** 2026-07-28 · **Status:** implemented, evolving.
+**Document version:** 1.7 · **Last updated:** 2026-07-30 · **Status:** implemented, evolving.
+
+**Changes from v1.6:** Virginia shipped (age deduction, dollar-for-dollar phase-out, graduated
+brackets, 2030 deduction cliff — still "specified but unbuilt" as of v1.6, below) and
+**California** followed (brackets by filing status, a credit-based personal/senior exemption
+with its own phase-out, and the Behavioral Health Services Tax surtax above $1,000,000). State
+income tax is now modeled for **twelve** states total. See
+[`5-state-tax-model.md`](5-state-tax-model.md).
 
 **Changes from v1.5:** state income tax is now modeled for **ten** states — the nine with no
 individual income tax plus **Georgia** (§2.1, §4.1, §6, §8.2, §13, §14). The marginal rate is
