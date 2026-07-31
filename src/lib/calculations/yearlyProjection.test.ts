@@ -287,6 +287,19 @@ describe('withdrawals cover the year they fund', () => {
         expect(leakPerRun).toBeLessThan(1);
     });
 
+    // California has no age-tiered exclusion or deduction to phase, but it does have the
+    // exemption-credit's step-function phase-out and the surtax's kink at $1,000,000 — neither
+    // reachable at the default plan's income, so this mainly guards against a regression that
+    // would surface only once a future test pushes income into either zone.
+    it('leaks nothing in California', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'CA';
+
+        const { worstYear, leakPerRun } = leakage(inputs);
+        expect(worstYear).toBeGreaterThan(-1);
+        expect(leakPerRun).toBeLessThan(1);
+    });
+
     it('holds for an early claiming age, which lands SS squarely in the phase-in', () => {
         const inputs = makeInputs();
         inputs.personal.state = 'TX';
@@ -327,7 +340,7 @@ describe('state tax', () => {
 
     it('reports $0 for an unmodeled state — its burden stays inside the marginal rate', () => {
         const inputs = makeInputs();
-        inputs.personal.state = 'CA';
+        inputs.personal.state = 'NY';
         inputs.tax.stateTaxMode = 'modeled';
 
         const r = runCompleteSimulation(inputs, createSeededRNG(7));
@@ -430,6 +443,24 @@ describe('state tax', () => {
         const from65 = (run: typeof r) =>
             run.projections.filter(p => p.age >= 65).reduce((s, p) => s + p.taxes.stateTax, 0);
         expect(from65(r)).toBeGreaterThan(from65(gaRun));
+    });
+
+    // California has no age-tiered exclusion or deduction — unlike Georgia and Virginia, its
+    // bill does not fall or phase as the retiree ages, only with the ordinary bracket schedule.
+    it('CA: charges real tax with no age-based benefit to phase, and folds it into the total', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'CA';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(7));
+        expect(r.projections.some(p => p.taxes.stateTax > 0)).toBe(true);
+
+        for (const p of r.projections) {
+            expect(p.taxes.total).toBeCloseTo(
+                p.taxes.onFixedIncome + p.taxes.onWithdrawals + p.taxes.payrollTax + p.taxes.stateTax,
+                6
+            );
+        }
     });
 
     it('keeps the cash-flow identity: income + withdrawals = expenses + tax + net', () => {

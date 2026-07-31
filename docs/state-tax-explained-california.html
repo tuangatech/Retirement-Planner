@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>California State Tax for Retirees — and how this simulator models it</title>
+<style>
+    :root {
+        --ink: #1a2733;
+        --ink-soft: #5a6b7b;
+        --line: #d9e1e8;
+        --paper: #fdfdfb;
+        --panel: #f4f7f9;
+        --ca: #a15c07;          /* California accent — poppy gold */
+        --ca-soft: #f7ecd9;
+        --free: #2f7d64;        /* deducted / untaxed */
+        --free-soft: #e6f2ee;
+        --taxed: #b45309;       /* taxed */
+        --taxed-soft: #fdf1e0;
+        --hot: #a02c2c;         /* the surtax / marriage penalty */
+        --hot-soft: #fbeaea;
+        --code: #24303c;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 56px 28px 96px; }
+
+    header { border-bottom: 3px solid var(--ink); padding-bottom: 22px; margin-bottom: 40px; }
+    .kicker {
+        font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .16em; text-transform: uppercase; color: var(--ca); margin-bottom: 14px;
+    }
+    h1 { font-size: 2.15rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -.02em; }
+    .standfirst { font-size: 1.1rem; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+
+    h2 {
+        font-size: 1.4rem; margin: 52px 0 8px; padding-top: 20px;
+        border-top: 1px solid var(--line); letter-spacing: -.01em;
+    }
+    h2 .num {
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ca); display: block; margin-bottom: 6px; letter-spacing: .12em;
+    }
+    h3 { font-size: 1.05rem; margin: 30px 0 6px; }
+    p { margin: 12px 0; }
+    strong { font-weight: 700; }
+
+    .lede { font-size: 1.05rem; color: var(--ink-soft); margin-top: 0; }
+
+    /* ---------- figures ---------- */
+    figure {
+        margin: 26px 0; padding: 22px 22px 16px;
+        background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    }
+    figcaption {
+        font: 500 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); margin-top: 14px; padding-top: 12px;
+        border-top: 1px dashed var(--line);
+    }
+    figcaption b { color: var(--ink); }
+    svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .lbl { font: 500 12px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-sm { font: 500 10.5px ui-sans-serif, system-ui, sans-serif; fill: var(--ink-soft); }
+    .lbl-num { font: 700 13px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-white { font: 700 12px ui-sans-serif, system-ui, sans-serif; fill: #fff; }
+
+    /* ---------- callouts ---------- */
+    .note, .warn, .key {
+        border-radius: 8px; padding: 16px 18px; margin: 24px 0;
+        font-size: .96rem;
+    }
+    .note { background: var(--panel); border-left: 4px solid var(--ink-soft); }
+    .warn { background: var(--taxed-soft); border-left: 4px solid var(--taxed); }
+    .key  { background: var(--ca-soft);  border-left: 4px solid var(--ca); }
+    .note p:first-child, .warn p:first-child, .key p:first-child { margin-top: 0; }
+    .note p:last-child, .warn p:last-child, .key p:last-child { margin-bottom: 0; }
+    .tag {
+        display: inline-block; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px;
+        margin-right: 8px; vertical-align: 2px;
+    }
+    .tag-ca { background: var(--ca); color: #fff; }
+    .tag-warn { background: var(--taxed); color: #fff; }
+    .tag-key { background: var(--ink); color: #fff; }
+
+    /* ---------- tables ---------- */
+    table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: .94rem; }
+    caption {
+        text-align: left; font: 600 13px ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); padding-bottom: 8px;
+    }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    th {
+        font: 600 12px ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--ink-soft); background: var(--panel);
+    }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: #fafcfd; }
+    .yes { color: var(--free); font-weight: 700; }
+    .no  { color: var(--taxed); font-weight: 700; }
+    tr.hot td { background: var(--hot-soft); }
+
+    code {
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--panel); padding: 1px 5px; border-radius: 4px; color: var(--code);
+    }
+    pre {
+        background: var(--code); color: #e8eef4; padding: 16px 18px; border-radius: 8px;
+        overflow-x: auto; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+    .cmt { color: #8fa6ba; }
+
+    ul, ol { padding-left: 22px; }
+    li { margin: 7px 0; }
+
+    footer {
+        margin-top: 64px; padding-top: 20px; border-top: 3px solid var(--ink);
+        font: 13px/1.6 ui-sans-serif, system-ui, sans-serif; color: var(--ink-soft);
+    }
+    a { color: var(--ca); }
+    @media print {
+        body { background: #fff; }
+        figure, table { break-inside: avoid; }
+        h2 { break-after: avoid; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+    <div class="kicker">Retirement Planner · Tax Model Explainer</div>
+    <h1>California state tax for retirees</h1>
+    <p class="standfirst">California gives retirees no age-based benefit at all — but its
+    personal exemption is a <em>credit</em>, not a deduction, its brackets vary by filing status,
+    and a 1% surtax above $1,000,000 does not double for joint filers. None of that is
+    hand-wavable into "add a few points," and none of it needed a single new mechanism in the
+    engine to get right.</p>
+</header>
+
+<p class="lede">Georgia excludes a large slice of retirement income by age. Virginia gives a
+means-tested age deduction. California gives <strong>neither</strong> — a 401(k) withdrawal at 70
+is taxed exactly like one at 60. Social Security is still fully exempt, as in every state this
+tool models. What makes California's engine work interesting is not a retiree benefit; it is
+three structural quirks that no other modeled state has, each of which forces a genuine design
+decision.</p>
+
+<div class="key">
+    <span class="tag tag-key">The whole model in one line</span>
+    <p style="margin-top:10px"><code>CA tax = max(0, brackets([federal AGI − taxable Social Security] − standard deduction) − exemption credit) + 1% × max(0, taxable − $1,000,000)</code></p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART ONE · THE TAX</span>A credit, not a deduction — and it comes off the tax</h2>
+
+<p>California starts exactly like Georgia and Virginia: federal AGI, minus the Social Security
+that was federally taxable, minus a standard deduction. There the family resemblance ends —
+there is no retirement exclusion or age deduction to subtract, so the next step is straight to
+the bracket schedule. The twist arrives after that: California's personal and senior exemptions
+are <strong>credits subtracted from the computed tax</strong>, not deductions subtracted from
+taxable income. Every other modeled state does the latter; California is the only one that does
+the former.</p>
+
+<figure>
+<svg viewBox="0 0 840 300" role="img" aria-label="Bar showing 88,000 dollars of California AGI split into a 5,706 dollar standard deduction and 82,294 dollars of taxable income, followed by a tax computation where a 168 dollar exemption credit is subtracted from the tax itself rather than from taxable income">
+    <text class="lbl" x="70" y="34" style="font-weight:700">$88,000 of California AGI (Social Security already removed)</text>
+
+    <rect x="70" y="52" width="45.4" height="58" fill="#2f7d64"/>
+    <rect x="115.4" y="52" width="654.6" height="58" fill="#a15c07"/>
+    <rect x="70" y="52" width="700" height="58" fill="none" stroke="#1a2733" stroke-width="1.2"/>
+
+    <text class="lbl-white" x="442.7" y="87" text-anchor="middle">CA taxable income   $82,294</text>
+
+    <path d="M92.7 110 L92.7 126" fill="none" stroke="#5a6b7b" stroke-width="1"/>
+    <rect x="70" y="140" width="12" height="12" fill="#2f7d64"/>
+    <text class="lbl-sm" x="90" y="150" style="fill:#2f7d64;font-weight:700">$5,706</text>
+    <text class="lbl-sm" x="146" y="150">standard deduction, single (TY2025) — no retirement exclusion exists to subtract here</text>
+
+    <line x1="70" y1="172" x2="770" y2="172" stroke="#d9e1e8"/>
+
+    <text class="lbl" x="70" y="196" style="font-weight:700">Bracket tax on $82,294 (single schedule)</text>
+    <text class="lbl-num" x="770" y="196" text-anchor="end">$4,091.98</text>
+
+    <text class="lbl" x="70" y="222" style="font-weight:700; fill:#a02c2c">− $168 personal exemption credit</text>
+    <text class="lbl-sm" x="70" y="238" style="fill:#a02c2c">subtracted from the TAX itself, not from taxable income — the opposite ordering from Georgia's and Virginia's benefits</text>
+    <text class="lbl-num" x="770" y="222" text-anchor="end" style="fill:#a02c2c">−$168.00</text>
+
+    <line x1="70" y1="252" x2="770" y2="252" stroke="#1a2733" stroke-width="1.2"/>
+    <text class="lbl" x="70" y="278" style="font-weight:700">California tax</text>
+    <text class="lbl-num" x="770" y="278" text-anchor="end" style="fill:#a15c07;font-size:15px">$3,923.98</text>
+</svg>
+<figcaption><b>Every figure here is the simulator's own output</b>, not an illustration — a single
+62-year-old with $88,000 of income (pensions, part-time work, rental, tax-deferred withdrawals,
+and brokerage gains, per <code>stateTax.test.ts</code>). At 65 the same household gets a $336
+credit (doubled by the senior addition) and pays $3,755.98 instead.</figcaption>
+</figure>
+
+<h3>The brackets vary by filing status</h3>
+<p>Unlike Virginia, whose single four-bracket schedule applies to every filer, California runs
+two separate schedules. The lower seven brackets double exactly for joint filers; the top two do
+not — a genuine feature of the statute, not an approximation:</p>
+
+<table>
+<caption>California rate schedule (TY2025) — the 9 brackets before the surtax</caption>
+<thead><tr><th class="num">Rate</th><th>Single / MFS</th><th>Married filing jointly</th></tr></thead>
+<tbody>
+    <tr><td class="num">1%</td><td>$0 – $11,079</td><td>$0 – $22,158</td></tr>
+    <tr><td class="num">2%</td><td>$11,079 – $26,264</td><td>$22,158 – $52,528</td></tr>
+    <tr><td class="num">4%</td><td>$26,264 – $41,452</td><td>$52,528 – $82,904</td></tr>
+    <tr><td class="num">6%</td><td>$41,452 – $57,542</td><td>$82,904 – $115,084</td></tr>
+    <tr><td class="num">8%</td><td>$57,542 – $72,724</td><td>$115,084 – $145,448</td></tr>
+    <tr><td class="num">9.3%</td><td>$72,724 – $371,479</td><td>$145,448 – $742,958</td></tr>
+    <tr><td class="num">10.3%</td><td>$371,479 – $445,771</td><td>$742,958 – $891,542</td></tr>
+    <tr><td class="num">11.3%</td><td>$445,771 – $742,953</td><td>$891,542 – $1,485,906</td></tr>
+    <tr><td class="num">12.3%</td><td>over $742,953</td><td>over $1,485,906</td></tr>
+</tbody>
+</table>
+
+<p>Retirement income does not get a preferential rate, and neither do capital gains: a brokerage
+gain is taxed identically to a 401(k) withdrawal, exactly as in Virginia and unlike the federal
+system's 0/15/20% long-term rates.</p>
+
+<div class="note">
+    <p><strong>The personal exemption credit: $168 single, $336 married, +$168 more per spouse
+    65+.</strong> Statutorily it is a fixed dollar amount ($52 in 1987) inflation-adjusted every
+    year by the same California-CPI factor that adjusts the brackets — R&amp;TC §17054. The
+    senior addition uses the identical base and indexing clause, so by statute it must equal the
+    base credit in any given year; it just stacks per qualifying spouse.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART TWO · THE SHAPE</span>A credit that steps down, and a line that doesn't double</h2>
+
+<p class="lede">Two effects give California a genuinely different shape from Virginia's — one much
+smaller, one much sharper.</p>
+
+<h3>The credit phases out in $6 steps, not smoothly</h3>
+<p>Above $252,203 of AGI (single) or $504,411 (married), the exemption credit shrinks $6 — or $12
+for joint filers — for every $2,500 increment of AGI over the threshold, floored at $0. This
+looks like Virginia's means test but behaves completely differently: Virginia's age deduction
+dies <em>continuously</em>, one dollar at a time, which is what doubles the marginal rate across
+its $12,000 band. California's credit only drops at $2,500 boundaries, so between crossings the
+marginal rate is whatever the bracket already says — untouched. Crossing a boundary adds a
+one-time $6 blip to the bill, not an elevated rate on everything around it:</p>
+
+<table>
+<caption>The single filer's exemption credit as AGI rises past the phase-out threshold</caption>
+<thead><tr><th>AGI</th><th class="num">Credit</th><th>What happened</th></tr></thead>
+<tbody>
+    <tr><td>$252,203 or below</td><td class="num yes">$168</td><td>Full credit — no reduction yet</td></tr>
+    <tr class="hot"><td>$252,204</td><td class="num">$162</td><td>One dollar over the line costs a $6 step</td></tr>
+    <tr><td>$254,703</td><td class="num">$162</td><td>Unchanged — still inside the same $2,500 band</td></tr>
+    <tr><td>$254,704</td><td class="num">$156</td><td>Crosses into the next band, another $6 gone</td></tr>
+    <tr><td>~$320,000 and above</td><td class="num no">$0</td><td>28 increments exhaust the $168 credit; it floors, never goes negative</td></tr>
+</tbody>
+</table>
+
+<p>At most $168–$336 is at stake, reachable only above a quarter-million dollars of retirement
+income — this app's audience essentially never gets there. It is implemented anyway, because
+the cost was small: the withdrawal engine already re-runs a state's whole formula at every
+candidate draw (Part Four), so a step function is no harder for it than a smooth curve.</p>
+
+<h3>The million-dollar line does not double for joint filers</h3>
+<p>California's Behavioral Health Services Tax (Prop 63 — renamed from the Mental Health Services
+Tax by Prop 1 in 2024) adds a flat 1% on top of the bracket tax for taxable income above
+$1,000,000. FTB's own 2026 Form 540-ES instructions describe it as a single subtraction on the
+household's combined taxable income, with no married-filer adjustment:</p>
+
+<blockquote style="margin:18px 0;padding:2px 20px;border-left:3px solid var(--ca);color:var(--ink-soft);font-size:.98rem">
+"Behavioral Health Services Tax (previously Mental Health Services Tax) – If your taxable
+income&nbsp;… is more than $1,000,000, complete the worksheet below. … Tax rate – 1%."
+</blockquote>
+
+<p>Because the $1,000,000 is a household figure regardless of filing status, two people who would
+each owe nothing filing singly can owe real money the moment they marry and file jointly on the
+same combined income:</p>
+
+<figure>
+<svg viewBox="0 0 840 240" role="img" aria-label="Comparison showing two single filers each earning 525,000 dollars owe no surtax individually, totaling 93,892.72 dollars, while the same combined 1,050,000 dollars filed jointly owes 94,278.60 dollars — 385.88 dollars more, entirely from the surtax">
+    <text class="lbl" x="70" y="26" style="font-weight:700">Same $1,050,000 of combined income — filing status alone changes the bill</text>
+
+    <rect x="70" y="42" width="700" height="44" rx="4" fill="#e6f2ee" stroke="#2f7d64"/>
+    <text class="lbl" x="82" y="64">Two single filers, $525,000 each — neither crosses $1,000,000 alone</text>
+    <text class="lbl-num" x="758" y="64" text-anchor="end">$93,892.72 combined</text>
+    <text class="lbl-sm" x="82" y="80" style="fill:#2f7d64">no Behavioral Health Services Tax owed by either return</text>
+
+    <rect x="70" y="98" width="700" height="44" rx="4" fill="#fbeaea" stroke="#a02c2c"/>
+    <text class="lbl" x="82" y="120">Married, filing jointly on the same $1,050,000 combined</text>
+    <text class="lbl-num" x="758" y="120" text-anchor="end" style="fill:#a02c2c;font-weight:700">$94,278.60</text>
+    <text class="lbl-sm" x="82" y="136" style="fill:#a02c2c">the $1,000,000 threshold is the same for every filing status</text>
+
+    <line x1="70" y1="160" x2="770" y2="160" stroke="#d9e1e8"/>
+    <text class="lbl" x="70" y="184" style="font-weight:700">Marriage penalty</text>
+    <text class="lbl-num" x="758" y="184" text-anchor="end" style="fill:#a02c2c">+$385.88</text>
+    <text class="lbl-sm" x="70" y="206">Exactly 1% of the $38,588 that would have gone untaxed split across two single returns —
+    the surtax, in full, and nothing else.</text>
+</svg>
+<figcaption><b>All four dollar figures are <code>stateTax.test.ts</code> assertions</b>, not
+hand math. Below $1,000,000 combined the two filing statuses agree to the penny; above it they
+never do again.</figcaption>
+</figure>
+
+<div class="warn">
+    <span class="tag tag-warn">Rare, but real</span>
+    <p style="margin-top:10px">This app's audience is retirees drawing down savings, not
+    million-dollar earners — the surtax essentially never fires at typical withdrawal levels. It
+    is implemented in full anyway, for the same reason as the credit phase-out: once the engine
+    re-runs the state's real formula at every candidate draw, an edge case costs nothing extra to
+    get right, and "we modeled California's tax" should not come with an asterisk for the top of
+    the distribution.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART THREE · WHY THESE ARE 2025 NUMBERS</span>California can't know its own current year</h2>
+
+<p>Georgia's and Virginia's schedules are set by statute years in advance — HB 463 already states
+Georgia's TY2027 exclusion, Virginia's 2030 deduction cliff is written into current law today.
+California cannot do this. Its brackets, standard deduction, and exemption credit are all
+re-indexed every year to the California Consumer Price Index, but the statute (R&amp;TC
+§17041(h)(1)) measures that change using CPI data <strong>through June of the same tax year
+being indexed</strong> — so the true TY2026 numbers cannot exist until partway through 2026
+itself, past when a real return would even use them.</p>
+
+<p>FTB's own 2026 Form 540-ES instructions confirm this in as many words. Estimating <em>2026</em>
+tax, the worksheet tells taxpayers to reach for numbers from the year before:</p>
+
+<blockquote style="margin:18px 0;padding:2px 20px;border-left:3px solid var(--ca);color:var(--ink-soft);font-size:.98rem">
+"Tax. Figure your tax on the amount on line 3 using the <strong>2025 tax table</strong> for Form
+540 or Form 540NR." — and, two lines later — "Residents: Enter the exemption credit amount from
+the <strong>2025</strong> instructions for Form 540."
+</blockquote>
+
+<p>This simulator does exactly what FTB's own instructions do: it holds California's constants at
+the last <em>closed, fully confirmed</em> tax year — 2025 — rather than publishing a provisional
+guess of a number that legally cannot exist yet. The standard deduction ($5,706 / $11,412) is
+independently confirmed by two separate FTB/EDD documents; the bracket dollar thresholds needed
+one extra step.</p>
+
+<div class="note">
+    <p><strong>How the bracket thresholds were recovered.</strong> ftb.ca.gov blocks automated
+    access, so this model's brackets come from a different official source: California's 2026
+    payroll withholding schedule (EDD), whose "Method B" tables intentionally publish rates at
+    exactly <strong>1.1×</strong> the real statutory rate — a long-standing CA withholding
+    markup. Dividing every published rate by 1.1 recovers precisely 1% / 2% / 4% / 6% / 8% / 9.3%
+    / 10.3% / 11.3% / 12.3%, with the dollar thresholds unaffected. Checking exactly <em>where</em>
+    the withholding table inserts an extra breakpoint for married filers — at $1,000,000, not at
+    double the single top bracket — independently confirmed the surtax's non-doubling before the
+    FTB instructions above made it explicit in words.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART FOUR · IMPLEMENTATION</span>The design built for Virginia paid for itself again</h2>
+
+<p class="lede">Georgia's flat rate could not test whether the withdrawal engine assumed
+linearity. Virginia's phase-out could and did — the fix was to stop computing a state
+<em>rate</em> at all and hand the withdrawal solver the state's whole formula as a function,
+re-evaluated at whatever draw it is currently testing. California needed no new mechanism to
+benefit from that fix.</p>
+
+<p>A withdrawal large enough to cross the $1,000,000 surtax line is exactly the case a flat rate
+mis-sizes — the same shape of bug as Virginia's band, just from a kink instead of a phase-out:</p>
+
+<figure>
+<svg viewBox="0 0 840 300" role="img" aria-label="Diagram of a 40,017 dollar withdrawal split into two segments, one below and one above the 1,000,000 dollar surtax line, compared against a flat 12.3 percent approximation that under-withdraws">
+    <text class="lbl-sm" x="70" y="24">A single 62-year-old with $995,000 of pension needs <tspan style="font-weight:700">$30,000</tspan> net. The gross draw is <tspan style="font-weight:700">$40,017</tspan> — and it crosses the surtax line partway through:</text>
+
+    <rect x="70" y="42" width="187.3" height="46" fill="#a15c07"/>
+    <rect x="257.3" y="42" width="512.7" height="46" fill="#a02c2c"/>
+    <rect x="70" y="42" width="700" height="46" fill="none" stroke="#1a2733" stroke-width="1.2"/>
+
+    <text class="lbl-white" x="163" y="70" text-anchor="middle">12.3%</text>
+    <text class="lbl-white" x="513" y="70" text-anchor="middle">13.3%  ← above $1,000,000</text>
+
+    <text class="lbl-sm" x="163" y="106" text-anchor="middle">$10,706</text>
+    <text class="lbl-sm" x="513" y="106" text-anchor="middle">$29,311</text>
+    <text class="lbl-sm" x="163" y="120" text-anchor="middle">to the line</text>
+    <text class="lbl-sm" x="513" y="120" text-anchor="middle">the surtax zone</text>
+
+    <line x1="70" y1="146" x2="770" y2="146" stroke="#d9e1e8"/>
+    <text class="lbl" x="70" y="170" style="font-weight:700">Sizing method</text>
+    <text class="lbl" x="470" y="170" text-anchor="end" style="font-weight:700">Gross drawn</text>
+    <text class="lbl" x="758" y="170" text-anchor="end" style="font-weight:700">Error against what California bills</text>
+
+    <rect x="70" y="182" width="700" height="34" rx="4" fill="#e6f2ee" stroke="#2f7d64"/>
+    <text class="lbl" x="82" y="203">Re-run the real formula  <tspan class="lbl-sm">(what the engine does)</tspan></text>
+    <text class="lbl" x="470" y="203" text-anchor="end">$40,017</text>
+    <text class="lbl" x="758" y="203" text-anchor="end" style="fill:#2f7d64;font-weight:700">$0.00</text>
+
+    <rect x="70" y="224" width="700" height="34" rx="4" fill="#fbeaea" stroke="#a02c2c"/>
+    <text class="lbl" x="82" y="245">Flat 12.3%, the headline rate — never sees the surtax</text>
+    <text class="lbl" x="470" y="245" text-anchor="end">$39,630</text>
+    <text class="lbl" x="758" y="245" text-anchor="end" style="fill:#a02c2c;font-weight:700">leaves $289 unfunded</text>
+
+    <text class="lbl-sm" x="70" y="280" style="fill:#a02c2c">The same failure mode Virginia's band exposed first: the plan spends $289 it never withdrew, so its money appears to last longer than it will.</text>
+</svg>
+<figcaption><b>All figures are <code>withdrawals.test.ts</code> assertions.</b> No new engine
+mechanism was written for this case — the function-based gross-up already re-runs
+<code>computeStateTax</code> at each candidate draw, so it priced the kink correctly the first
+time it was tested.</figcaption>
+</figure>
+
+<pre><code><span class="cmt">// yearlyProjection.ts — unchanged since Virginia; California passes the same shape of function</span>
+(draws) =&gt; computeStateTax(stateRules, { ...stateInputsBase,
+              taxDeferredWithdrawals: draws }).tax - initialStateTax</code></pre>
+
+<div class="key">
+    <span class="tag tag-key">Measured effect</span>
+    <p style="margin-top:10px">Across a 60-seed sweep of the default plan, California leaks
+    <strong>$0.68 per run</strong> (worst single year <strong>−$0.26</strong>) — indistinguishable
+    from Georgia's $0.52, Virginia's $0.74, or a no-income-tax state's $0.45. The state gross-up
+    is exact for all three income-taxing states, not merely for the one it was built to fix.</p>
+</div>
+
+<h3>What's new in the schema, and what isn't</h3>
+<p>California needed three additions to the rules type, none of them touching Georgia's or
+Virginia's existing fields: a <code>graduated_by_status</code> rate variant (brackets keyed by
+filing status), an <code>exemptionCredit</code> field (a credit with its own phase-out, applied
+after tax rather than before), and a <code>surtax</code> field (a flat rate above a threshold).
+California's <code>retirementBenefit</code> stays <code>undefined</code> — the field exists for
+Georgia's exclusion and Virginia's age deduction, and California proves the schema's discriminated
+union was the right call by simply never populating it.</p>
+
+<h3>What is deliberately not modeled</h3>
+<ul>
+    <li><strong>The exemption credit's own high-income phase-out is implemented</strong> (Part
+        Two) — but the underlying dollar thresholds ($252,203 / $504,411) and the $6/$12-per-$2,500
+        mechanism are sourced from tax-preparation publications, not an independently pulled
+        quote of R&amp;TC §17054's phase-out subsection. Flagged for a follow-up primary-source
+        check; the financial exposure is at most $168–$336.</li>
+    <li><strong>The dependent exemption credit and the blind exemption</strong> — retirees rarely
+        have dependents, the same reasoning as Georgia's unmodeled dependent exemption.</li>
+    <li><strong>No local income tax</strong> exists in California, so unlike New York (NYC,
+        Yonkers) there is nothing to add.</li>
+    <li><strong>Brackets, the standard deduction, and the exemption credit are TY2025</strong>,
+        not TY2026 — a structural consequence of Part Three, not an oversight. Re-verify once
+        FTB's actual TY2026 Form 540 booklet closes out, not before.</li>
+</ul>
+
+<footer>
+    <p><strong>Sources.</strong> Revenue &amp; Taxation Code
+    <a href="https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17041.&lawCode=RTC">§ 17041</a>
+    (rate schedule and the CPI-indexing mechanism),
+    <a href="https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?sectionNum=17054.&lawCode=RTC">§ 17054</a>
+    (personal and senior exemption credits) ·
+    <a href="https://www.ftb.ca.gov/forms/2026/2026-540-es-instructions.pdf">FTB 2026 Form 540-ES
+    instructions</a> (standard deduction, the Behavioral Health Services Tax worksheet, and the
+    note directing 2026 estimates to the 2025 tables) ·
+    <a href="https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf">EDD California
+    Withholding Schedules for 2026</a> (bracket dollar thresholds and the exemption allowance
+    credit, both cross-derived — see Part Three) ·
+    <a href="https://www.ftb.ca.gov/file/personal/income-types/social-security.html">FTB — Social
+    Security</a>. ftb.ca.gov itself returns HTTP 403 to automated fetches, which is why this model
+    leans on the Legislature's own site and EDD instead of FTB's.</p>
+    <p><strong>Companion documents.</strong> <code>docs/5-state-tax-model.md</code> §4.4 holds the
+    full model with the annual re-verification procedure; the explainers for the other two
+    modeled income-taxing states are <code>docs/state-tax-explained-georgia.html</code> and
+    <code>docs/state-tax-explained-virginia.html</code>.</p>
+    <p>Educational projections only — not financial, tax, or legal advice. Tax constants are
+    year-specific (TY2025, per Part Three) and must be re-verified once TY2026 closes out.</p>
+</footer>
+
+</div>
+</body>
+</html>

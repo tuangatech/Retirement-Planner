@@ -138,7 +138,7 @@ export default function LandingPage() {
                                     <li>• Pre-Medicare healthcare costs</li>
                                     <li>• HSA tax-free coverage</li>
                                     <li>• Part-time work scenarios</li>
-                                    <li>• State income tax for 11 states</li>
+                                    <li>• State income tax for 12 states</li>
                                 </ul>
                             </div>
                         </div>

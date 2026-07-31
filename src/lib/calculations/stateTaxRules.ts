@@ -64,24 +64,57 @@ export interface VaAgeDeduction {
 }
 
 /**
- * A state that taxes income. `rate` carries both a flat arm (Georgia) and a graduated one
- * (Virginia); `personalExemption` and `filingThreshold` are Virginia-only and absent for Georgia,
- * whose flat-tax structure has neither.
+ * California's personal/senior exemption: a *credit* subtracted from computed tax, not a
+ * deduction from taxable income (docs/5-state-tax-model.md §4.4) — the reason it is its own
+ * top-level field on `IncomeTaxRules` rather than folding into `personalExemption`. Not a
+ * `retirementBenefit`: every CA filer gets it, not just retirees.
+ *
+ * Phases out $6 (single/MFS) or $12 (married) per $2,500 of state AGI over the threshold,
+ * per R&TC §17054 — not modeled below in the sense that it never fully vanishes into 0%, it
+ * genuinely floors at $0 once fully phased out.
+ */
+export interface CaExemptionCredit {
+    perFiler: number;
+    age65Addition: number;
+    phaseOut: {
+        threshold: { single: number; married: number };
+        reductionPerIncrement: { single: number; married: number };
+        increment: number;
+    };
+}
+
+/**
+ * A state that taxes income. `rate` carries a flat arm (Georgia), a graduated one that does not
+ * vary by filing status (Virginia), and a graduated one that does (California) — see §10 before
+ * widening further for NY. `personalExemption` and `filingThreshold` are Virginia-only;
+ * `exemptionCredit` and `surtax` are California-only.
  */
 export interface IncomeTaxRules {
     state: USState;
     taxesIncome: true;
-    /** Both modeled states exempt SS. Widen when a state that taxes it is added. */
+    /** Every modeled state exempts SS. Widen when a state that taxes it is added. */
     socialSecurity: 'exempt';
     rate:
         | { kind: 'flat'; rate: number }
-        // Ascending; the final bracket has `upTo: null`. Virginia's schedule does not vary by
-        // filing status, unlike NY's and CA's — see §10 before widening this for them.
-        | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> };
+        // Ascending; the final bracket has `upTo: null`.
+        | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> }
+        | {
+              kind: 'graduated_by_status';
+              single: Array<{ upTo: number | null; rate: number }>;
+              married: Array<{ upTo: number | null; rate: number }>;
+          };
     /** Year-keyed schedule: state deductions change by legislation, on dated steps. */
     standardDeduction: Array<{ fromYear: number; single: number; married: number }>;
-    /** Per filer, doubled for MFJ, plus an addition for each spouse aged 65+. */
+    /** Per filer, doubled for MFJ, plus an addition for each spouse aged 65+. Virginia only. */
     personalExemption?: { perFiler: number; age65Addition: number };
+    /** California's personal/senior exemption credit — see `CaExemptionCredit`. */
+    exemptionCredit?: CaExemptionCredit;
+    /**
+     * A flat additional rate on state taxable income above a threshold, applied after credits.
+     * California's Behavioral Health Services Tax (Prop 63; formerly the Mental Health Services
+     * Tax) — 1% above $1,000,000, a threshold that does **not** double for joint filers.
+     */
+    surtax?: { threshold: number; rate: number };
     /**
      * State AGI below which no tax is imposed and no return is required. A *filing* rule rather
      * than a computation, but without it we bill a low-income retiree the tax on the band between

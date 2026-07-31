@@ -23,7 +23,8 @@ What is verified (deterministic, derived from inputs):
   - Income tax       (provisional-income SS formula + standard-deduction floor +
                       marginal rate) and payroll tax (7.65% of part-time work)
   - State income tax (GA's age-tiered exclusion, VA's means-tested age deduction and
-                      graduated brackets; $0 for the nine no-income-tax states)
+                      graduated brackets, CA's brackets-by-status + exemption credit +
+                      surtax; $0 for the nine no-income-tax states)
   - RMDs             (IRS Uniform Lifetime divisor on the start-of-year tax-deferred
                       balance, from age 75; MFJ pools under the OLDER spouse's age)
   - Component sums: Total Income / Expenses / Tax / Withdrawals
@@ -55,6 +56,7 @@ Usage:
 import argparse
 import glob
 import json
+import math
 import os
 import sys
 
@@ -407,15 +409,21 @@ class Plan:
         return (exemption["perFiler"] * filers
                 + exemption["age65Addition"] * self._count_at_least_age(age, 65))
 
-    @staticmethod
-    def _apply_rate(rate: dict, taxable: float) -> float:
-        """Flat rate (GA) or a marginal bracket walk (VA). `upTo: null` marks the top bracket."""
+    def _apply_rate(self, rate: dict, taxable: float) -> float:
+        """Flat rate (GA), one bracket schedule (VA), or brackets by filing status (CA).
+        `upTo: null` marks the top bracket."""
         if rate["kind"] == "flat":
             return taxable * rate["rate"]
 
+        brackets = (
+            rate["married" if self.filing == "married_joint" else "single"]
+            if rate["kind"] == "graduated_by_status"
+            else rate["brackets"]
+        )
+
         tax = 0.0
         floor = 0.0
-        for bracket in rate["brackets"]:
+        for bracket in brackets:
             if taxable <= floor:
                 break
             ceiling = bracket["upTo"] if bracket["upTo"] is not None else float("inf")
@@ -447,20 +455,36 @@ class Plan:
                     + min(inc["partTimeWork"], benefit["earnedIncomeSublimit"]))
         return min(cap, eligible)
 
+    def _ca_exemption_credit(self, credit: dict, age: int, agi: float) -> float:
+        """California's personal/senior exemption CREDIT — subtracted from computed tax, not
+        taxable income (the opposite ordering from Virginia's `personalExemption`). Phased out
+        $6 (single/MFS) or $12 (married) per $2,500 increment of state AGI over the threshold,
+        floored at $0 (R&TC §17054, docs/5-state-tax-model.md §4.4)."""
+        married = self.filing == "married_joint"
+        filers = 2 if married else 1
+        base = credit["perFiler"] * filers + credit["age65Addition"] * self._count_at_least_age(age, 65)
+
+        phase_out = credit["phaseOut"]
+        threshold = phase_out["threshold"]["married" if married else "single"]
+        per_increment = phase_out["reductionPerIncrement"]["married" if married else "single"]
+        increments = math.ceil(max(0.0, agi - threshold) / phase_out["increment"])
+        return max(0.0, base - increments * per_increment)
+
     def expected_state_tax(self, row: dict) -> float:
         """Expected state income tax for one projection row.
 
         Unmodeled states report $0 (their burden is folded into the user's marginal rate) and the
-        nine no-income-tax states owe a real $0. Georgia and Virginia are re-derived here. Any
-        other income-taxing state raises rather than silently returning 0 — a deliberate tripwire
-        so adding a state to the JSON without a formula here cannot pass unnoticed.
+        nine no-income-tax states owe a real $0. Georgia, Virginia, and California are re-derived
+        here. Any other income-taxing state raises rather than silently returning 0 — a
+        deliberate tripwire so adding a state to the JSON without a formula here cannot pass
+        unnoticed.
         """
         if self.state_mode != "modeled":
             return 0.0
         rules = STATE_TAX_RULES.get(self.state)
         if rules is None or not rules.get("taxesIncome", False):
             return 0.0
-        if self.state not in ("GA", "VA"):
+        if self.state not in ("GA", "VA", "CA"):
             raise NotImplementedError(f"No state-tax formula for {self.state}")
 
         inc = row["income"]
@@ -469,13 +493,14 @@ class Plan:
         gains = wd["taxable"] * (1 - self.cost_basis)
         age = int(row["age"])
 
-        # State AGI = federal AGI − federally taxable SS. Both states exempt Social Security, so
-        # it is simply never added; state deductions are not inflated (they are not indexed).
+        # State AGI = federal AGI − federally taxable SS. Every modeled income-tax state exempts
+        # Social Security, so it is simply never added; state deductions are not inflated (they
+        # are not indexed) — except California's, whose entry is itself a snapshot of TY2025.
         agi = (inc["pensions"] + inc["partTimeWork"] + inc["rentalIncome"]
                + wd["taxDeferred"] + gains + hsa_nonmed)
 
-        # Virginia imposes no tax below the filing threshold (§ 58.1-321). Georgia has no such
-        # floor, so the key is absent there.
+        # Virginia imposes no tax below the filing threshold (§ 58.1-321). Georgia and California
+        # have no such floor, so the key is absent there.
         threshold = rules.get("filingThreshold")
         if threshold is not None:
             limit = threshold["married" if self.filing == "married_joint" else "single"]
@@ -492,7 +517,22 @@ class Plan:
 
         deduction = self._state_standard_deduction(rules, int(row["year"]))
         exemptions = self._personal_exemptions(rules, age)
-        return self._apply_rate(rules["rate"], max(0.0, agi - benefit - deduction - exemptions))
+        taxable = max(0.0, agi - benefit - deduction - exemptions)
+
+        bracket_tax = self._apply_rate(rules["rate"], taxable)
+
+        credit_rules = rules.get("exemptionCredit")
+        credit = self._ca_exemption_credit(credit_rules, age, agi) if credit_rules is not None else 0.0
+        regular_tax = max(0.0, bracket_tax - credit)
+
+        surtax_rules = rules.get("surtax")
+        surtax = (
+            surtax_rules["rate"] * max(0.0, taxable - surtax_rules["threshold"])
+            if surtax_rules is not None
+            else 0.0
+        )
+
+        return regular_tax + surtax
 
 
 # ─── CHECK HELPERS ──────────────────────────────────────────────────────────────

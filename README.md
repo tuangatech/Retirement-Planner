@@ -45,8 +45,9 @@ Read this before trusting a number. The app's **Disclosures** tab shows the same
 figures filled in — none of it is buried in a footnote.
 
 **What it models** — US federal taxes for **single** and **married filing jointly** filers ·
-**state income tax for 11 states** (the nine with no individual income tax, plus Georgia's
-age-tiered retirement exclusion and Virginia's means-tested age deduction) ·
+**state income tax for 12 states** (the nine with no individual income tax, plus Georgia's
+age-tiered retirement exclusion, Virginia's means-tested age deduction, and California's
+brackets-by-status, credit-based exemption, and surtax) ·
 Social Security (claiming age, COLA, earnings test, provisional-income taxability) ·
 RMDs from age 75 · Medicare premiums and IRMAA · pre-Medicare healthcare · HSA (incl. age-65+
 flexibility) · pensions, part-time work, and rental income · phase-based spending (Go-Go /
@@ -230,7 +231,7 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 - **[2-federal-tax-model.md](docs/2-federal-tax-model.md)** — federal tax logic, constants/sources
 - **[3-withdrawal-strategy.md](docs/3-withdrawal-strategy.md)** — withdrawal order and tax-efficiency suggestions
 - **[4-married-filing-jointly.md](docs/4-married-filing-jointly.md)** — married-filing-jointly (couples) model and roadmap
-- **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (11 states live incl. GA and VA), constants and sources
+- **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (12 states live incl. GA, VA, and CA), constants and sources
 - **[state-tax-explained-georgia.html](docs/state-tax-explained-georgia.html)** — illustrated walkthrough of Georgia's retiree tax rules (open in a browser)
 - **[state-tax-explained-virginia.html](docs/state-tax-explained-virginia.html)** — the same for Virginia, incl. the phase-out band that doubles the marginal rate
 - **[6-system-design.md](docs/6-system-design.md)** — architecture and design

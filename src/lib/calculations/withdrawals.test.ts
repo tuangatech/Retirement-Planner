@@ -263,6 +263,68 @@ describe('executeWithdrawals', () => {
         });
     });
 
+    // California has no age-based exclusion or deduction to phase, but it does have a real
+    // marginal-rate jump: the 1% Behavioral Health Services Tax above $1,000,000 of taxable
+    // income, undoubled for filing status. A draw big enough to cross that line is exactly the
+    // case a flat-rate gross-up misprices, same shape of bug as Virginia's band (§3).
+    describe('sizes a draw that crosses the $1,000,000 surtax line (California)', () => {
+        const balances: AccountBalances = { taxDeferred: 3_000_000, roth: 0, taxable: 0, hsa: 0 };
+        const tdOnly: Array<'taxable' | 'tax_deferred' | 'roth'> = ['tax_deferred', 'taxable', 'roth'];
+        // $995,000 of pension leaves CA taxable income at $989,294 — just under the $1,000,000
+        // line, so a normal-sized draw crosses it after only ~$10,700 of headroom.
+        const pensionOnly: IncomeForTax = { ...noIncome, pensions: 995_000 };
+
+        const stateBase: StateTaxInputs = {
+            year: 2026,
+            filingStatus: 'single',
+            age: 62,
+            pensions: 995_000,
+            partTimeWork: 0,
+            rentalIncome: 0,
+            taxDeferredWithdrawals: 0,
+            brokerageGains: 0,
+            hsaNonMedicalWithdrawals: 0,
+        };
+        const caRules = getStateTaxRules('CA');
+        const baseStateTax = computeStateTax(caRules, stateBase).tax;
+
+        /** The real California curve, as `yearlyProjection` passes it in. */
+        const realCalifornia = (draws: number): number =>
+            computeStateTax(caRules, { ...stateBase, taxDeferredWithdrawals: draws }).tax - baseStateTax;
+
+        const draw = (need: number, stateTaxOnDraws: (draws: number) => number) =>
+            executeWithdrawals(
+                62, need, balances, 0, false, tdOnly, pensionOnly, 0.12, 0.85, 0.7,
+                'standard', 2026, 1, 'single', undefined, 62, 75, stateTaxOnDraws
+            );
+
+        const netOf = (r: ReturnType<typeof executeWithdrawals>) =>
+            r.withdrawals.taxDeferred - r.taxOnWithdrawals;
+
+        it('nets the need exactly on a draw that crosses the surtax line', () => {
+            // $30,000 net pulls a $40,017 gross draw — the first ~$10,700 stays under the
+            // $1,000,000 line, the rest is taxed at the extra 1%.
+            const r = draw(30_000, realCalifornia);
+            expect(netOf(r)).toBeCloseTo(30_000, 0);
+            // Within the documented $1 convergence residual (docs/5-state-tax-model.md §3).
+            expect(r.shortfall).toBeLessThan(1);
+            expect(r.withdrawals.taxDeferred).toBeCloseTo(40_017, 0);
+        });
+
+        // The failure mode the function form removes, same as Virginia (§3): a flat-rate
+        // gross-up is internally consistent with itself but leaves the year short once
+        // `yearlyProjection` bills what California actually charges.
+        it('collects exactly the state tax California will actually bill', () => {
+            const sizedOnCurve = draw(30_000, realCalifornia).withdrawals.taxDeferred;
+            expect(realCalifornia(sizedOnCurve)).toBeCloseTo(5_215.22, 1);
+
+            const sizedFlat = draw(30_000, (d) => d * 0.123).withdrawals.taxDeferred;
+            const collected = sizedFlat * 0.123;
+            // ~$289 unfunded in this one year — the flat 12.3% rate never sees the surtax.
+            expect(realCalifornia(sizedFlat) - collected).toBeCloseTo(289.24, 1);
+        });
+    });
+
     it('leaves withdrawals unchanged when the state levies no income tax', () => {
         const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 0, hsa: 0 };
         const args = [65, 20_000, balances, 0, false, priority, noIncome, 0.12, 0.85, 0.7] as const;
