@@ -45,9 +45,10 @@ Read this before trusting a number. The app's **Disclosures** tab shows the same
 figures filled in — none of it is buried in a footnote.
 
 **What it models** — US federal taxes for **single** and **married filing jointly** filers ·
-**state income tax for 12 states** (the nine with no individual income tax, plus Georgia's
-age-tiered retirement exclusion, Virginia's means-tested age deduction, and California's
-brackets-by-status, credit-based exemption, and surtax) ·
+**state income tax for 13 states** (the nine with no individual income tax, plus Georgia's
+age-tiered retirement exclusion, Virginia's means-tested age deduction, California's
+brackets-by-status, credit-based exemption, and surtax, and New York's source-dependent
+retirement benefit and benefit-recapture brackets) ·
 Social Security (claiming age, COLA, earnings test, provisional-income taxability) ·
 RMDs from age 75 · Medicare premiums and IRMAA · pre-Medicare healthcare · HSA (incl. age-65+
 flexibility) · pensions, part-time work, and rental income · phase-based spending (Go-Go /
@@ -231,9 +232,11 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 - **[2-federal-tax-model.md](docs/2-federal-tax-model.md)** — federal tax logic, constants/sources
 - **[3-withdrawal-strategy.md](docs/3-withdrawal-strategy.md)** — withdrawal order and tax-efficiency suggestions
 - **[4-married-filing-jointly.md](docs/4-married-filing-jointly.md)** — married-filing-jointly (couples) model and roadmap
-- **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (12 states live incl. GA, VA, and CA), constants and sources
+- **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (13 states live incl. GA, VA, CA, and NY), constants and sources
 - **[state-tax-explained-georgia.html](docs/state-tax-explained-georgia.html)** — illustrated walkthrough of Georgia's retiree tax rules (open in a browser)
 - **[state-tax-explained-virginia.html](docs/state-tax-explained-virginia.html)** — the same for Virginia, incl. the phase-out band that doubles the marginal rate
+- **[state-tax-explained-california.html](docs/state-tax-explained-california.html)** — the same for California, incl. the credit-based exemption and the surtax
+- **[state-tax-explained-new-york.html](docs/state-tax-explained-new-york.html)** — the same for New York, incl. the source-dependent retirement benefit and the benefit-recapture brackets
 - **[6-system-design.md](docs/6-system-design.md)** — architecture and design
 - **[7-technical-implementation.md](docs/7-technical-implementation.md)** — implementation guide (incl. verification workflow)
 
@@ -260,9 +263,9 @@ Contributions are welcome — including from people who don't write code.
   disagrees with the app, that's a great bug report.
 - **Challenge an assumption.** If you know the tax, Medicare, or Social Security rules better than
   the code does, cite the source and we'll fix it or document the simplification.
-- **Close a known gap.** ACA subsidies, the survivor's penalty, and further state modules
-  (New York and California are scoped in `docs/5-state-tax-model.md` §10) are all documented,
-  unbuilt, and well-scoped.
+- **Close a known gap.** ACA subsidies, the survivor's penalty, and a state module for any of the
+  remaining 38 unmodeled states are all documented, unbuilt, and well-scoped — see
+  `docs/5-state-tax-model.md` for the pattern the first four states followed.
 
 Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first — the engine has hard invariants (seeded RNG,
 exactly two `rng()` calls per simulated year, pure calculation modules) that are easy to break by

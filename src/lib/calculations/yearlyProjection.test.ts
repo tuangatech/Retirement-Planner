@@ -300,6 +300,20 @@ describe('withdrawals cover the year they fund', () => {
         expect(leakPerRun).toBeLessThan(1);
     });
 
+    // New York's benefit-recapture surtax is resolved into extra bracket rows rather than a
+    // separate mechanism (§4.5), so — like Georgia's flat rate and unlike Virginia's phase-out —
+    // it cannot by itself prove the gross-up handles a changing marginal rate. What it does add
+    // is the source-split retirement benefit: this default plan's pensions are all private, so
+    // this mainly guards the exclusion and the recapture rows against a regression.
+    it('leaks nothing in New York', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'NY';
+
+        const { worstYear, leakPerRun } = leakage(inputs);
+        expect(worstYear).toBeGreaterThan(-1);
+        expect(leakPerRun).toBeLessThan(1);
+    });
+
     it('holds for an early claiming age, which lands SS squarely in the phase-in', () => {
         const inputs = makeInputs();
         inputs.personal.state = 'TX';
@@ -340,7 +354,7 @@ describe('state tax', () => {
 
     it('reports $0 for an unmodeled state — its burden stays inside the marginal rate', () => {
         const inputs = makeInputs();
-        inputs.personal.state = 'NY';
+        inputs.personal.state = 'NJ';
         inputs.tax.stateTaxMode = 'modeled';
 
         const r = runCompleteSimulation(inputs, createSeededRNG(7));
@@ -461,6 +475,47 @@ describe('state tax', () => {
                 6
             );
         }
+    });
+
+    // New York has no age-tiered benefit either — its recapture surtax is resolved into the
+    // ordinary bracket rows (§4.5), so like California its bill does not fall as the retiree ages.
+    it('NY: charges real tax and folds it into the total', () => {
+        const inputs = makeInputs();
+        inputs.personal.state = 'NY';
+        inputs.tax.stateTaxMode = 'modeled';
+
+        const r = runCompleteSimulation(inputs, createSeededRNG(7));
+        expect(r.projections.some(p => p.taxes.stateTax > 0)).toBe(true);
+
+        for (const p of r.projections) {
+            expect(p.taxes.total).toBeCloseTo(
+                p.taxes.onFixedIncome + p.taxes.onWithdrawals + p.taxes.payrollTax + p.taxes.stateTax,
+                6
+            );
+        }
+    });
+
+    // The one behavior unique to New York: two otherwise-identical plans differing only in
+    // whether the pension is government or private source should owe different state tax, because
+    // government pensions are fully exempt and private ones only get the capped $20,000 exclusion.
+    it('NY: a government pension owes less state tax than an identical private one', () => {
+        const withPension = (isGovernment: boolean) => {
+            const inputs = makeInputs();
+            inputs.personal.state = 'NY';
+            inputs.tax.stateTaxMode = 'modeled';
+            inputs.income.pensions = [
+                { id: '1', name: 'Pension', monthlyAmount: 5000, startAge: 60, colaRate: 0, isGovernment },
+            ];
+            return runCompleteSimulation(inputs, createSeededRNG(7));
+        };
+
+        const government = withPension(true);
+        const privateSource = withPension(false);
+
+        const totalStateTax = (run: ReturnType<typeof withPension>) =>
+            run.projections.reduce((sum, p) => sum + p.taxes.stateTax, 0);
+
+        expect(totalStateTax(government)).toBeLessThan(totalStateTax(privateSource));
     });
 
     it('keeps the cash-flow identity: income + withdrawals = expenses + tax + net', () => {

@@ -117,6 +117,63 @@
                 "noIncomeTax": "https://tax.nv.gov/"
             }
         },
+        "NY": {
+            "taxesIncome": true,
+            "socialSecurity": "exempt",
+            "rate": {
+                "kind": "graduated_by_status",
+                "single": [
+                    { "upTo": 8500, "rate": 0.039 },
+                    { "upTo": 11700, "rate": 0.044 },
+                    { "upTo": 13900, "rate": 0.0515 },
+                    { "upTo": 80650, "rate": 0.054 },
+                    { "upTo": 96800, "rate": 0.059 },
+                    { "upTo": 107650, "rate": 0.0703 },
+                    { "upTo": 157650, "rate": 0.0753 },
+                    { "upTo": 215400, "rate": 0.064 },
+                    { "upTo": 265400, "rate": 0.1144 },
+                    { "upTo": 1077550, "rate": 0.0735 },
+                    { "upTo": 5000000, "rate": 0.0965 },
+                    { "upTo": 25000000, "rate": 0.103 },
+                    { "upTo": null, "rate": 0.109 }
+                ],
+                "married": [
+                    { "upTo": 8500, "rate": 0.039 },
+                    { "upTo": 11700, "rate": 0.044 },
+                    { "upTo": 13900, "rate": 0.0515 },
+                    { "upTo": 80650, "rate": 0.054 },
+                    { "upTo": 96800, "rate": 0.059 },
+                    { "upTo": 107650, "rate": 0.0657 },
+                    { "upTo": 157650, "rate": 0.0707 },
+                    { "upTo": 211550, "rate": 0.064 },
+                    { "upTo": 323200, "rate": 0.1349 },
+                    { "upTo": 373200, "rate": 0.0735 },
+                    { "upTo": 1077550, "rate": 0.0765 },
+                    { "upTo": 2155350, "rate": 0.0735 },
+                    { "upTo": 5000000, "rate": 0.0965 },
+                    { "upTo": 25000000, "rate": 0.103 },
+                    { "upTo": null, "rate": 0.109 }
+                ]
+            },
+            "standardDeduction": [
+                { "fromYear": 2025, "single": 8000, "married": 16050 }
+            ],
+            "retirementBenefit": {
+                "kind": "ny_pension_exclusion",
+                "minAge": 60,
+                "privateExclusionPerPerson": 20000
+            },
+            "note": "Brackets are TY2026 (Chapter 59, Laws of 2025 cut the bottom five rates 0.1pp starting TY2026; a further 0.1pp cut is enacted for TY2027 — Rule 1 unconditional, model as it arrives). The published 9-rate schedule (3.90%/4.40%/5.15%/5.40%/5.90%/6.85%/9.65%/10.30%/10.90%) only applies below $107,650 of NY AGI (NOT doubled for MFJ); above it, NY recaptures the benefit of its own lower brackets via a supplemental tax phased in over $50,000-wide bands, escalating toward a flat 10.90% above $25,000,000. Rather than reimplement that worksheet mechanism, the recapture is resolved into extra rows of the ordinary bracket table directly from NY DTF's own official NYS-50-T-NYS (1/26) withholding publication, whose annualized 'Method II Exact Calculation' tables already flatten it into a cumulative bracket schedule (confirmed by checking that each row's base dollar amount equals the running total of prior rows, the same convention Virginia's schedule uses) — this is why several middle brackets look non-monotonic (e.g. single: 5.90% -> 7.03% -> 7.53% -> 6.40% -> 11.44% -> 7.35%). The three brackets above $1,077,550 single / $2,155,350 married (9.65%/10.30%/10.90%) are DERIVED, not directly quoted: NY's own withholding 'Method III' top-rate method uses different, deliberately over-withheld rates (10.45%/11.10%/11.70%, a flat +0.80pp payroll safety margin analogous in purpose to California's 1.1x EDD markup, confirmed by comparing Method III's discontinuous jump against Method II's own formula at the boundary) that do not reflect true liability, so the true published top rates were continued instead, anchored to be continuous with Method II's last row. That income level is far beyond this tool's audience regardless. Government pensions (NYS, local government, federal, and military, Tax Law §612(c)(3)) are fully exempt with no cap and no age test. Private pension, annuity, and IRA/tax-deferred income instead gets a $20,000-per-qualifying-person exclusion (Tax Law §612(c)(3-a), unchanged since 1981), age 59½+ — modeled as 60 because the engine's simulated age has no fractional/mid-year precision (docs/5-state-tax-model.md §4.5); this rounds the exclusion's start up by up to a year, understating the exclusion and overstating tax, the same conservative direction as this project's other simplifications. The exclusion is per person and NOT poolable across spouses ('neither of you can claim any unused part of your spouse's exclusion', IT-201-I), and covers IRA lump-sum and periodic distributions in addition to employer pensions and annuities — so it is checked against private pension income AND tax-deferred withdrawals combined, not pensions alone. Not modeled: the $1,000 dependent exemption (retirees rarely have dependents, same reasoning as Georgia's and California's unmodeled dependent exemptions), NYC and Yonkers local income tax, and the Metropolitan Commuter Transportation Mobility Tax (self-employment only, not applicable to retirement income). Standard deduction is fixed by statute (Tax Law §614), not inflation-indexed, and has been $8,000/$16,050 since at least 2018 — held flat like Georgia's and Virginia's.",
+            "caveat": "New York's brackets look unusual in the middle of the schedule (dipping and spiking) because above $107,650 of combined income (not doubled for married filers), New York claws back the benefit of its own lower tax brackets in $50,000-wide steps — a real effect for many NY retirees, not just very high earners. Government pensions (NYS, local, federal, military) are fully tax-exempt; private pensions, annuities, and IRA withdrawals get a combined $20,000-per-person exclusion instead, available once you're near 60. New York City and Yonkers residents owe additional local income tax that this plan does not compute.",
+            "sources": {
+                "brackets": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf",
+                "bracketCutTY2026": "https://www.tax.ny.gov/bus/wt/rate.htm",
+                "standardDeduction": "https://www.tax.ny.gov/pdf/2025/inc/it201i_2025.pdf",
+                "governmentPensionExemption": "https://www.tax.ny.gov/pit/file/information_for_seniors.htm",
+                "privatePensionExclusion": "https://www.tax.ny.gov/pdf/2025/inc/it201i_2025.pdf",
+                "socialSecurityExempt": "https://www.tax.ny.gov/pit/file/information_for_seniors.htm"
+            }
+        },
         "SD": {
             "taxesIncome": false,
             "sources": {

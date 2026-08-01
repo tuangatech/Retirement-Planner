@@ -1,8 +1,8 @@
 // src/lib/calculations/income.test.ts
 
 import { describe, it, expect } from 'vitest';
-import { calculateYearlyIncome } from './income';
-import type { SocialSecurity, PartTimeWork, RentalIncome } from '@/types';
+import { calculateYearlyIncome, calculateGovernmentPensionIncome } from './income';
+import type { SocialSecurity, PartTimeWork, RentalIncome, Pension } from '@/types';
 
 const primarySS: SocialSecurity = {
     monthlyBenefitAtFRA: 2500,
@@ -45,5 +45,43 @@ describe('calculateYearlyIncome — household Social Security (MFJ)', () => {
         // spouseAge 64 < claimingAge 67 → spouse benefit 0; only the primary's 30,000.
         const result = calculateYearlyIncome(67, primarySS, [], noWork, noRental, 0.03, spouseSS, 64);
         expect(result.socialSecurity).toBeCloseTo(30000, 6);
+    });
+});
+
+// The government/private split exists only for New York's source-dependent retirement benefit
+// (docs/5-state-tax-model.md §4.5) — no other state distinguishes pension sources.
+describe('calculateGovernmentPensionIncome', () => {
+    const govPension: Pension = {
+        id: '1',
+        name: 'NY State Pension',
+        monthlyAmount: 1000,
+        startAge: 65,
+        colaRate: 0,
+        isGovernment: true,
+    };
+    const privatePension: Pension = {
+        id: '2',
+        name: 'Corp Pension',
+        monthlyAmount: 800,
+        startAge: 62,
+        colaRate: 0,
+    };
+
+    it('sums only the pensions flagged isGovernment', () => {
+        expect(calculateGovernmentPensionIncome(65, [govPension, privatePension])).toBeCloseTo(12000, 6);
+    });
+
+    it('is 0 when no pension is flagged government, including pre-existing pensions with no flag at all', () => {
+        expect(calculateGovernmentPensionIncome(65, [privatePension])).toBe(0);
+    });
+
+    it('is 0 before the government pension has started', () => {
+        expect(calculateGovernmentPensionIncome(64, [govPension])).toBe(0);
+    });
+
+    it('never exceeds the total pension income it is a subset of', () => {
+        const total = calculateYearlyIncome(65, primarySS, [govPension, privatePension], noWork, noRental, 0.03)
+            .pensions;
+        expect(calculateGovernmentPensionIncome(65, [govPension, privatePension])).toBeLessThan(total);
     });
 });

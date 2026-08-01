@@ -64,6 +64,28 @@ export interface VaAgeDeduction {
 }
 
 /**
+ * New York's retirement-income benefit: government pensions (federal/state/local/military)
+ * are fully exempt with no cap and no age test; private pension, annuity, and IRA/tax-deferred
+ * income instead gets a $20,000-per-qualifying-person exclusion (docs/5-state-tax-model.md
+ * §4.5). Two unlike benefits in one union member (rather than two) because both come from the
+ * same statute (Tax Law §612(c)(3) and (3-a)) and share the same per-person, non-poolable
+ * eligibility rule — unlike Georgia and Virginia's benefits, which are structurally opposite.
+ *
+ * `minAge` is 60, not the statutory 59½: the engine's simulated age is a whole calendar-year
+ * integer with no fractional/mid-year precision (no other state has needed one). Rounding up
+ * denies the exclusion for the half-year someone is actually eligible, which understates the
+ * exclusion and overstates tax — the same conservative direction as this project's other
+ * disclosed simplifications, not a new kind of approximation.
+ */
+export interface NyPensionExclusion {
+    kind: 'ny_pension_exclusion';
+    /** Age at which a taxpayer becomes eligible for the private-source exclusion (modeled as 60). */
+    minAge: number;
+    /** Per qualifying person, against private pension/annuity income and IRA/tax-deferred withdrawals combined. */
+    privateExclusionPerPerson: number;
+}
+
+/**
  * California's personal/senior exemption: a *credit* subtracted from computed tax, not a
  * deduction from taxable income (docs/5-state-tax-model.md §4.4) — the reason it is its own
  * top-level field on `IncomeTaxRules` rather than folding into `personalExemption`. Not a
@@ -85,9 +107,10 @@ export interface CaExemptionCredit {
 
 /**
  * A state that taxes income. `rate` carries a flat arm (Georgia), a graduated one that does not
- * vary by filing status (Virginia), and a graduated one that does (California) — see §10 before
- * widening further for NY. `personalExemption` and `filingThreshold` are Virginia-only;
- * `exemptionCredit` and `surtax` are California-only.
+ * vary by filing status (Virginia), and a graduated one that does (California and New York —
+ * New York's benefit-recapture surtax needs no field of its own, because it is fully resolved
+ * into extra rows of `graduated_by_status.brackets`; see §4.5). `personalExemption` and
+ * `filingThreshold` are Virginia-only; `exemptionCredit` and `surtax` are California-only.
  */
 export interface IncomeTaxRules {
     state: USState;
@@ -121,7 +144,7 @@ export interface IncomeTaxRules {
      * the deduction and the threshold.
      */
     filingThreshold?: { single: number; married: number };
-    retirementBenefit?: GaExclusion | VaAgeDeduction;
+    retirementBenefit?: GaExclusion | VaAgeDeduction | NyPensionExclusion;
     caveat?: string;
     note?: string;
     sources: Record<string, string>;

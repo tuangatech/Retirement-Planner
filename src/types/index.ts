@@ -62,6 +62,11 @@ export interface Pension {
     monthlyAmount: number;
     startAge: number;
     colaRate: number;
+    // Government pensions (federal/state/local/military) are fully state-tax-exempt in some
+    // modeled states (New York); private pensions get a smaller, capped exclusion instead.
+    // Optional so pre-existing saved pensions stay valid — undefined reads as private, the
+    // conservative default (it never grants an exemption a pre-existing plan didn't ask for).
+    isGovernment?: boolean;
 }
 
 export interface PartTimeWork {

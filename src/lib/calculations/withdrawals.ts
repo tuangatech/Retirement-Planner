@@ -58,6 +58,17 @@ export interface IncomeForTax {
     rentalIncome: number;
 }
 
+/**
+ * Absolute (not incremental) cumulative withdrawal income booked so far this year, by type.
+ * The granularity a state's own formula needs when its benefit is scoped to a specific income
+ * type rather than uniform across every draw — see `stateTaxOnDraws`.
+ */
+export interface StateDrawBreakdown {
+    taxDeferred: number;
+    brokerageGains: number;
+    hsaNonMedical: number;
+}
+
 export interface WithdrawalResult {
     withdrawals: WithdrawalAmounts;
     taxOnWithdrawals: number;
@@ -100,12 +111,17 @@ export interface WithdrawalResult {
  * @param rmdAge - Age governing the RMD trigger; for MFJ pooled accounts this is the
  *   older spouse's age so RMDs start no later than required. Defaults to currentAge.
  * @param rmdStartAge - Age at which RMDs begin (this tool passes RMD_START_AGE = 75). Default 73.
- * @param stateTaxOnDraws - Incremental state income tax caused by `draws` of ordinary
- *   withdrawal income, as the state's own formula computes it. Defaults to no state tax, which
- *   is correct for unmodeled states and for states with no income tax. A *function* rather than
- *   a rate because a state's marginal rate is not constant across a draw: Virginia's age
- *   deduction phases out dollar-for-dollar, so income inside the band is taxed at ~11.5% and
- *   income above it at 5.75%. Without this the engine under-withdraws by the state tax owed.
+ * @param stateTaxOnDraws - State income tax on the year's *absolute* cumulative withdrawal
+ *   income so far, broken out by type, as the state's own formula computes it. Defaults to no
+ *   state tax, which is correct for unmodeled states and for states with no income tax. A
+ *   *function* rather than a rate for two reasons: a state's marginal rate is not constant
+ *   across a draw (Virginia's age deduction phases out dollar-for-dollar, so income inside the
+ *   band is taxed at ~11.5% and income above it at 5.75%), and some states' benefits are scoped
+ *   to specific income types (New York's pension/IRA exclusion does not cover brokerage gains or
+ *   non-medical HSA withdrawals) — broken out by type rather than a single `draws` scalar so
+ *   such a state cannot be sized against gains or HSA income it will not actually shelter at
+ *   settlement (docs/5-state-tax-model.md §4.5). Without this the engine under-withdraws by the
+ *   state tax owed.
  */
 export function executeWithdrawals(
     currentAge: number,
@@ -125,7 +141,7 @@ export function executeWithdrawals(
     spouseAge?: number,
     rmdAge: number = currentAge,
     rmdStartAge: number = 73,
-    stateTaxOnDraws: (draws: number) => number = () => 0
+    stateTaxOnDraws: (breakdown: StateDrawBreakdown) => number = () => 0
 ): WithdrawalResult {
     const balances = { ...currentBalances };
 
@@ -165,24 +181,28 @@ export function executeWithdrawals(
     const federalTaxableBeforeDraws = federalTaxableWith(0);
 
     /**
-     * Total tax caused by `draws` of taxable withdrawal income this year — ordinary draws and
-     * brokerage *gains* alike, since both land in AGI and both feed provisional income.
+     * Total tax on `breakdown`'s absolute cumulative withdrawal income this year — federally,
+     * ordinary draws and brokerage *gains* alike, since both land in AGI and both feed
+     * provisional income; at the state level, split by type because a benefit like New York's
+     * pension/IRA exclusion does not cover every type the same way.
      *
-     * Both halves re-run their real formula over `draws`, so both curves bend where the law
-     * bends: federally at the deduction floor and through the Social Security phase-in, at the
-     * state level through a phasing-out deduction or a growing exclusion. Neither is a rate
-     * times an amount (see docs/5-state-tax-model.md §3).
+     * Both halves re-run their real formula, so both curves bend where the law bends: federally
+     * at the deduction floor and through the Social Security phase-in, at the state level through
+     * a phasing-out deduction, a growing exclusion, or an exclusion that some income types simply
+     * do not qualify for. Neither is a rate times an amount (see docs/5-state-tax-model.md §3, §4.5).
      */
-    const taxOnDraws = (draws: number): number =>
-        (federalTaxableWith(draws) - federalTaxableBeforeDraws) * effectiveTaxRate +
-        stateTaxOnDraws(draws);
+    const taxOnBreakdown = (breakdown: StateDrawBreakdown): number =>
+        (federalTaxableWith(breakdown.taxDeferred + breakdown.brokerageGains + breakdown.hsaNonMedical) -
+            federalTaxableBeforeDraws) *
+            effectiveTaxRate +
+        stateTaxOnDraws(breakdown);
 
-    /** Taxable withdrawal income booked so far, so each new draw is taxed on top of it. */
-    let drawsBooked = 0;
+    /** Taxable withdrawal income booked so far, by type, so each new draw is taxed on top of it. */
+    const booked: StateDrawBreakdown = { taxDeferred: 0, brokerageGains: 0, hsaNonMedical: 0 };
 
-    /** Incremental tax of adding `draws` on top of what is already booked. */
-    const marginalTaxOn = (draws: number): number =>
-        taxOnDraws(drawsBooked + draws) - taxOnDraws(drawsBooked);
+    /** Incremental tax of adding `amount` more of `kind` on top of what is already booked. */
+    const marginalTaxOn = (kind: keyof StateDrawBreakdown, amount: number): number =>
+        taxOnBreakdown({ ...booked, [kind]: booked[kind] + amount }) - taxOnBreakdown(booked);
 
     const withdrawals: WithdrawalAmounts = {
         taxDeferred: 0,
@@ -219,7 +239,7 @@ export function executeWithdrawals(
         // the average rate across the draw it is about to make rather than the headline rate —
         // probed at the amount it might withdraw, which is where the SS feedback actually bites.
         const hsaEffectiveRate =
-            nonHealthcarGap > 0 ? marginalTaxOn(nonHealthcarGap) / nonHealthcarGap : 0;
+            nonHealthcarGap > 0 ? marginalTaxOn('hsaNonMedical', nonHealthcarGap) / nonHealthcarGap : 0;
 
         const hsaResult = calculateHSAWithdrawal(
             currentAge,
@@ -234,7 +254,7 @@ export function executeWithdrawals(
         hsaForHealthcare = hsaResult.medicalWithdrawal;
         taxOnWithdrawals += hsaResult.taxOnNonMedical;
         // Only the non-medical portion is income; medical HSA draws are never taxed.
-        drawsBooked += hsaResult.nonMedicalWithdrawal;
+        booked.hsaNonMedical += hsaResult.nonMedicalWithdrawal;
 
         // Reduce cash flow gap by net HSA benefit
         const netHSABenefit = hsaResult.medicalWithdrawal +
@@ -258,8 +278,8 @@ export function executeWithdrawals(
             // The RMD is forced, so there is nothing to size — but its tax still has to be the
             // real incremental amount. Understating it overstates the RMD's net proceeds, which
             // shrinks the remaining gap and leaves the year short.
-            const taxOnRMD = marginalTaxOn(actualRMD);
-            drawsBooked += actualRMD;
+            const taxOnRMD = marginalTaxOn('taxDeferred', actualRMD);
+            booked.taxDeferred += actualRMD;
             const afterTaxRMD = actualRMD - taxOnRMD;
 
             if (afterTaxRMD >= cashFlowGap) {
@@ -323,8 +343,8 @@ export function executeWithdrawals(
                 // standard deduction, with no retirement exclusion at all before age 62).
                 // Charging the real incremental tax is what keeps the year from spending money
                 // it never withdrew.
-                const taxOnFill = marginalTaxOn(fillAmount);
-                drawsBooked += fillAmount;
+                const taxOnFill = marginalTaxOn('taxDeferred', fillAmount);
+                booked.taxDeferred += fillAmount;
                 taxOnWithdrawals += taxOnFill;
                 cashFlowGap -= fillAmount - taxOnFill;
             }
@@ -347,19 +367,26 @@ export function executeWithdrawals(
         const taxableShare =
             accountType === 'tax_deferred' ? 1 : accountType === 'taxable' ? 1 - costBasisPercentage : 0;
 
+        // Which bucket this account's taxable share books into — a taxable-account draw is a
+        // brokerage gain, never a tax-deferred withdrawal, so a state whose benefit excludes
+        // gains (New York) must not see it priced as if it qualified. Irrelevant for Roth
+        // (taxableShare is 0, so no amount is ever booked under this label).
+        const kind: keyof StateDrawBreakdown =
+            accountType === 'tax_deferred' ? 'taxDeferred' : 'brokerageGains';
+
         // Size the draw against the real tax it causes. Solving `gross − tax(gross) = need`
         // rather than dividing by a flat rate is what makes this correct inside the Social
         // Security phase-in, where the marginal rate is up to 1.85× the headline rate.
         const grossNeeded =
             taxableShare === 0
                 ? remainingNeed
-                : solveGrossForNet(remainingNeed, (gross) => marginalTaxOn(gross * taxableShare));
+                : solveGrossForNet(remainingNeed, (gross) => marginalTaxOn(kind, gross * taxableShare));
 
         // Limit to available balance
         const actualGross = Math.min(grossNeeded, available);
 
-        const actualTax = marginalTaxOn(actualGross * taxableShare);
-        drawsBooked += actualGross * taxableShare;
+        const actualTax = marginalTaxOn(kind, actualGross * taxableShare);
+        booked[kind] += actualGross * taxableShare;
 
         const actualNet = actualGross - actualTax;
 

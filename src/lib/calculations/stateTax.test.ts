@@ -16,7 +16,8 @@ const INPUTS: StateTaxInputs = {
     year: 2026,
     filingStatus: 'single',
     age: 62,
-    pensions: 18000,
+    governmentPensionIncome: 0,
+    privatePensionIncome: 18000,
     partTimeWork: 12000,
     rentalIncome: 9000,
     taxDeferredWithdrawals: 40000,
@@ -40,6 +41,11 @@ function vaTax(overrides: Partial<StateTaxInputs> = {}): number {
 /** California tax for `INPUTS` with the given fields replaced. */
 function caTax(overrides: Partial<StateTaxInputs> = {}): number {
     return computeStateTax(getStateTaxRules('CA'), { ...INPUTS, ...overrides }).tax;
+}
+
+/** New York tax for `INPUTS` with the given fields replaced. */
+function nyTax(overrides: Partial<StateTaxInputs> = {}): number {
+    return computeStateTax(getStateTaxRules('NY'), { ...INPUTS, ...overrides }).tax;
 }
 
 /**
@@ -77,8 +83,8 @@ describe('computeStateTax', () => {
     });
 
     it('reports an unmodeled state as not modeled, so the UI does not claim otherwise', () => {
-        // NY is deliberately deferred — the user's marginal rate carries its burden.
-        const result = computeStateTax(getStateTaxRules('NY'), INPUTS);
+        // NJ is deliberately deferred — the user's marginal rate carries its burden.
+        const result = computeStateTax(getStateTaxRules('NJ'), INPUTS);
         expect(result.tax).toBe(0);
         expect(result.modeled).toBe(false);
     });
@@ -124,7 +130,7 @@ describe('computeStateTax — Georgia', () => {
         // Were HSA income eligible, the exclusion would cover the whole $50k and tax $0.
         const tax = gaTax({
             age: 65,
-            pensions: 0,
+            privatePensionIncome: 0,
             partTimeWork: 0,
             rentalIncome: 0,
             brokerageGains: 0,
@@ -139,7 +145,7 @@ describe('computeStateTax — Georgia', () => {
         // (40,000 − 5,000 − 15,000) × 4.99% = $998.00. Without the sublimit: $0.
         const tax = gaTax({
             age: 65,
-            pensions: 0,
+            privatePensionIncome: 0,
             rentalIncome: 0,
             taxDeferredWithdrawals: 0,
             brokerageGains: 0,
@@ -155,7 +161,7 @@ describe('computeStateTax — Georgia', () => {
             filingStatus: 'married_joint',
             age: 66,
             spouseAge: 66,
-            pensions: 200000,
+            privatePensionIncome: 200000,
         };
         // 2 × $65,000 exclusion + $30,000 joint deduction → $40,000 taxable = $1,996.00
         expect(gaTax(mfj)).toBeCloseTo(1996, 2);
@@ -171,13 +177,13 @@ describe('computeStateTax — Georgia', () => {
             filingStatus: 'married_joint',
             age: 66,
             spouseAge: 60,
-            pensions: 200000,
+            privatePensionIncome: 200000,
         });
         expect(tax).toBeCloseTo(5239.5, 2);
     });
 
     it('owes nothing when AGI is inside the exclusion plus deduction', () => {
-        expect(gaTax({ ...PENSION_ONLY, age: 65, pensions: 12000 })).toBe(0);
+        expect(gaTax({ ...PENSION_ONLY, age: 65, privatePensionIncome: 12000 })).toBe(0);
     });
 
     // docs/2-federal-tax-model.md's verified reference: a GA couple both 65+ with $80,400
@@ -189,7 +195,7 @@ describe('computeStateTax — Georgia', () => {
             filingStatus: 'married_joint',
             age: 66,
             spouseAge: 66,
-            pensions: 37200,
+            privatePensionIncome: 37200,
         });
         expect(tax).toBe(0);
     });
@@ -202,50 +208,50 @@ describe('Virginia', () => {
 
     it('gives the full $12,000 age deduction below the phase-out threshold', () => {
         // 40,000 − 12,000 − 8,750 − 1,730 = 17,520 → 720 + 520 × 5.75%
-        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 40000 })).toBeCloseTo(749.9, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 67, privatePensionIncome: 40000 })).toBeCloseTo(749.9, 2);
     });
 
     it('gives no age deduction before 65 — Virginia has no other retiree benefit', () => {
         // 40,000 − 8,750 − 930 = 30,320 → 720 + 13,320 × 5.75%. Nearly double the age-67 bill
         // on identical income: the benefit is keyed to 65, not to retiring.
-        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 40000 })).toBeCloseTo(1485.9, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 64, privatePensionIncome: 40000 })).toBeCloseTo(1485.9, 2);
     });
 
     it('phases the age deduction out $1 per $1 above $50,000 for a single filer', () => {
         // AFAGI 60,000 → deduction 12,000 − 10,000 = 2,000.
-        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 60000 })).toBeCloseTo(2474.9, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 67, privatePensionIncome: 60000 })).toBeCloseTo(2474.9, 2);
     });
 
     it('exhausts the age deduction $12,000 above the threshold', () => {
         // AFAGI 62,000 = 50,000 + 12,000 → deduction 0, and it cannot go negative.
-        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 62000 })).toBeCloseTo(2704.9, 2);
-        expect(vaTax({ ...PENSION_ONLY, age: 67, pensions: 70000 })).toBeCloseTo(3164.9, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 67, privatePensionIncome: 62000 })).toBeCloseTo(2704.9, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 67, privatePensionIncome: 70000 })).toBeCloseTo(3164.9, 2);
     });
 
     it('owes nothing below the filing threshold, where the deduction alone would still bill tax', () => {
         // $11,000 clears deduction + exemption ($9,680) so the schedule would compute $26.40,
         // but § 58.1-321 imposes no tax under $11,950 of VAGI.
-        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 11000 })).toBe(0);
+        expect(vaTax({ ...PENSION_ONLY, age: 64, privatePensionIncome: 11000 })).toBe(0);
         // $1 over the deduction+exemption and still under the threshold — still nothing.
-        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 11949 })).toBe(0);
-        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 11950 })).toBeGreaterThan(0);
+        expect(vaTax({ ...PENSION_ONLY, age: 64, privatePensionIncome: 11949 })).toBe(0);
+        expect(vaTax({ ...PENSION_ONLY, age: 64, privatePensionIncome: 11950 })).toBeGreaterThan(0);
     });
 
     it('walks the 2% / 3% / 5% brackets, not just the top rate', () => {
         // taxable 4,000 → 3,000 × 2% + 1,000 × 3% = 90
-        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 4000 + 8750 + 930 })).toBeCloseTo(90, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 64, privatePensionIncome: 4000 + 8750 + 930 })).toBeCloseTo(90, 2);
         // taxable 10,000 → 60 + 60 + 5,000 × 5% = 370
-        expect(vaTax({ ...PENSION_ONLY, age: 64, pensions: 10000 + 8750 + 930 })).toBeCloseTo(370, 2);
+        expect(vaTax({ ...PENSION_ONLY, age: 64, privatePensionIncome: 10000 + 8750 + 930 })).toBeCloseTo(370, 2);
     });
 
     it('reduces to 5.75% less a fixed $257.50 in the top bracket', () => {
         // The doc's shortcut for sanity-checking any realistic retiree, re-derived here from the
         // statute rather than from the bracket walk: 720 + 5.75%(T − 17,000) ≡ 5.75%T − 257.50.
-        for (const pensions of [45000, 90000, 150000]) {
-            const ageDeduction = Math.max(0, 12000 - Math.max(0, pensions - 50000));
-            const taxable = pensions - ageDeduction - 8750 - 1730;
+        for (const privatePensionIncome of [45000, 90000, 150000]) {
+            const ageDeduction = Math.max(0, 12000 - Math.max(0, privatePensionIncome - 50000));
+            const taxable = privatePensionIncome - ageDeduction - 8750 - 1730;
             expect(taxable).toBeGreaterThan(17000);
-            expect(vaTax({ ...PENSION_ONLY, age: 67, pensions })).toBeCloseTo(
+            expect(vaTax({ ...PENSION_ONLY, age: 67, privatePensionIncome })).toBeCloseTo(
                 taxable * 0.0575 - 257.5,
                 2
             );
@@ -253,7 +259,7 @@ describe('Virginia', () => {
     });
 
     it('models the 2030 standard-deduction reversion, which raises the bill on flat income', () => {
-        const income = { ...PENSION_ONLY, age: 67, pensions: 40000 } as const;
+        const income = { ...PENSION_ONLY, age: 67, privatePensionIncome: 40000 } as const;
         // $8,750 through 2026, $9,200 in 2027, $9,300 for 2028–2029, then $3,000 from 2030.
         expect(vaTax({ ...income, year: 2026 })).toBeCloseTo(749.9, 2);
         expect(vaTax({ ...income, year: 2027 })).toBeCloseTo(724.025, 2);
@@ -274,7 +280,7 @@ describe('Virginia', () => {
                 filingStatus: 'married_joint',
                 age: 67,
                 spouseAge: 67,
-                pensions: 80000,
+                privatePensionIncome: 80000,
             })
         ).toBeCloseTo(2044.8, 2);
     });
@@ -287,7 +293,7 @@ describe('Virginia', () => {
                 filingStatus: 'married_joint',
                 age: 67,
                 spouseAge: 62,
-                pensions: 80000,
+                privatePensionIncome: 80000,
             })
         ).toBeCloseTo(2780.8, 2);
     });
@@ -302,8 +308,8 @@ describe('Virginia', () => {
             age: 67,
             spouseAge: 67,
         };
-        expect(vaTax({ ...both, pensions: 80000 })).toBeCloseTo(
-            vaTax({ ...both, pensions: 30000, taxDeferredWithdrawals: 50000 }),
+        expect(vaTax({ ...both, privatePensionIncome: 80000 })).toBeCloseTo(
+            vaTax({ ...both, privatePensionIncome: 30000, taxDeferredWithdrawals: 50000 }),
             2
         );
     });
@@ -311,8 +317,8 @@ describe('Virginia', () => {
     it('taxes a non-medical HSA draw that Georgia would exclude', () => {
         // Virginia has no income-type scoping at all: the age deduction is a means test, so every
         // dollar of AGI counts the same. The GA suite asserts the opposite for the same input.
-        const withHSA = { ...PENSION_ONLY, age: 67, pensions: 40000, hsaNonMedicalWithdrawals: 10000 };
-        expect(vaTax(withHSA)).toBeGreaterThan(vaTax({ ...PENSION_ONLY, age: 67, pensions: 40000 }));
+        const withHSA = { ...PENSION_ONLY, age: 67, privatePensionIncome: 40000, hsaNonMedicalWithdrawals: 10000 };
+        expect(vaTax(withHSA)).toBeGreaterThan(vaTax({ ...PENSION_ONLY, age: 67, privatePensionIncome: 40000 }));
     });
 });
 
@@ -324,7 +330,7 @@ describe('computeStateTax — California', () => {
     it('taxes AGI above the standard deduction through the single bracket schedule', () => {
         // AGI $88,000 − $5,706 standard deduction = $82,294 taxable, landing in the 9.3% bracket.
         // Bracket tax $4,091.98 − $168 exemption credit (not 65) = $3,923.98.
-        expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 88000 })).toBeCloseTo(3923.98, 2);
+        expect(caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 88000 })).toBeCloseTo(3923.98, 2);
     });
 
     it('uses the married bracket schedule and doubles the exemption credit, not the single one', () => {
@@ -335,45 +341,45 @@ describe('computeStateTax — California', () => {
                 filingStatus: 'married_joint',
                 age: 62,
                 spouseAge: 60,
-                pensions: 88000,
+                privatePensionIncome: 88000,
             })
         ).toBeCloseTo(1455.38, 2);
     });
 
     it('adds the age-65 credit addition per qualifying spouse, on top of the base credit', () => {
-        expect(caTax({ ...PENSION_ONLY, age: 65, pensions: 88000 })).toBeCloseTo(3755.98, 2);
+        expect(caTax({ ...PENSION_ONLY, age: 65, privatePensionIncome: 88000 })).toBeCloseTo(3755.98, 2);
         expect(
             caTax({
                 ...PENSION_ONLY,
                 filingStatus: 'married_joint',
                 age: 66,
                 spouseAge: 67,
-                pensions: 88000,
+                privatePensionIncome: 88000,
             })
         ).toBeCloseTo(1119.38, 2);
     });
 
     it('owes $0 below the standard deduction — the credit cannot make tax negative', () => {
-        expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 5000 })).toBe(0);
+        expect(caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 5000 })).toBe(0);
     });
 
     // R&TC §17054: the credit shrinks $6 (single) per $2,500 of state AGI over the threshold,
     // floored at $0 — a step function, not Virginia's smooth dollar-for-dollar phase-out.
     describe('exemption credit phase-out', () => {
         it('applies no reduction at or below the threshold', () => {
-            expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 252203 })).toBeCloseTo(19194.86, 2);
+            expect(caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 252203 })).toBeCloseTo(19194.86, 2);
         });
 
         it('reduces the credit by one $6 increment for $1 over the threshold', () => {
             // Crossing the line costs $6 of credit — i.e. the bill jumps $6 more than the
             // bracket tax on that single extra dollar alone would predict.
-            const at = (pensions: number) => caTax({ ...PENSION_ONLY, age: 62, pensions });
+            const at = (privatePensionIncome: number) => caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome });
             expect(at(252204) - at(252203)).toBeCloseTo(0.093 + 6, 2);
         });
 
         it('floors the credit at $0 once fully phased out, rather than going negative', () => {
             // $252,203 + 40 x $2,500 fully exhausts the $168 credit (40 x $6 = $240 > $168).
-            expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 350000 })).toBeCloseTo(28457.98, 2);
+            expect(caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 350000 })).toBeCloseTo(28457.98, 2);
         });
     });
 
@@ -381,17 +387,17 @@ describe('computeStateTax — California', () => {
     // a real marriage penalty, and the reason it is tested explicitly rather than assumed.
     describe('Behavioral Health Services Tax (formerly Mental Health Services Tax)', () => {
         it('adds 1% of taxable income above $1,000,000', () => {
-            expect(caTax({ ...PENSION_ONLY, age: 62, pensions: 1050000 })).toBeCloseTo(109727.71, 2);
+            expect(caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 1050000 })).toBeCloseTo(109727.71, 2);
         });
 
         it('owes no surtax for two singles who would each owe it if their income were combined', () => {
-            const eachAlone = caTax({ ...PENSION_ONLY, age: 62, pensions: 525000 });
+            const eachAlone = caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 525000 });
             const combinedMarried = caTax({
                 ...PENSION_ONLY,
                 filingStatus: 'married_joint',
                 age: 62,
                 spouseAge: 60,
-                pensions: 1050000,
+                privatePensionIncome: 1050000,
             });
             // $525,000 each: neither individually crosses $1,000,000 taxable, so no surtax.
             expect(eachAlone).toBeCloseTo(46946.36, 2);
@@ -403,9 +409,105 @@ describe('computeStateTax — California', () => {
         it('is not reduced by the exemption credit — it is added after', () => {
             // At $1,050,000 the credit is fully phased out anyway (agi far past $252,203), so
             // this pins the ordering: surtax sits outside the max(0, bracketTax − credit) floor.
-            const withSurtax = caTax({ ...PENSION_ONLY, age: 62, pensions: 1050000 });
-            const withoutSurtaxIncome = caTax({ ...PENSION_ONLY, age: 62, pensions: 1000000 });
+            const withSurtax = caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 1050000 });
+            const withoutSurtaxIncome = caTax({ ...PENSION_ONLY, age: 62, privatePensionIncome: 1000000 });
             expect(withSurtax).toBeGreaterThan(withoutSurtaxIncome);
+        });
+    });
+});
+
+// New York's benefit-recapture surtax is resolved into extra bracket rows rather than a
+// separate mechanism (docs/5-state-tax-model.md §4.5), so its complexity is in the retirement
+// benefit instead: government pensions are fully exempt with no cap, private pension/annuity/IRA
+// income gets a $20,000-per-person exclusion (age 59½, modeled as 60), and the two are not
+// poolable across spouses. All figures below are independently computed via a Python reference
+// script against the same committed bracket constants, not hand-derived.
+describe('computeStateTax — New York', () => {
+    it('taxes AGI above the standard deduction through the single bracket schedule when no exclusion applies', () => {
+        // Age 55: no exclusion at all. AGI $88,000 − $8,000 standard deduction = $80,000 taxable.
+        expect(nyTax({ age: 55, privatePensionIncome: 18000 })).toBeCloseTo(4155, 2);
+    });
+
+    it('fully exempts a government pension, no cap and no age test', () => {
+        expect(
+            nyTax({ ...PENSION_ONLY, age: 55, governmentPensionIncome: 50000, privatePensionIncome: 0 })
+        ).toBe(0);
+        expect(
+            nyTax({ ...PENSION_ONLY, age: 70, governmentPensionIncome: 50000, privatePensionIncome: 0 })
+        ).toBe(0);
+    });
+
+    it('excludes private pension income up to $20,000 once age-eligible', () => {
+        // $15,000 sits entirely under the cap.
+        expect(nyTax({ ...PENSION_ONLY, age: 60, privatePensionIncome: 15000 })).toBe(0);
+        // $30,000 is capped at the $20,000 exclusion: (30,000 − 20,000 − 8,000) × 3.9% = $78.
+        expect(nyTax({ ...PENSION_ONLY, age: 60, privatePensionIncome: 30000 })).toBeCloseTo(78, 2);
+    });
+
+    it('gives no private-source exclusion before the modeled age of 60', () => {
+        // Same $30,000, one year younger: (30,000 − 8,000) × brackets = $1,023.
+        expect(nyTax({ ...PENSION_ONLY, age: 59, privatePensionIncome: 30000 })).toBeCloseTo(1023, 2);
+    });
+
+    it('pools tax-deferred withdrawals into the same $20,000 cap as private pension income', () => {
+        // $10,000 pension + $15,000 tax-deferred = $25,000 eligible, capped at $20,000 →
+        // (25,000 − 20,000 − 8,000) is negative, so $0 tax — the exclusion still covers it all.
+        expect(
+            nyTax({ ...PENSION_ONLY, age: 61, privatePensionIncome: 10000, taxDeferredWithdrawals: 15000 })
+        ).toBe(0);
+    });
+
+    it('MFJ: two qualifying spouses each get their own $20,000 exclusion', () => {
+        // Both 62: $50,000 − $40,000 (2×$20,000) − $16,050 joint deduction is negative → $0.
+        expect(
+            nyTax({
+                ...PENSION_ONLY,
+                filingStatus: 'married_joint',
+                age: 62,
+                spouseAge: 62,
+                privatePensionIncome: 50000,
+            })
+        ).toBe(0);
+    });
+
+    it('MFJ: only the spouse who has actually turned 60 gets an exclusion', () => {
+        // One $20,000 exclusion: (50,000 − 20,000 − 16,050) × brackets = $588.30.
+        expect(
+            nyTax({
+                ...PENSION_ONLY,
+                filingStatus: 'married_joint',
+                age: 62,
+                spouseAge: 55,
+                privatePensionIncome: 50000,
+            })
+        ).toBeCloseTo(588.3, 2);
+    });
+
+    it('owes $0 below the standard deduction', () => {
+        expect(nyTax({ ...PENSION_ONLY, age: 55, taxDeferredWithdrawals: 5000, privatePensionIncome: 0 })).toBe(0);
+    });
+
+    // The benefit-recapture surtax, resolved into extra bracket rows (§4.5) — reachable at an
+    // entirely ordinary retirement income level, unlike California's $1,000,000 surtax line.
+    describe('benefit-recapture bracket rows above $107,650 of taxable income', () => {
+        it('taxes exactly the published cumulative amount at the recapture zone boundaries', () => {
+            // No exclusion (age 55), so AGI − $8,000 lands taxable exactly on each boundary.
+            expect(
+                nyTax({ ...PENSION_ONLY, age: 55, taxDeferredWithdrawals: 107650 + 8000, privatePensionIncome: 0 })
+            ).toBeCloseTo(5905.71, 2);
+            expect(
+                nyTax({ ...PENSION_ONLY, age: 55, taxDeferredWithdrawals: 157650 + 8000, privatePensionIncome: 0 })
+            ).toBeCloseTo(9670.71, 2);
+        });
+
+        it('a dollar earned inside the recapture zone is taxed above the ordinary bracket rate', () => {
+            // $130,000 taxable sits inside the 7.53% recapture row, well above the 5.90% rate
+            // just below the zone — the mechanism this section models is real, not a rounding
+            // artifact.
+            const inZone = nyTax({
+                ...PENSION_ONLY, age: 55, taxDeferredWithdrawals: 130000 + 8000, privatePensionIncome: 0,
+            });
+            expect(inZone).toBeCloseTo(7588.66, 2);
         });
     });
 });
@@ -421,7 +523,7 @@ describe('marginal rate on the next dollar of withdrawal', () => {
     it('GA: is the flat rate once the exclusion is exhausted', () => {
         // $100k of pension income uses up the whole $65,000 exclusion, so the next
         // tax-deferred dollar is taxed outright.
-        expect(marginalRate('GA', { ...PENSION_ONLY, age: 65, pensions: 100000 })).toBeCloseTo(0.0499, 6);
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 65, privatePensionIncome: 100000 })).toBeCloseTo(0.0499, 6);
     });
 
     it('GA: is 0 while exclusion room remains, even though tax is already owed', () => {
@@ -431,7 +533,7 @@ describe('marginal rate on the next dollar of withdrawal', () => {
         const inputs = {
             ...PENSION_ONLY,
             age: 65,
-            pensions: 40000,
+            privatePensionIncome: 40000,
             hsaNonMedicalWithdrawals: 30000,
         };
         expect(gaTax(inputs)).toBeGreaterThan(0);
@@ -439,54 +541,54 @@ describe('marginal rate on the next dollar of withdrawal', () => {
     });
 
     it('GA: is the flat rate before 62, when there is no exclusion to grow', () => {
-        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, pensions: 20000 })).toBeCloseTo(0.0499, 6);
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, privatePensionIncome: 20000 })).toBeCloseTo(0.0499, 6);
     });
 
     it('GA: is 0 below the standard deduction', () => {
-        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, pensions: 5000 })).toBe(0);
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, privatePensionIncome: 5000 })).toBe(0);
     });
 
     it('GA: blends across a threshold the household is sitting just under', () => {
         // $200 under the deduction: only $800 of the next $1,000 is taxed, so the gross-up sees
         // 3.992% rather than a full 4.99% — the right answer for sizing that draw.
-        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, pensions: 14800 })).toBeCloseTo(0.03992, 6);
+        expect(marginalRate('GA', { ...PENSION_ONLY, age: 61, privatePensionIncome: 14800 })).toBeCloseTo(0.03992, 6);
     });
 
     // The reason the gross-up takes a function and not a rate. Virginia's age deduction dies at
     // $1 per $1, so inside the band a withdrawn dollar adds *two* dollars of taxable income.
     it('VA: doubles to 11.5% inside the age-deduction phase-out band', () => {
-        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 55000 })).toBeCloseTo(0.115, 6);
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, privatePensionIncome: 55000 })).toBeCloseTo(0.115, 6);
     });
 
     it('VA: is the top bracket rate below the phase-out band', () => {
         // $45,000 keeps AFAGI (and the probe) under the $50,000 threshold, so the full $12,000
         // deduction survives and only the bracket rate applies.
-        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 45000 })).toBeCloseTo(0.0575, 6);
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, privatePensionIncome: 45000 })).toBeCloseTo(0.0575, 6);
     });
 
     it('VA: is only 5% for a modest-income retiree still inside the third bracket', () => {
         // $30,000 leaves taxable income of $7,520 — the graduated schedule is worth implementing
         // rather than assuming every retiree lands in the top bracket.
-        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 30000 })).toBeCloseTo(0.05, 6);
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, privatePensionIncome: 30000 })).toBeCloseTo(0.05, 6);
     });
 
     it('VA: is the top bracket rate again above the phase-out band', () => {
         // The band is AFAGI $50,000–$62,000 for a single 65-year-old; $70,000 is past the end,
         // where the deduction is already fully gone and cannot be destroyed twice.
-        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 70000 })).toBeCloseTo(0.0575, 6);
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 67, privatePensionIncome: 70000 })).toBeCloseTo(0.0575, 6);
     });
 
     it('VA: is 0 before 65 when income is under the filing threshold', () => {
-        expect(marginalRate('VA', { ...PENSION_ONLY, age: 64, pensions: 5000 })).toBe(0);
+        expect(marginalRate('VA', { ...PENSION_ONLY, age: 64, privatePensionIncome: 5000 })).toBe(0);
     });
 
     // A single rate applied to a whole draw is wrong precisely because of this: a household
     // sitting at the start of the band pays 11.5% on the first $12,000 and 5.75% after.
     it('VA: a draw that crosses the band out of it is charged less than the in-band rate', () => {
-        const inBand = marginalRate('VA', { ...PENSION_ONLY, age: 67, pensions: 50000 });
+        const inBand = marginalRate('VA', { ...PENSION_ONLY, age: 67, privatePensionIncome: 50000 });
         const rules = getStateTaxRules('VA');
-        const at = (pensions: number): number =>
-            computeStateTax(rules, { ...INPUTS, ...PENSION_ONLY, age: 67, pensions }).tax;
+        const at = (privatePensionIncome: number): number =>
+            computeStateTax(rules, { ...INPUTS, ...PENSION_ONLY, age: 67, privatePensionIncome }).tax;
 
         // $30,000 spans the band ($50k → $62k at 11.5%) and beyond ($62k → $80k at 5.75%).
         const blended = (at(80000) - at(50000)) / 30000;
@@ -497,17 +599,35 @@ describe('marginal rate on the next dollar of withdrawal', () => {
     it('CA: is the bracket rate on an ordinary draw — no exclusion or deduction ever narrows it', () => {
         // $88,000 of pension sits taxable income ($82,294) inside the 9.3% bracket, away from
         // both the credit phase-out and the $1,000,000 surtax line.
-        expect(marginalRate('CA', { ...PENSION_ONLY, age: 62, pensions: 88000 })).toBeCloseTo(0.093, 6);
+        expect(marginalRate('CA', { ...PENSION_ONLY, age: 62, privatePensionIncome: 88000 })).toBeCloseTo(0.093, 6);
     });
 
     it('CA: gains one extra point above $1,000,000 taxable, from the surtax', () => {
-        expect(marginalRate('CA', { ...PENSION_ONLY, age: 62, pensions: 1050000 })).toBeCloseTo(0.133, 6);
+        expect(marginalRate('CA', { ...PENSION_ONLY, age: 62, privatePensionIncome: 1050000 })).toBeCloseTo(0.133, 6);
+    });
+
+    it('NY: is 0 while the $20,000 exclusion still has room, even below the standard deduction', () => {
+        // Same shape as Georgia: the draw creates its own exclusion room dollar-for-dollar.
+        expect(marginalRate('NY', { ...PENSION_ONLY, age: 60, privatePensionIncome: 0 })).toBe(0);
+    });
+
+    it('NY: is the bottom bracket rate once the exclusion and deduction are both exhausted', () => {
+        expect(marginalRate('NY', { ...PENSION_ONLY, age: 60, taxDeferredWithdrawals: 35000, privatePensionIncome: 0 }))
+            .toBeCloseTo(0.039, 6);
+    });
+
+    it('NY: is elevated inside the benefit-recapture bracket rows, well above the ordinary rate', () => {
+        // No exclusion (age 55) isolates the recapture mechanism from the pension benefit.
+        expect(marginalRate('NY', { ...PENSION_ONLY, age: 55, taxDeferredWithdrawals: 130000, privatePensionIncome: 0 }))
+            .toBeCloseTo(0.0753, 6);
     });
 });
 
 describe('state tax rules data', () => {
-    it('models the nine no-income-tax states plus Georgia, Virginia, and California', () => {
-        expect(modeledStates().sort()).toEqual([...NO_INCOME_TAX_STATES, 'CA', 'GA', 'VA'].sort());
+    it('models the nine no-income-tax states plus Georgia, Virginia, California, and New York', () => {
+        expect(modeledStates().sort()).toEqual(
+            [...NO_INCOME_TAX_STATES, 'CA', 'GA', 'NY', 'VA'].sort()
+        );
     });
 
     it('records the tax year the constants were verified against', () => {
@@ -533,13 +653,14 @@ describe('state tax rules data', () => {
         expect(isStateModeled('GA')).toBe(true);
         expect(isStateModeled('VA')).toBe(true);
         expect(isStateModeled('CA')).toBe(true);
-        expect(isStateModeled('NY')).toBe(false);
+        expect(isStateModeled('NY')).toBe(true);
+        expect(isStateModeled('NJ')).toBe(false);
     });
 });
 
 describe('stateTaxDisclosure', () => {
     it('returns null for unmodeled states so the UI falls back to the manual-rate note', () => {
-        expect(stateTaxDisclosure('NY')).toBeNull();
+        expect(stateTaxDisclosure('NJ')).toBeNull();
     });
 
     it('surfaces WA capital-gains excise tax as a caveat, since we do not model it', () => {
@@ -572,5 +693,18 @@ describe('stateTaxDisclosure', () => {
 
     it('discloses that CA figures are dated to the last confirmed tax year', () => {
         expect(stateTaxDisclosure('CA')?.caveat).toMatch(/cannot be finalized/i);
+    });
+
+    it('summarises NY with its graduated top rate and the source-split retirement benefit', () => {
+        const disclosure = stateTaxDisclosure('NY');
+        expect(disclosure?.summary).toContain('10.90%');
+        expect(disclosure?.summary).toMatch(/government pensions are fully exempt/);
+        expect(disclosure?.summary).toMatch(/\$20,000-per-person exclusion/);
+    });
+
+    it('discloses the benefit-recapture surtax and the unmodeled NYC/Yonkers local tax', () => {
+        const caveat = stateTaxDisclosure('NY')?.caveat;
+        expect(caveat).toMatch(/claws back the benefit/i);
+        expect(caveat).toMatch(/New York City and Yonkers/);
     });
 });

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New York State Tax for Retirees — and how this simulator models it</title>
+<style>
+    :root {
+        --ink: #1a2733;
+        --ink-soft: #5a6b7b;
+        --line: #d9e1e8;
+        --paper: #fdfdfb;
+        --panel: #f4f7f9;
+        --ny: #4a3f8f;          /* New York accent — Empire indigo */
+        --ny-soft: #ece9f7;
+        --free: #2f7d64;        /* deducted / untaxed */
+        --free-soft: #e6f2ee;
+        --taxed: #b45309;       /* taxed */
+        --taxed-soft: #fdf1e0;
+        --hot: #a02c2c;         /* the recapture / marriage penalty */
+        --hot-soft: #fbeaea;
+        --code: #24303c;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 56px 28px 96px; }
+
+    header { border-bottom: 3px solid var(--ink); padding-bottom: 22px; margin-bottom: 40px; }
+    .kicker {
+        font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .16em; text-transform: uppercase; color: var(--ny); margin-bottom: 14px;
+    }
+    h1 { font-size: 2.15rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -.02em; }
+    .standfirst { font-size: 1.1rem; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+
+    h2 {
+        font-size: 1.4rem; margin: 52px 0 8px; padding-top: 20px;
+        border-top: 1px solid var(--line); letter-spacing: -.01em;
+    }
+    h2 .num {
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ny); display: block; margin-bottom: 6px; letter-spacing: .12em;
+    }
+    h3 { font-size: 1.05rem; margin: 30px 0 6px; }
+    p { margin: 12px 0; }
+    strong { font-weight: 700; }
+
+    .lede { font-size: 1.05rem; color: var(--ink-soft); margin-top: 0; }
+
+    /* ---------- figures ---------- */
+    figure {
+        margin: 26px 0; padding: 22px 22px 16px;
+        background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    }
+    figcaption {
+        font: 500 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); margin-top: 14px; padding-top: 12px;
+        border-top: 1px dashed var(--line);
+    }
+    figcaption b { color: var(--ink); }
+    svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .lbl { font: 500 12px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-sm { font: 500 10.5px ui-sans-serif, system-ui, sans-serif; fill: var(--ink-soft); }
+    .lbl-num { font: 700 13px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-white { font: 700 12px ui-sans-serif, system-ui, sans-serif; fill: #fff; }
+
+    /* ---------- callouts ---------- */
+    .note, .warn, .key {
+        border-radius: 8px; padding: 16px 18px; margin: 24px 0;
+        font-size: .96rem;
+    }
+    .note { background: var(--panel); border-left: 4px solid var(--ink-soft); }
+    .warn { background: var(--taxed-soft); border-left: 4px solid var(--taxed); }
+    .key  { background: var(--ny-soft);  border-left: 4px solid var(--ny); }
+    .note p:first-child, .warn p:first-child, .key p:first-child { margin-top: 0; }
+    .note p:last-child, .warn p:last-child, .key p:last-child { margin-bottom: 0; }
+    .tag {
+        display: inline-block; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px;
+        margin-right: 8px; vertical-align: 2px;
+    }
+    .tag-ny { background: var(--ny); color: #fff; }
+    .tag-warn { background: var(--taxed); color: #fff; }
+    .tag-key { background: var(--ink); color: #fff; }
+
+    /* ---------- tables ---------- */
+    table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: .94rem; }
+    caption {
+        text-align: left; font: 600 13px ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); padding-bottom: 8px;
+    }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    th {
+        font: 600 12px ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--ink-soft); background: var(--panel);
+    }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: #fafcfd; }
+    .yes { color: var(--free); font-weight: 700; }
+    .no  { color: var(--taxed); font-weight: 700; }
+    tr.hot td { background: var(--hot-soft); }
+
+    code {
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--panel); padding: 1px 5px; border-radius: 4px; color: var(--code);
+    }
+    pre {
+        background: var(--code); color: #e8eef4; padding: 16px 18px; border-radius: 8px;
+        overflow-x: auto; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+    .cmt { color: #8fa6ba; }
+
+    ul, ol { padding-left: 22px; }
+    li { margin: 7px 0; }
+
+    footer {
+        margin-top: 64px; padding-top: 20px; border-top: 3px solid var(--ink);
+        font: 13px/1.6 ui-sans-serif, system-ui, sans-serif; color: var(--ink-soft);
+    }
+    a { color: var(--ny); }
+    @media print {
+        body { background: #fff; }
+        figure, table { break-inside: avoid; }
+        h2 { break-after: avoid; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+    <div class="kicker">Retirement Planner · Tax Model Explainer</div>
+    <h1>New York state tax for retirees</h1>
+    <p class="standfirst">New York taxes a government pension and a private one completely
+    differently — one is fully exempt at any age, the other gets a capped exclusion only once
+    you're near 60. And above an entirely ordinary retirement income, New York claws back the
+    value of its own lower tax brackets, in a pattern that looks like a rate roller coaster but
+    is really five overlapping recapture bands resolved into one bracket table.</p>
+</header>
+
+<p class="lede">Georgia excludes retirement income by age. Virginia gives a means-tested age
+deduction. California gives no retiree benefit at all but taxes a credit off the bill instead of
+off taxable income. New York does something none of the three do: it taxes the <strong>same
+dollar of pension income differently depending on where it came from</strong>. And its
+complications don't stop at retirees — a benefit-recapture surtax reaches ordinary earners too,
+not just the ultra-wealthy the way California's does.</p>
+
+<div class="key">
+    <span class="tag tag-key">The whole model in one line</span>
+    <p style="margin-top:10px"><code>NY tax = brackets([federal AGI − taxable Social Security] − government pension (all of it) − min($20,000 × eligible people, private pension + IRA/401(k) withdrawals) − standard deduction)</code></p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART ONE · THE BENEFIT</span>Two pensions, two completely different rules</h2>
+
+<p>New York starts like every other modeled state: federal AGI, minus the Social Security that
+was federally taxable, minus a standard deduction. Where it diverges is the very next line. Every
+other modeled state applies one retirement benefit to all retirement income alike. New York
+applies <strong>two unrelated ones</strong>, chosen entirely by the pension's source:</p>
+
+<ul>
+    <li><strong>Government pensions</strong> — from New York State, its local governments, the
+    federal government, or the military — are subtracted from AGI <strong>in full, at any age,
+    with no dollar cap</strong> (Tax Law §612(c)(3)).</li>
+    <li><strong>Everything else</strong> — private-employer pensions, annuities, and IRA/401(k)
+    withdrawals — gets a <strong>$20,000-per-person exclusion</strong>, and only once the person
+    is old enough (§612(c)(3-a)).</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 840 210" role="img" aria-label="Two pensions taxed differently: a 50,000 dollar government pension is fully exempt regardless of age, while a 30,000 dollar private pension is capped at a 20,000 dollar exclusion once the retiree is 60">
+    <text class="lbl" x="70" y="26" style="font-weight:700">Two $50,000-scale pensions, same household, same tax return — priced by source, not by age</text>
+
+    <rect x="70" y="42" width="700" height="46" rx="4" fill="#e6f2ee" stroke="#2f7d64"/>
+    <text class="lbl" x="82" y="64">$50,000 government pension (age 55 <tspan font-style="italic">or</tspan> 70 — age never matters here)</text>
+    <text class="lbl-num" x="758" y="64" text-anchor="end" style="fill:#2f7d64">$0.00 tax</text>
+    <text class="lbl-sm" x="82" y="80" style="fill:#2f7d64">fully exempt — Tax Law §612(c)(3)</text>
+
+    <rect x="70" y="98" width="466.7" height="46" fill="#2f7d64"/>
+    <rect x="536.7" y="98" width="233.3" height="46" fill="#b45309"/>
+    <rect x="70" y="98" width="700" height="46" fill="none" stroke="#1a2733" stroke-width="1.2"/>
+    <text class="lbl-white" x="303.3" y="126" text-anchor="middle">$20,000 excluded</text>
+    <text class="lbl-white" x="653.3" y="126" text-anchor="middle">$10,000 exposed</text>
+
+    <text class="lbl-sm" x="70" y="160">$30,000 <tspan font-weight="700">private</tspan> pension, age 60 — same $30,000, capped at the $20,000-per-person exclusion</text>
+    <text class="lbl" x="70" y="184" style="font-weight:700">Tax owed: (30,000 − 20,000 − 8,000 standard deduction) × 3.9% bottom bracket</text>
+    <text class="lbl-num" x="758" y="184" text-anchor="end" style="fill:#b45309">$78.00</text>
+</svg>
+<figcaption><b>Every figure here is a <code>stateTax.test.ts</code> assertion</b>, not an
+illustration. The same household with both pensions in the same year keeps both benefits — a
+government pension does not use up any of the private-pension exclusion, and vice versa.</figcaption>
+</figure>
+
+<div class="note">
+    <p><strong>Before 60, the private exclusion is $0 — not partial.</strong> The same $30,000
+    private pension at 59 owes tax on $22,000 (only the standard deduction shields it):
+    <code>(30,000 − 8,000) × brackets = $1,023.00</code>, more than thirteen times the age-60
+    bill. Nothing else this tool models has that sharp an age cliff on ordinary pension income —
+    Georgia's exclusion at least starts partial at 62.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART TWO · THE FINE PRINT</span>Not poolable, and a birthday the engine can't see</h2>
+
+<h3>Per person, and a couple can't share</h3>
+<p>The $20,000 exclusion belongs to the person who earned the pension. IT-201-I's own
+instructions are explicit that a couple cannot combine or reassign it:</p>
+
+<blockquote style="margin:18px 0;padding:2px 20px;border-left:3px solid var(--ny);color:var(--ink-soft);font-size:.98rem">
+"If you both qualify, you and your spouse can each subtract up to $20,000 of your own pension and
+annuity income. However, <strong>neither of you can claim any unused part of your spouse's
+exclusion.</strong>"
+</blockquote>
+
+<p>The same shape of simplification already exists for Georgia: this simulator's accounts are
+pooled, with no attribution of a specific withdrawal to a specific spouse, so a couple whose
+private pension/IRA income is lopsided toward one spouse can be over- or under-excluded relative
+to what a real, per-spouse return would compute:</p>
+
+<table>
+<caption>MFJ, $50,000 of private pension income, standard deduction $16,050</caption>
+<thead><tr><th>Household</th><th class="num">Exclusion</th><th class="num">NY tax</th></tr></thead>
+<tbody>
+    <tr><td>Both spouses 62 — two $20,000 exclusions</td><td class="num yes">$40,000</td><td class="num">$0.00</td></tr>
+    <tr class="hot"><td>Primary 62, spouse 55 — only one exclusion qualifies</td><td class="num">$20,000</td><td class="num">$588.30</td></tr>
+</tbody>
+</table>
+
+<h3>The exclusion starts at 60, not the statutory 59½</h3>
+<p>New York's own threshold is a half-year: "if you were age 59½ or older for the entire tax
+year." This simulator's engine has no such thing — every simulated year is a whole calendar-year
+age, one age per year, with no fractional precision anywhere else in the model either. Rounding
+the threshold <em>up</em> to 60 denies the exclusion for the half-year someone is actually
+eligible, which understates the exclusion and overstates tax — deliberately, since every other
+place this project takes a shortcut errs in the same conservative direction.</p>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART THREE · THE RATE ROLLER COASTER</span>New York claws back its own tax break, and it starts at an ordinary income</h2>
+
+<p class="lede">California's surtax is a single, sharp kink at $1,000,000 — reachable only at the
+very top of the income distribution. New York's is stranger and, for this tool's audience, far
+more consequential: above <strong>$107,650 of combined income — not doubled for joint
+filers</strong> — New York recaptures the value of its own lower brackets in a series of
+$50,000-wide bands, and $107,650 is an entirely ordinary New York retirement income.</p>
+
+<figure>
+<svg viewBox="0 0 840 300" role="img" aria-label="A bar chart of New York's single-filer marginal tax rate from 13,900 dollars to 265,400 dollars of taxable income, showing the rate rising and falling repeatedly instead of increasing smoothly: 5.4 percent, 5.9 percent, 7.03 percent, 7.53 percent, 6.4 percent, then spiking to 11.44 percent">
+    <text class="lbl" x="70" y="22" style="font-weight:700">Single filer's marginal rate, $13,900 → $265,400 of taxable income — bar width is dollar range, height is the rate</text>
+
+    <line x1="70" y1="220" x2="770" y2="220" stroke="#1a2733" stroke-width="1.2"/>
+
+    <rect x="70" y="150" width="186" height="70" fill="#4a3f8f"/>
+    <text class="lbl-white" x="163" y="192" text-anchor="middle">5.40%</text>
+    <text class="lbl-sm" x="163" y="238" text-anchor="middle">$13,900–$80,650</text>
+
+    <rect x="256" y="143" width="45" height="77" fill="#4a3f8f"/>
+    <text class="lbl-white" x="278" y="185" text-anchor="middle" style="font-size:10px">5.90%</text>
+
+    <rect x="301" y="129" width="30" height="91" fill="#a02c2c"/>
+    <text class="lbl-white" x="316" y="178" text-anchor="middle" style="font-size:9px">7.03%</text>
+
+    <rect x="331" y="122" width="139" height="98" fill="#a02c2c"/>
+    <text class="lbl-white" x="400" y="175" text-anchor="middle">7.53%</text>
+
+    <rect x="470" y="137" width="161" height="83" fill="#4a3f8f"/>
+    <text class="lbl-white" x="550" y="182" text-anchor="middle">6.40%</text>
+
+    <rect x="631" y="71" width="139" height="149" fill="#a02c2c"/>
+    <text class="lbl-white" x="700" y="150" text-anchor="middle">11.44%</text>
+
+    <text class="lbl-sm" x="331" y="248" text-anchor="middle" style="fill:#a02c2c;font-weight:700">$107,650 — where the recapture starts</text>
+    <path d="M331 232 L331 224" stroke="#a02c2c" stroke-width="1"/>
+
+    <text class="lbl-sm" x="700" y="248" text-anchor="middle" style="fill:#a02c2c;font-weight:700">$265,400</text>
+
+    <text class="lbl-sm" x="70" y="272" style="fill:#a02c2c">Red bars are recapture rows: elevated well above the rate on either side of them, then handed back down again.</text>
+    <text class="lbl-sm" x="70" y="290">The published headline rate at this income (6–6.85%) never appears on its own once income has crossed $107,650 — this chart <tspan font-style="italic">is</tspan> the actual bracket table.</text>
+</svg>
+<figcaption><b>Every rate here is a row in <code>stateTaxRules.json</code></b>, sourced directly
+from New York's own 2026 payroll withholding publication (Part Three, below) — not smoothed,
+not approximated. The climb continues past this chart's edge to a published top rate of 10.90%
+above $25,000,000, but by then the recapture has long since finished; nothing past $265,400
+looks this jagged again.</figcaption>
+</figure>
+
+<div class="warn">
+    <span class="tag tag-warn">Not a rare edge case</span>
+    <p style="margin-top:10px">California's $1,000,000 surtax line and New York's own top bracket
+    are both genuinely out of reach for this tool's audience. $107,650 of combined household
+    income is not — two modest pensions and a Social Security benefit can clear it. This is the
+    one modeled-state discontinuity that a typical plan can actually hit.</p>
+</div>
+
+<h3>Why the rate moves like this: five recaptures, not one</h3>
+<p>New York's brackets, as published, are an ordinary nine-rate schedule: 4%, 4.5%, 5.25%, 5.5%,
+6%, 6.85%, 9.65%, 10.3%, 10.9% — the numbers most articles quote. But that schedule only applies
+below $107,650 of NY AGI. Above it, New York adds a supplemental tax that phases in the
+difference between the published rate and the top rate a filer's bracket would otherwise imply,
+over a series of $50,000-wide bands — once for the ordinary "millionaire's tax" mechanism that
+predates 2026, and again, freshly, for the 2026 middle-class rate cut itself (a targeted tax cut
+that phases back out for anyone whose income is high enough that the cut wasn't meant for them).
+Layered together, the two recaptures are what produce six rate changes across a $185,000-wide
+span instead of one.</p>
+
+<table>
+<caption>New York single-filer brackets, TY2026 — the full row set, recapture included</caption>
+<thead><tr><th class="num">Rate</th><th>Taxable income</th><th>What it is</th></tr></thead>
+<tbody>
+    <tr><td class="num">3.90%</td><td>$0 – $8,500</td><td>Bottom bracket, cut 0.1pp for TY2026</td></tr>
+    <tr><td class="num">4.40%</td><td>$8,500 – $11,700</td><td rowspan="3">Ordinary published brackets</td></tr>
+    <tr><td class="num">5.15%</td><td>$11,700 – $13,900</td></tr>
+    <tr><td class="num">5.40%</td><td>$13,900 – $80,650</td></tr>
+    <tr><td class="num">5.90%</td><td>$80,650 – $96,800</td><td>Still ordinary — the last calm row</td></tr>
+    <tr class="hot"><td class="num">7.03%</td><td>$96,800 – $107,650</td><td>Recapture of the 2026 rate cut begins</td></tr>
+    <tr class="hot"><td class="num">7.53%</td><td>$107,650 – $157,650</td><td>The older, "millionaire's tax" recapture begins on top</td></tr>
+    <tr><td class="num">6.40%</td><td>$157,650 – $215,400</td><td>Both recaptures pause — the dip is real</td></tr>
+    <tr class="hot"><td class="num">11.44%</td><td>$215,400 – $265,400</td><td>Steepest band — both recaptures active at once</td></tr>
+    <tr><td class="num">7.35%</td><td>$265,400 – $1,077,550</td><td>Recapture finished; ordinary bracket resumes</td></tr>
+    <tr><td class="num">9.65% / 10.30% / 10.90%</td><td>$1,077,550 and up</td><td>Published top rates, continued as ordinary brackets (see below)</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART FOUR · WHERE THE NUMBERS CAME FROM</span>A withholding table did the hard part first</h2>
+
+<p>Reimplementing New York's recapture the way its own tax-return worksheets describe it — five
+separate worksheets, each testing a different income breakpoint and phasing in its own band —
+would have meant a genuinely new engine mechanism. It turned out to be unnecessary. New York's
+own payroll department publishes an official withholding schedule every January
+(<code>NYS-50-T-NYS</code>), and its "Method II Exact Calculation" tables have already done the
+work of flattening the recapture into an ordinary, cumulative bracket table — confirmed by
+checking that every row's stated dollar base equals the running total of every row before it,
+the same convention Virginia's plain bracket table already uses. The bracket table above is that
+table, transcribed directly, nothing smoothed or re-derived.</p>
+
+<blockquote style="margin:18px 0;padding:2px 20px;border-left:3px solid var(--ny);color:var(--ink-soft);font-size:.98rem">
+"The 2026 New York State personal income tax rate schedules have been revised to reflect certain
+income tax rate reductions enacted under Chapter 59 of the Laws of 2025 (Part A). Accordingly,
+effective for payrolls made on or after January 1, 2026, employers must use the revised
+withholding tax tables and methods in this publication…"
+</blockquote>
+
+<div class="note">
+    <p><strong>The one place the withholding table doesn't help: past $1,077,550.</strong> New
+    York's own Method II tables stop there and hand off to a separate "Method III — Top Income
+    Tax Rates" method built for oversized one-time bonus payments. Method III's rates — 10.45%,
+    11.10%, 11.70% — are not the real marginal rate: they run a flat +0.80 percentage points
+    above the published 9.65% / 10.30% / 10.90% top rates, a deliberate over-withholding margin
+    for exactly the kind of payment that method is meant for (conceptually the same kind of
+    payroll markup as California's 1.1× EDD figure, confirmed by checking that Method III's own
+    number does not agree with Method II's last row, while the true top rates do once continued
+    as ordinary brackets). The three rows above $1,077,550 in this model use the confirmed-true
+    rates, not Method III's — moot in practice, since this tool's audience never approaches
+    seven-figure taxable income in a single year.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART FIVE · IMPLEMENTATION</span>The one benefit narrow enough to expose a real bug</h2>
+
+<p class="lede">Georgia's flat rate couldn't test whether the withdrawal engine assumed
+linearity. Virginia's phase-out could, and did. California's surtax kink needed no new mechanism
+at all — proof the fix built for Virginia generalized cleanly. New York broke that streak: it is
+the first benefit narrow enough that pooling every kind of withdrawal into one number, which had
+worked for three states running, quietly over-granted it.</p>
+
+<p>New York's $20,000 exclusion covers pension, annuity, and IRA/401(k) withdrawals — not
+brokerage-account gains, and not non-medical HSA withdrawals. But the withdrawal engine's gross-up
+solver had always priced every kind of draw through a single shared figure, because Georgia's
+exclusion happens to cover gains too and Virginia and California don't distinguish income types
+at all. Under this tool's default withdrawal order — taxable brokerage accounts drawn before
+tax-deferred ones — a brokerage sale's gain share was quietly riding into the very same pooled
+figure the tax-deferred exclusion was being sized against:</p>
+
+<figure>
+<svg viewBox="0 0 840 260" role="img" aria-label="Comparison showing that pooling a 12,000 dollar brokerage gain into the same figure as a 16,663.60 dollar tax-deferred withdrawal computes 25.88 dollars of New York tax, while pricing each income type separately and correctly computes 156.00 dollars, the real amount New York bills">
+    <text class="lbl" x="70" y="24" style="font-weight:700">Same year, same two draws — $16,663.60 tax-deferred, $12,000 of realized brokerage gains</text>
+
+    <rect x="70" y="42" width="700" height="46" rx="4" fill="#fbeaea" stroke="#a02c2c"/>
+    <text class="lbl" x="82" y="64">Pooled into one figure (the old gross-up) — gains ride the $20,000 cap for free</text>
+    <text class="lbl-num" x="758" y="64" text-anchor="end" style="fill:#a02c2c;font-weight:700">$25.88</text>
+    <text class="lbl-sm" x="82" y="80" style="fill:#a02c2c">exclusion wrongly saturates at the full $20,000 — gains were never eligible for it</text>
+
+    <rect x="70" y="98" width="700" height="46" rx="4" fill="#e6f2ee" stroke="#2f7d64"/>
+    <text class="lbl" x="82" y="120">Priced by real type (the current gross-up) — exclusion bounded by the real $16,663.60</text>
+    <text class="lbl-num" x="758" y="120" text-anchor="end" style="fill:#2f7d64;font-weight:700">$156.00</text>
+    <text class="lbl-sm" x="82" y="136" style="fill:#2f7d64">exactly what settlement bills on this same split — solve and settlement now agree</text>
+
+    <line x1="70" y1="160" x2="770" y2="160" stroke="#d9e1e8"/>
+    <text class="lbl" x="70" y="184" style="font-weight:700">What the gap costs the plan</text>
+    <text class="lbl-num" x="758" y="184" text-anchor="end" style="fill:#a02c2c">$130.12 under-withdrawn</text>
+    <text class="lbl-sm" x="70" y="206">Measured for real on the default plan's age-60 year: settlement billed $124.63 against a
+        <tspan x="70" dy="14">solve that hadn't priced nearly enough of it, leaving that single year $113.89 short.</tspan>
+    </text>
+</svg>
+<figcaption><b>The $16,663.60 / $12,000 / $156.00 figures are a <code>withdrawals.test.ts</code>
+assertion; the $124.63 / $113.89 figures are measured directly from a real run of the default
+plan.</b> Two different scenarios, same underlying gap — shown separately rather than blended, so
+neither number is dressed up as the other.</figcaption>
+</figure>
+
+<pre><code><span class="cmt">// yearlyProjection.ts — widened from a single `draws` figure to a typed breakdown</span>
+(breakdown) =&gt; computeStateTax(stateRules, { ...stateInputsBase,
+              taxDeferredWithdrawals: breakdown.taxDeferred,
+              brokerageGains: breakdown.brokerageGains,
+              hsaNonMedicalWithdrawals: breakdown.hsaNonMedical }).tax - initialStateTax</code></pre>
+
+<div class="key">
+    <span class="tag tag-key">Measured effect after the fix</span>
+    <p style="margin-top:10px">Across a 60-seed sweep of the default plan, New York now leaks
+    <strong>$0.68 per run</strong> (worst single year <strong>−$0.25</strong>) — indistinguishable
+    from Georgia's $0.52, Virginia's $0.74, or California's $0.68. Georgia, Virginia, and
+    California all pass their existing tests unchanged under the wider, type-aware gross-up:
+    nothing about their formulas depends on which income type a dollar came from, which is exactly
+    why the widening is additive and not a rewrite.</p>
+</div>
+
+<h3>What's new in the schema, and what isn't</h3>
+<p>New York needed no new top-level field on the rules type at all — its recapture lives entirely
+inside the ordinary <code>graduated_by_status</code> bracket rows California already introduced,
+and its retirement benefit is one more member of the existing <code>retirementBenefit</code>
+union, alongside Georgia's exclusion and Virginia's age deduction. What New York did need was a
+change outside that schema: <code>Pension</code> gained an <code>isGovernment</code> flag,
+<code>StateTaxInputs.pensions</code> split into <code>governmentPensionIncome</code> and
+<code>privatePensionIncome</code>, and the gross-up's <code>stateTaxOnDraws</code> callback grew
+from a single number into the typed breakdown shown above.</p>
+
+<h3>What is deliberately not modeled</h3>
+<ul>
+    <li><strong>NYC and Yonkers local income tax</strong> — New York is the only modeled state
+        with a local income tax layered on top of the state one, and this tool computes neither
+        city's. Disclosed in the Assumptions panel.</li>
+    <li><strong>The $1,000 dependent exemption and the blind exemption</strong> — retirees rarely
+        have dependents, the same reasoning as Georgia's and California's unmodeled dependent
+        exemptions.</li>
+    <li><strong>The continuation brackets above $1,077,550</strong> are derived from the true
+        published top rates rather than directly quoted (Part Three) — irrelevant in practice,
+        since this tool's audience never approaches that income level.</li>
+    <li><strong>The 59½ threshold is modeled as age 60</strong> (Part Two) — a half-year more
+        conservative than the statute, in the same direction as every other age-based shortcut
+        this project takes.</li>
+</ul>
+
+<footer>
+    <p><strong>Sources.</strong>
+    <a href="https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf">NYS-50-T-NYS
+    (1/26) — Withholding Tax Tables and Methods</a> (the Method II annual bracket tables, including
+    the recapture, and the Method III markup discussed in Part Three) ·
+    <a href="https://www.tax.ny.gov/bus/wt/rate.htm">tax.ny.gov — Withholding tax rate
+    changes</a> (confirms the TY2026 rate cut under Chapter 59, Laws of 2025) ·
+    <a href="https://www.tax.ny.gov/pdf/2025/inc/it201i_2025.pdf">IT-201-I (2025) — Instructions
+    for Form IT-201</a> (standard deduction, dependent exemption, and the pension/annuity exclusion
+    mechanics quoted in Part Two) ·
+    <a href="https://www.tax.ny.gov/pit/file/information_for_seniors.htm">tax.ny.gov — Information
+    for Seniors</a> (Social Security exemption, the government-pension full exemption, and the
+    private-pension exclusion).</p>
+    <p><strong>Companion documents.</strong> <code>docs/5-state-tax-model.md</code> §4.5 holds the
+    full model with the annual re-verification procedure; the explainers for the other three
+    modeled income-taxing states are <code>docs/state-tax-explained-georgia.html</code>,
+    <code>docs/state-tax-explained-virginia.html</code>, and
+    <code>docs/state-tax-explained-california.html</code>.</p>
+    <p>Educational projections only — not financial, tax, or legal advice. Tax constants are
+    year-specific (TY2026) and must be re-verified once New York's TY2027 rate cut and any new
+    withholding publication are out.</p>
+</footer>
+
+</div>
+</body>
+</html>
