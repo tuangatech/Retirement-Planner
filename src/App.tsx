@@ -8,6 +8,7 @@ import WizardPage from '@/pages/WizardPage';
 import ResultsPage from '@/pages/ResultsPage';
 import ScenariosPage from './pages/ScenariosPage';
 import ComparisonPage from './pages/ComparisonPage';
+import StateTaxComparisonPage from './pages/StateTaxComparisonPage';
 
 function App() {
     return (
@@ -32,6 +33,7 @@ function App() {
                         
                         <Route path="/scenarios" element={<ScenariosPage />} />
                         <Route path="/compare" element={<ComparisonPage />} />
+                        <Route path="/state-tax-comparison" element={<StateTaxComparisonPage />} />
                     </Routes>
                 </ResultsProvider>
             </InputsProvider>
