@@ -79,6 +79,27 @@ export interface StateTaxResult {
 }
 
 /**
+ * The intermediate values behind a state tax calculation, for UI surfaces that want to show
+ * their work (e.g. the state tax comparison page) rather than just the final number. Not used
+ * on the simulation's hot path — `computeStateTax` below stays the lightweight call site used
+ * once per simulated year.
+ */
+export interface StateTaxDetail extends StateTaxResult {
+    /** State AGI: federal AGI less federally taxable Social Security (see `StateTaxInputs`). */
+    agi: number;
+    /** Retirement-income exclusion/deduction subtracted from AGI. 0 if the state has none, or none applies. */
+    benefit: number;
+    standardDeduction: number;
+    /** Virginia's personal exemptions. 0 for every other state. */
+    personalExemption: number;
+    taxableIncome: number;
+    /** California's personal/senior exemption credit, subtracted from tax rather than income. 0 elsewhere. */
+    credit: number;
+    /** California's Behavioral Health Services Tax. 0 elsewhere. */
+    surtax: number;
+}
+
+/**
  * Picks the entry from a year-keyed schedule that governs `year`: the last entry whose
  * `fromYear` has already arrived, or the earliest entry for years before the schedule starts
  * (a retirement modeled in 2025 uses the TY2026 constants rather than nothing).
@@ -270,8 +291,13 @@ function applyBrackets(
     return tax;
 }
 
-function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
-    const agi = stateAGI(inputs);
+/** `agi` is passed in rather than recomputed — the caller already has it for the zero-detail cases. */
+function incomeTaxDetailed(
+    rules: IncomeTaxRules,
+    inputs: StateTaxInputs,
+    agi: number
+): Omit<StateTaxDetail, 'modeled'> {
+    const zero = { agi, benefit: 0, standardDeduction: 0, personalExemption: 0, taxableIncome: 0, credit: 0, surtax: 0, tax: 0 };
 
     // Below the filing threshold no tax is imposed and no return is required (Virginia,
     // § 58.1-321). Without this the band between the standard deduction and the threshold would
@@ -282,7 +308,7 @@ function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
             inputs.filingStatus === 'married_joint'
                 ? rules.filingThreshold.married
                 : rules.filingThreshold.single;
-        if (agi < threshold) return 0;
+        if (agi < threshold) return zero;
     }
 
     const deductionSchedule = pickForYear(rules.standardDeduction, inputs.year);
@@ -301,19 +327,18 @@ function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
                 ? virginiaAgeDeduction(rules.retirementBenefit, inputs, agi)
                 : nyPensionExclusion(rules.retirementBenefit, inputs);
 
-    const taxable = Math.max(
-        0,
-        agi - benefit - standardDeduction - personalExemptions(rules, inputs)
-    );
+    const personalExemption = personalExemptions(rules, inputs);
+
+    const taxableIncome = Math.max(0, agi - benefit - standardDeduction - personalExemption);
 
     const bracketTax =
         rules.rate.kind === 'flat'
-            ? taxable * rules.rate.rate
+            ? taxableIncome * rules.rate.rate
             : rules.rate.kind === 'graduated'
-              ? applyBrackets(rules.rate.brackets, taxable)
+              ? applyBrackets(rules.rate.brackets, taxableIncome)
               : applyBrackets(
                     inputs.filingStatus === 'married_joint' ? rules.rate.married : rules.rate.single,
-                    taxable
+                    taxableIncome
                 );
 
     // California's exemption credit reduces computed TAX, not taxable income (§4.4) — the
@@ -325,9 +350,9 @@ function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
     // The Behavioral Health Services Tax is computed on taxable income directly and is not
     // reducible by the exemption credit — it is added after, per FTB's own worksheet (§4.4).
     const surtax =
-        rules.surtax === undefined ? 0 : rules.surtax.rate * Math.max(0, taxable - rules.surtax.threshold);
+        rules.surtax === undefined ? 0 : rules.surtax.rate * Math.max(0, taxableIncome - rules.surtax.threshold);
 
-    return regularTax + surtax;
+    return { agi, benefit, standardDeduction, personalExemption, taxableIncome, credit, surtax, tax: regularTax + surtax };
 }
 
 /**
@@ -341,13 +366,33 @@ export function computeStateTax(
     rules: StateTaxRules | undefined,
     inputs: StateTaxInputs
 ): StateTaxResult {
-    if (rules === undefined) return { tax: 0, modeled: false };
+    // Narrowed to exactly {tax, modeled} rather than returning the detailed object as-is —
+    // this result can end up serialized (verification bundles, saved scenarios), so it must
+    // not silently grow extra fields just because computeStateTaxDetailed added some.
+    const { tax, modeled } = computeStateTaxDetailed(rules, inputs);
+    return { tax, modeled };
+}
+
+/**
+ * Same as `computeStateTax`, but also returns the intermediate AGI/benefit/deduction/taxable-
+ * income values behind the final number — for a UI that wants to show its work rather than just
+ * the total (e.g. the state tax comparison page). `computeStateTax` stays the call site used on
+ * the simulation's hot path so that path doesn't pay for detail nobody reads there.
+ */
+export function computeStateTaxDetailed(
+    rules: StateTaxRules | undefined,
+    inputs: StateTaxInputs
+): StateTaxDetail {
+    const agi = stateAGI(inputs);
+    const zero = { agi, benefit: 0, standardDeduction: 0, personalExemption: 0, taxableIncome: 0, credit: 0, surtax: 0, tax: 0 };
+
+    if (rules === undefined) return { ...zero, modeled: false };
 
     // A state with no income tax owes a real computed zero — meaningfully different from the
     // `modeled: false` case above, which the UI reports differently.
-    if (!rules.taxesIncome) return { tax: 0, modeled: true };
+    if (!rules.taxesIncome) return { ...zero, modeled: true };
 
-    return { tax: incomeTax(rules, inputs), modeled: true };
+    return { ...incomeTaxDetailed(rules, inputs, agi), modeled: true };
 }
 
 /**

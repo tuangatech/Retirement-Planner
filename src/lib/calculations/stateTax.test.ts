@@ -1,7 +1,7 @@
 // src/lib/calculations/stateTax.test.ts
 
 import { describe, it, expect } from 'vitest';
-import { computeStateTax, stateTaxDisclosure, type StateTaxInputs } from './stateTax';
+import { computeStateTax, computeStateTaxDetailed, stateTaxDisclosure, type StateTaxInputs } from './stateTax';
 import type { USState } from '@/types';
 import {
     getStateTaxRules,
@@ -91,6 +91,61 @@ describe('computeStateTax', () => {
 
     it('treats undefined rules as not modeled rather than throwing', () => {
         expect(computeStateTax(undefined, INPUTS)).toEqual({ tax: 0, modeled: false });
+    });
+});
+
+describe('computeStateTaxDetailed', () => {
+    it('agrees with computeStateTax on the final tax and modeled flag for every modeled state', () => {
+        for (const state of modeledStates()) {
+            const rules = getStateTaxRules(state);
+            const detail = computeStateTaxDetailed(rules, INPUTS);
+            const result = computeStateTax(rules, INPUTS);
+            expect(detail.tax).toBeCloseTo(result.tax, 8);
+            expect(detail.modeled).toBe(result.modeled);
+        }
+    });
+
+    it('reports a real AGI even for a no-income-tax state', () => {
+        const detail = computeStateTaxDetailed(getStateTaxRules('FL'), INPUTS);
+        expect(detail.agi).toBe(88000);
+        expect(detail.benefit).toBe(0);
+        expect(detail.tax).toBe(0);
+        expect(detail.modeled).toBe(true);
+    });
+
+    it("breaks down Georgia's exclusion and taxable income", () => {
+        const detail = computeStateTaxDetailed(getStateTaxRules('GA'), INPUTS);
+        expect(detail.agi).toBe(88000);
+        expect(detail.benefit).toBe(35000); // age-62 tier, capped well below the $78,000 eligible
+        expect(detail.standardDeduction).toBe(15000);
+        expect(detail.taxableIncome).toBe(38000);
+        expect(detail.tax).toBeCloseTo(38000 * 0.0499, 6);
+    });
+
+    it("breaks down New York's source-scoped pension exclusion", () => {
+        const detail = computeStateTaxDetailed(getStateTaxRules('NY'), {
+            ...INPUTS,
+            age: 68,
+            governmentPensionIncome: 10000,
+            privatePensionIncome: 5000,
+        });
+        // Government pension is fully exempt; private (5,000) + tax-deferred (40,000) = 45,000
+        // eligible, capped at $20,000 for one qualifying person.
+        expect(detail.benefit).toBe(10000 + 20000);
+    });
+
+    it('reports zero detail without throwing when rules are undefined', () => {
+        expect(computeStateTaxDetailed(undefined, INPUTS)).toEqual({
+            agi: 88000,
+            benefit: 0,
+            standardDeduction: 0,
+            personalExemption: 0,
+            taxableIncome: 0,
+            credit: 0,
+            surtax: 0,
+            tax: 0,
+            modeled: false,
+        });
     });
 });
 

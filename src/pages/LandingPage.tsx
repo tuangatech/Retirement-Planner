@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { CheckCircle, XCircle, TrendingUp, AlertCircle, ArrowRight, Lock } from 'lucide-react';
 import { Footer } from '../components/common/Footer';
 
@@ -27,12 +27,20 @@ export default function LandingPage() {
                 <div className="max-w-6xl mx-auto px-4">
                     <div className="flex justify-between items-center h-16">
                         <Logo size="lg" variant="full" />
-                        <button
-                            onClick={handleStart}
-                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-                        >
-                            Start Planning
-                        </button>
+                        <div className="flex items-center gap-4">
+                            <Link
+                                to="/state-tax-comparison"
+                                className="hidden sm:inline text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                            >
+                                Compare State Income Taxes
+                            </Link>
+                            <button
+                                onClick={handleStart}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                            >
+                                Start Planning
+                            </button>
+                        </div>
                     </div>
                 </div>
             </nav>
