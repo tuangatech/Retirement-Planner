@@ -1,5 +1,6 @@
 // src/App.tsx - Main Application Component
 
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { InputsProvider } from '@/contexts/InputsContext';
 import { ResultsProvider } from '@/contexts/ResultsContext';
@@ -10,7 +11,24 @@ import ScenariosPage from './pages/ScenariosPage';
 import ComparisonPage from './pages/ComparisonPage';
 import StateTaxComparisonPage from './pages/StateTaxComparisonPage';
 
+// Trackpad/mouse-wheel scroll over a focused number input steps its value instead of
+// scrolling the page (Chrome/Safari default). Blur it on wheel so scroll always scrolls.
+function useBlurNumberInputOnWheel() {
+    useEffect(() => {
+        function handleWheel() {
+            const el = document.activeElement;
+            if (el instanceof HTMLInputElement && el.type === 'number') {
+                el.blur();
+            }
+        }
+        document.addEventListener('wheel', handleWheel, { passive: true });
+        return () => document.removeEventListener('wheel', handleWheel);
+    }, []);
+}
+
 function App() {
+    useBlurNumberInputOnWheel();
+
     return (
         <BrowserRouter>
             <InputsProvider>
