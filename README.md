@@ -145,6 +145,12 @@ python3 scripts/verify_plan.py --json path/to/file.json --tolerance 0.03
 
 It re-derives income, expenses, healthcare premiums/out-of-pocket, taxes, and the cash-flow identity from the inputs, and exits non-zero if any deterministic check fails. Downloaded bundles are git-ignored. See `docs/7-technical-implementation.md` §4.2 for details.
 
+**Comparing a scenario across states:** `scripts/scenario-tax-comparison.test.ts` calls the real
+`calculateTotalTaxes`/`computeStateTax` functions directly for one household's income profile and
+prints federal + state tax across a list of states side by side — no UI, no simulation. Edit its
+`INPUTS` block and rerun with `npx vitest run -c scripts/vitest.config.ts --reporter=verbose`; see
+[docs/scenario-tax-comparisons.md](docs/scenario-tax-comparisons.md) for worked examples.
+
 ---
 
 ## 📦 Project Structure
@@ -237,6 +243,7 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 - **[state-tax-explained-virginia.html](docs/state-tax-explained-virginia.html)** — the same for Virginia, incl. the phase-out band that doubles the marginal rate
 - **[state-tax-explained-california.html](docs/state-tax-explained-california.html)** — the same for California, incl. the credit-based exemption and the surtax
 - **[state-tax-explained-new-york.html](docs/state-tax-explained-new-york.html)** — the same for New York, incl. the source-dependent retirement benefit and the benefit-recapture brackets
+- **[scenario-tax-comparisons.md](docs/scenario-tax-comparisons.md)** — worked household scenarios compared across states, computed by `scripts/scenario-tax-comparison.test.ts`
 - **[6-system-design.md](docs/6-system-design.md)** — architecture and design
 - **[7-technical-implementation.md](docs/7-technical-implementation.md)** — implementation guide (incl. verification workflow)
 
