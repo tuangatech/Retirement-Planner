@@ -349,16 +349,19 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                         </p>
                     </div>
 
-                    {/* Does this tool support married couples */}
+                    {/* Bank / HYSA cash */}
                     <div>
-                        <h4 className="font-semibold mb-1">Q: Does this tool support married couples?</h4>
-                        <p>
-                            Yes — choose <strong>Married filing jointly</strong> in Step 1. The tool models both
-                            spouses' Social Security, the joint standard deduction (including per-spouse age-65
-                            additions), and the older spouse's RMD start age. For simplicity it <strong>pools</strong> your
-                            accounts and does <strong>not</strong> model the survivor's penalty — the higher tax a surviving
-                            spouse faces once filing switches to single. Coordinated per-spouse account strategies and
-                            that survivor transition are planned for a future version.
+                        <h4 className="font-semibold mb-1">Q: How do I enter money in bank or HYSA accounts?</h4>
+                        <p className="mb-1">
+                            Add the balance to your <strong>Taxable Account</strong> — the tool only has three account
+                            types (tax-deferred, Roth, taxable), and bank/HYSA cash is after-tax money like a
+                            brokerage account. Set its expected return to your account's interest rate (e.g., 4–5%)
+                            instead of a market return.
+                        </p>
+                        <p className="text-xs mt-1 text-blue-800">
+                            One gap to know: this tool taxes taxable-account growth only when withdrawn, not
+                            annually. Real HYSA interest is taxed as ordinary income every year it's earned, so a
+                            large cash balance will owe slightly more real-world tax than this model shows.
                         </p>
                     </div>
                 </div>

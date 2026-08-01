@@ -66,8 +66,8 @@ function CurrencyField({
     );
 }
 
-// Defaults mirror INPUTS in scripts/scenario-tax-comparison.test.ts — a real, already-verified
-// situation (docs/scenario-tax-comparisons.md) rather than an arbitrary or all-zero starting point.
+// Defaults mirror Situation 1 in docs/scenario-tax-comparisons.md — a real, already-verified
+// situation rather than an arbitrary or all-zero starting point.
 export default function StateTaxComparisonPage() {
     const [filingStatus, setFilingStatus] = useState<FilingStatus>('married_joint');
     const [age, setAge] = useState(57);
