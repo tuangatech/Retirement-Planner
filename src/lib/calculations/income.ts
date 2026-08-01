@@ -98,6 +98,29 @@ export function calculateTotalPensionIncome(
 }
 
 /**
+ * Calculates the government-source subset of total pension income (`isGovernment: true`).
+ *
+ * Needed only because New York's retirement-income benefit is source-dependent: government
+ * pensions are fully state-tax-exempt, private ones get a capped exclusion instead
+ * (docs/5-state-tax-model.md §4.5). No other modeled state distinguishes pension sources.
+ *
+ * @example
+ * const pensions = [
+ *   { id: '1', name: 'NY State Pension', monthlyAmount: 1000, startAge: 65, colaRate: 0, isGovernment: true },
+ *   { id: '2', name: 'Corp Pension', monthlyAmount: 800, startAge: 62, colaRate: 0.02 }
+ * ];
+ * calculateGovernmentPensionIncome(65, pensions); // Income from the NY State Pension only
+ */
+export function calculateGovernmentPensionIncome(
+    currentAge: number,
+    pensions: Pension[]
+): number {
+    return pensions
+        .filter((pension) => pension.isGovernment === true)
+        .reduce((total, pension) => total + calculatePensionIncome(currentAge, pension), 0);
+}
+
+/**
  * Calculates part-time work income (gross and net).
  * 
  * Part-time work during retirement is subject to:
@@ -239,6 +262,8 @@ export function calculateYearlyIncome(
     socialSecurityFull: number;
     socialSecurityReduction: number;
     pensions: number;
+    /** Government-source subset of `pensions` — see `calculateGovernmentPensionIncome`. */
+    governmentPensionIncome: number;
     partTimeWork: number;
     partTimePayrollTax: number;
     rentalIncome: number;
@@ -272,6 +297,7 @@ export function calculateYearlyIncome(
 
     // Pensions
     const pensionTotal = calculateTotalPensionIncome(currentAge, pensions);
+    const governmentPensionIncome = calculateGovernmentPensionIncome(currentAge, pensions);
 
     // Part-time work
     const { grossIncome: partTimeIncome, payrollTax: partTimePayrollTax } =
@@ -296,6 +322,7 @@ export function calculateYearlyIncome(
         socialSecurityFull: ssResult.fullBenefit + spouseBenefit,
         socialSecurityReduction: ssResult.reduction,
         pensions: pensionTotal,
+        governmentPensionIncome,
         partTimeWork: partTimeIncome,
         partTimePayrollTax,
         rentalIncome: rentalIncomeAmount,

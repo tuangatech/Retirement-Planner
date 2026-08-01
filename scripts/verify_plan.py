@@ -24,7 +24,9 @@ What is verified (deterministic, derived from inputs):
                       marginal rate) and payroll tax (7.65% of part-time work)
   - State income tax (GA's age-tiered exclusion, VA's means-tested age deduction and
                       graduated brackets, CA's brackets-by-status + exemption credit +
-                      surtax; $0 for the nine no-income-tax states)
+                      surtax, NY's brackets-by-status (recapture resolved into extra
+                      bracket rows) + source-split retirement benefit; $0 for the nine
+                      no-income-tax states)
   - RMDs             (IRS Uniform Lifetime divisor on the start-of-year tax-deferred
                       balance, from age 75; MFJ pools under the OLDER spouse's age)
   - Component sums: Total Income / Expenses / Tax / Withdrawals
@@ -244,6 +246,15 @@ class Plan:
                 total += p["monthlyAmount"] * 12 * (1 + p["colaRate"]) ** (age - p["startAge"])
         return total
 
+    def exp_government_pensions(self, age: int) -> float:
+        """Government-source subset of `exp_pensions` — only New York's retirement benefit
+        distinguishes pension sources (docs/5-state-tax-model.md §4.5)."""
+        total = 0.0
+        for p in self.pensions:
+            if p.get("isGovernment") and age >= p["startAge"]:
+                total += p["monthlyAmount"] * 12 * (1 + p["colaRate"]) ** (age - p["startAge"])
+        return total
+
     def exp_rental(self, age: int) -> float:
         r = self.rental
         if not r.get("enabled") or age < r["startAge"]:
@@ -400,6 +411,20 @@ class Plan:
         cap = benefit["perPerson"] * eligible
         return max(0.0, cap - benefit["reductionPerDollar"] * max(0.0, afagi - limit))
 
+    def _ny_pension_exclusion(
+        self, benefit: dict, age: int, government_pension: float,
+        private_pension: float, tax_deferred: float
+    ) -> float:
+        """New York: government pensions are fully exempt (no cap, no age test — Tax Law
+        §612(c)(3)); private pension/annuity/IRA income instead gets a $20,000-per-qualifying-
+        person exclusion (§612(c)(3-a), age 59½, modeled as 60 — the engine has no fractional
+        age). Not poolable across spouses, same family of simplification as Georgia's exclusion
+        (docs/5-state-tax-model.md §4.5, §6)."""
+        eligible_people = self._count_at_least_age(age, benefit["minAge"])
+        private_eligible = private_pension + tax_deferred
+        private_excluded = min(eligible_people * benefit["privateExclusionPerPerson"], private_eligible)
+        return government_pension + private_excluded
+
     def _personal_exemptions(self, rules: dict, age: int) -> float:
         """Virginia's personal exemptions: per filer, plus an addition per filer aged 65+."""
         exemption = rules.get("personalExemption")
@@ -474,9 +499,9 @@ class Plan:
         """Expected state income tax for one projection row.
 
         Unmodeled states report $0 (their burden is folded into the user's marginal rate) and the
-        nine no-income-tax states owe a real $0. Georgia, Virginia, and California are re-derived
-        here. Any other income-taxing state raises rather than silently returning 0 — a
-        deliberate tripwire so adding a state to the JSON without a formula here cannot pass
+        nine no-income-tax states owe a real $0. Georgia, Virginia, California, and New York are
+        re-derived here. Any other income-taxing state raises rather than silently returning 0 —
+        a deliberate tripwire so adding a state to the JSON without a formula here cannot pass
         unnoticed.
         """
         if self.state_mode != "modeled":
@@ -484,7 +509,7 @@ class Plan:
         rules = STATE_TAX_RULES.get(self.state)
         if rules is None or not rules.get("taxesIncome", False):
             return 0.0
-        if self.state not in ("GA", "VA", "CA"):
+        if self.state not in ("GA", "VA", "CA", "NY"):
             raise NotImplementedError(f"No state-tax formula for {self.state}")
 
         inc = row["income"]
@@ -512,8 +537,14 @@ class Plan:
             benefit = 0.0
         elif benefit_rules["kind"] == "ga_exclusion":
             benefit = self._ga_exclusion(rules, row, gains)
-        else:
+        elif benefit_rules["kind"] == "va_age_deduction":
             benefit = self._va_age_deduction(benefit_rules, age, agi)
+        else:
+            government_pension = self.exp_government_pensions(age)
+            private_pension = inc["pensions"] - government_pension
+            benefit = self._ny_pension_exclusion(
+                benefit_rules, age, government_pension, private_pension, wd["taxDeferred"]
+            )
 
         deduction = self._state_standard_deduction(rules, int(row["year"]))
         exemptions = self._personal_exemptions(rules, age)

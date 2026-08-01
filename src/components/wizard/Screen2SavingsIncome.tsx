@@ -379,6 +379,14 @@ export function Screen2SavingsIncome() {
                                                     </button>
                                                 </div>
                                             </div>
+                                            {personal.state === 'NY' && (
+                                                <label className="flex items-center gap-2 mt-3 text-sm text-gray-700">
+                                                    <input type="checkbox" checked={pension.isGovernment ?? false}
+                                                        onChange={(e) => handlePensionChange(pension.id, 'isGovernment', e.target.checked)}
+                                                        className="rounded border-gray-300 focus:ring-2 focus:ring-blue-500" />
+                                                    Government pension (NYS, local, federal, or military — fully exempt from New York tax)
+                                                </label>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

@@ -168,7 +168,8 @@ export function calculateYearlyProjection(
         filingStatus,
         age: currentAge,
         spouseAge,
-        pensions: incomeResult.pensions,
+        governmentPensionIncome: incomeResult.governmentPensionIncome,
+        privatePensionIncome: incomeResult.pensions - incomeResult.governmentPensionIncome,
         partTimeWork: incomeResult.partTimeWork,
         rentalIncome: incomeResult.rentalIncome,
         taxDeferredWithdrawals: 0,
@@ -219,22 +220,28 @@ export function calculateYearlyProjection(
             rmdAge,
             RMD_START_AGE,
             // Gross up withdrawals for state tax using the state's own formula, evaluated at
-            // whatever draw the solver is currently testing. Not a single probed rate: a state's
+            // whatever the solver is currently testing. Not a single probed rate: a state's
             // marginal rate is not constant across a draw (Virginia's age deduction phases out
             // dollar-for-dollar, doubling the rate to ~11.5% inside a $12,000-wide band and
             // halving it again above), so any one rate is wrong for part of any draw that
             // crosses the kink.
             //
-            // Everything is passed as `taxDeferredWithdrawals`, i.e. ordinary state income. That
-            // is exact for tax-deferred draws and for brokerage gains (neither state gives
-            // capital gains a preference), and slightly generous for a non-medical HSA draw,
-            // which Georgia's exclusion does not actually cover. The final `computeStateTax`
-            // below splits the categories properly; the small difference lands in the surplus
-            // that gets reinvested.
-            (draws) =>
+            // Broken out by type — tax-deferred, brokerage gains, non-medical HSA — rather than
+            // one pooled figure, because a benefit scoped to a specific income type (New York's
+            // pension/IRA exclusion excludes gains and HSA income; Georgia's excludes only HSA
+            // income) must not be sized against income it will not actually shelter at
+            // settlement. Sizing a pooled "ordinary income" figure against New York's $20,000
+            // exclusion used to over-grant it to gains realized in the same year — the exclusion
+            // saturated during the solve on phantom room that real settlement never had, because
+            // settlement bounds it by the *real* tax-deferred amount, not by whatever the solve
+            // happened to lump in with it. The final `computeStateTax` below uses these same
+            // fields, so solve and settlement now agree by construction.
+            (breakdown) =>
                 computeStateTax(stateRules, {
                     ...stateInputsBase,
-                    taxDeferredWithdrawals: draws,
+                    taxDeferredWithdrawals: breakdown.taxDeferred,
+                    brokerageGains: breakdown.brokerageGains,
+                    hsaNonMedicalWithdrawals: breakdown.hsaNonMedical,
                 }).tax - initialStateTax
         );
 

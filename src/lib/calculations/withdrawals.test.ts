@@ -8,6 +8,7 @@ import {
     isPortfolioDepleted,
     type AccountBalances,
     type IncomeForTax,
+    type StateDrawBreakdown,
 } from './withdrawals';
 import { computeStateTax, type StateTaxInputs } from './stateTax';
 import { getStateTaxRules } from './stateTaxRules';
@@ -64,7 +65,7 @@ describe('executeWithdrawals', () => {
         );
         const withState = executeWithdrawals(
             65, 20_000, balances, 0, false, tdOnly, noIncome, 0.12, 0.85, 0.7,
-            'standard', 2026, 1, 'single', undefined, 65, 75, (draws) => draws * 0.05
+            'standard', 2026, 1, 'single', undefined, 65, 75, (breakdown) => breakdown.taxDeferred * 0.05
         );
 
         // No Social Security here and a $24,150 deduction floor at 65 in 2026, so a $20k
@@ -153,7 +154,7 @@ describe('executeWithdrawals', () => {
             ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, () => 0
         );
         const withState = executeWithdrawals(
-            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, (draws) => draws * 0.0499
+            ...args, 'tax_smart', 2026, 1, 'single', undefined, 60, 75, (breakdown) => breakdown.taxDeferred * 0.0499
         );
 
         // At 60 the floor is the $16,100 base deduction, so both fill $16,100 first, then
@@ -186,7 +187,8 @@ describe('executeWithdrawals', () => {
             year: 2026,
             filingStatus: 'single',
             age: 67,
-            pensions: 45_000,
+            governmentPensionIncome: 0,
+            privatePensionIncome: 45_000,
             partTimeWork: 0,
             rentalIncome: 0,
             taxDeferredWithdrawals: 0,
@@ -200,10 +202,14 @@ describe('executeWithdrawals', () => {
         const realVirginia = (draws: number): number =>
             computeStateTax(vaRules, { ...stateBase, taxDeferredWithdrawals: draws }).tax - baseStateTax;
 
+        // `tdOnly` draws tax-deferred first and the taxable balance is 0, so every dollar this
+        // waterfall books lands in `breakdown.taxDeferred` — safe to feed straight to a curve
+        // keyed on a single `draws` figure, unlike a state whose benefit is income-type-scoped.
         const draw = (need: number, stateTaxOnDraws: (draws: number) => number) =>
             executeWithdrawals(
                 67, need, balances, 0, false, tdOnly, pensionOnly, 0.12, 0.85, 0.7,
-                'standard', 2026, 1, 'single', undefined, 67, 75, stateTaxOnDraws
+                'standard', 2026, 1, 'single', undefined, 67, 75,
+                (breakdown) => stateTaxOnDraws(breakdown.taxDeferred)
             );
 
         const netOf = (r: ReturnType<typeof executeWithdrawals>) =>
@@ -248,7 +254,7 @@ describe('executeWithdrawals', () => {
         });
 
         it('charges no state tax at all below the filing threshold', () => {
-            const belowThreshold: StateTaxInputs = { ...stateBase, age: 64, pensions: 0 };
+            const belowThreshold: StateTaxInputs = { ...stateBase, age: 64, privatePensionIncome: 0 };
             const noTaxYet = (draws: number): number =>
                 computeStateTax(vaRules, { ...belowThreshold, taxDeferredWithdrawals: draws }).tax;
 
@@ -256,7 +262,8 @@ describe('executeWithdrawals', () => {
             // must not inflate it. The federal floor covers it too, so gross == net exactly.
             const r = executeWithdrawals(
                 64, 11_000, balances, 0, false, tdOnly, noIncome, 0.12, 0.85, 0.7,
-                'standard', 2026, 1, 'single', undefined, 64, 75, noTaxYet
+                'standard', 2026, 1, 'single', undefined, 64, 75,
+                (breakdown) => noTaxYet(breakdown.taxDeferred)
             );
             expect(r.withdrawals.taxDeferred).toBeCloseTo(11_000, 0);
             expect(r.taxOnWithdrawals).toBeCloseTo(0, 0);
@@ -278,7 +285,8 @@ describe('executeWithdrawals', () => {
             year: 2026,
             filingStatus: 'single',
             age: 62,
-            pensions: 995_000,
+            governmentPensionIncome: 0,
+            privatePensionIncome: 995_000,
             partTimeWork: 0,
             rentalIncome: 0,
             taxDeferredWithdrawals: 0,
@@ -292,10 +300,13 @@ describe('executeWithdrawals', () => {
         const realCalifornia = (draws: number): number =>
             computeStateTax(caRules, { ...stateBase, taxDeferredWithdrawals: draws }).tax - baseStateTax;
 
+        // `tdOnly` draws tax-deferred first and the taxable balance is 0, so every dollar this
+        // waterfall books lands in `breakdown.taxDeferred` — same reasoning as the Virginia suite.
         const draw = (need: number, stateTaxOnDraws: (draws: number) => number) =>
             executeWithdrawals(
                 62, need, balances, 0, false, tdOnly, pensionOnly, 0.12, 0.85, 0.7,
-                'standard', 2026, 1, 'single', undefined, 62, 75, stateTaxOnDraws
+                'standard', 2026, 1, 'single', undefined, 62, 75,
+                (breakdown) => stateTaxOnDraws(breakdown.taxDeferred)
             );
 
         const netOf = (r: ReturnType<typeof executeWithdrawals>) =>
@@ -322,6 +333,68 @@ describe('executeWithdrawals', () => {
             const collected = sizedFlat * 0.123;
             // ~$289 unfunded in this one year — the flat 12.3% rate never sees the surtax.
             expect(realCalifornia(sizedFlat) - collected).toBeCloseTo(289.24, 1);
+        });
+    });
+
+    // New York's pension/IRA exclusion does not cover brokerage gains, unlike Georgia's
+    // exclusion (which covers gains) or Virginia/California's benefits (which do not distinguish
+    // income types at all). A taxable-account draw and a tax-deferred draw landing in the same
+    // year — the default withdrawal order draws taxable first — used to let the gains ride
+    // inside the same $20,000 cap during the solve, because the solve pooled every draw type
+    // into one `taxDeferredWithdrawals` figure. `stateTaxOnDraws` is now broken out by type
+    // (§4.5) precisely so this cannot happen.
+    describe('sizes draws where a New York exclusion could be over-granted to brokerage gains', () => {
+        const balances: AccountBalances = { taxDeferred: 500_000, roth: 0, taxable: 40_000, hsa: 0 };
+        const priorityOrder: Array<'taxable' | 'tax_deferred' | 'roth'> = ['taxable', 'tax_deferred', 'roth'];
+
+        const stateBase: StateTaxInputs = {
+            year: 2026,
+            filingStatus: 'single',
+            age: 60,
+            governmentPensionIncome: 0,
+            privatePensionIncome: 0,
+            partTimeWork: 0,
+            rentalIncome: 0,
+            taxDeferredWithdrawals: 0,
+            brokerageGains: 0,
+            hsaNonMedicalWithdrawals: 0,
+        };
+        const nyRules = getStateTaxRules('NY');
+
+        /** The real New York curve, split by type, as `yearlyProjection` passes it in. */
+        const realNewYork = (breakdown: StateDrawBreakdown): number =>
+            computeStateTax(nyRules, {
+                ...stateBase,
+                taxDeferredWithdrawals: breakdown.taxDeferred,
+                brokerageGains: breakdown.brokerageGains,
+            }).tax;
+
+        const draw = () =>
+            executeWithdrawals(
+                60, 55_000, balances, 0, false, priorityOrder, noIncome, 0.12, 0.85, 0.7,
+                'standard', 2026, 1, 'single', undefined, 60, 75, realNewYork
+            );
+
+        it('nets the need exactly when a taxable draw and a tax-deferred draw land in the same year', () => {
+            const r = draw();
+            const net = r.withdrawals.taxDeferred + r.withdrawals.taxable - r.taxOnWithdrawals;
+            expect(net).toBeCloseTo(55_000, 0);
+            expect(r.shortfall).toBeLessThan(1);
+        });
+
+        it('bills the real tax on the real split, not the exclusion pooling gains in would grant', () => {
+            const r = draw();
+            // The $40,000 taxable draw realizes $12,000 of gains (30% at this cost basis) — not
+            // eligible for the exclusion — while the ~$16,664 real tax-deferred draw alone stays
+            // comfortably under the $20,000 cap. Real New York tax on that real split is $156,
+            // not the $0 a pooled-into-one-cap solve would have (wrongly) sized for.
+            const realGains = r.withdrawals.taxable * 0.3;
+            const billed = realNewYork({
+                taxDeferred: r.withdrawals.taxDeferred,
+                brokerageGains: realGains,
+                hsaNonMedical: 0,
+            });
+            expect(billed).toBeCloseTo(156, 0);
         });
     });
 

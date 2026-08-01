@@ -16,8 +16,11 @@
  * the state tax every year and the plan "spends" money it never took out.
  *
  * Scope today: the nine states with no individual income tax, plus Georgia (flat rate, per-person
- * retirement exclusion), Virginia (graduated brackets, household age deduction), and California
- * (brackets by filing status, a credit-based exemption, and a flat surtax above $1,000,000).
+ * retirement exclusion), Virginia (graduated brackets, household age deduction), California
+ * (brackets by filing status, a credit-based exemption, and a flat surtax above $1,000,000), and
+ * New York (brackets by filing status with its benefit-recapture surtax resolved into extra
+ * bracket rows, a source-split retirement benefit — full exemption for government pensions, a
+ * capped exclusion for private pension/IRA income).
  */
 
 import type { USState } from '@/types';
@@ -27,6 +30,7 @@ import {
     type CaExemptionCredit,
     type GaExclusion,
     type IncomeTaxRules,
+    type NyPensionExclusion,
     type StateTaxRules,
     type VaAgeDeduction,
 } from './stateTaxRules';
@@ -48,7 +52,13 @@ export interface StateTaxInputs {
     age: number;
     /** MFJ only: spouse's age this year. Undefined for single filers. */
     spouseAge?: number;
-    pensions: number;
+    /**
+     * Split by source rather than a single `pensions` total because New York taxes them
+     * differently: government pensions are fully exempt, private ones get a capped exclusion
+     * (§4.5). Every other modeled state sums the two identically.
+     */
+    governmentPensionIncome: number;
+    privatePensionIncome: number;
     partTimeWork: number;
     rentalIncome: number;
     taxDeferredWithdrawals: number;
@@ -89,7 +99,8 @@ function pickForYear<T extends { fromYear: number }>(schedule: T[], year: number
  */
 function stateAGI(inputs: StateTaxInputs): number {
     return (
-        inputs.pensions +
+        inputs.governmentPensionIncome +
+        inputs.privatePensionIncome +
         inputs.partTimeWork +
         inputs.rentalIncome +
         inputs.taxDeferredWithdrawals +
@@ -124,7 +135,8 @@ function georgiaExclusion(benefit: GaExclusion, inputs: StateTaxInputs): number 
     // earned income. Non-medical HSA withdrawals are federal "other income" and match no
     // enumerated category, so the plain reading denies them the exclusion (§6).
     const eligible =
-        inputs.pensions +
+        inputs.governmentPensionIncome +
+        inputs.privatePensionIncome +
         inputs.rentalIncome +
         inputs.brokerageGains +
         inputs.taxDeferredWithdrawals +
@@ -185,6 +197,29 @@ function personalExemptions(rules: IncomeTaxRules, inputs: StateTaxInputs): numb
     // the age deduction's threshold but is not derived from it. Dependent and blindness
     // exemptions are not modeled (§4.3).
     return exemption.perFiler * filers + exemption.age65Addition * countAtLeastAge(inputs, 65);
+}
+
+/**
+ * New York's retirement-income benefit: government pensions are fully exempt (no cap, no age
+ * test — Tax Law §612(c)(3)), and private pension/annuity/IRA income separately gets a
+ * $20,000-per-qualifying-person exclusion (§612(c)(3-a), age 59½+, modeled as 60 — see the
+ * `NyPensionExclusion` doc comment on why the engine can't represent a half-year threshold).
+ *
+ * Like Georgia's exclusion, this is per person and not poolable across spouses — a couple where
+ * only one spouse has private pension/IRA income gets one $20,000 exclusion, not two, if pooled
+ * accounts can't attribute the income to a person. Same family of simplification as Georgia's
+ * (§6), and the eligible pool also includes tax-deferred withdrawals, since IT-201-I explicitly
+ * treats IRA lump-sum and periodic distributions as qualifying pension/annuity income.
+ */
+function nyPensionExclusion(benefit: NyPensionExclusion, inputs: StateTaxInputs): number {
+    const eligiblePeople = countAtLeastAge(inputs, benefit.minAge);
+    const privateEligibleIncome = inputs.privatePensionIncome + inputs.taxDeferredWithdrawals;
+    const privateExcluded = Math.min(
+        eligiblePeople * benefit.privateExclusionPerPerson,
+        privateEligibleIncome
+    );
+
+    return inputs.governmentPensionIncome + privateExcluded;
 }
 
 /**
@@ -262,7 +297,9 @@ function incomeTax(rules: IncomeTaxRules, inputs: StateTaxInputs): number {
             ? 0
             : rules.retirementBenefit.kind === 'ga_exclusion'
               ? georgiaExclusion(rules.retirementBenefit, inputs)
-              : virginiaAgeDeduction(rules.retirementBenefit, inputs, agi);
+              : rules.retirementBenefit.kind === 'va_age_deduction'
+                ? virginiaAgeDeduction(rules.retirementBenefit, inputs, agi)
+                : nyPensionExclusion(rules.retirementBenefit, inputs);
 
     const taxable = Math.max(
         0,
@@ -341,7 +378,9 @@ export function stateTaxDisclosure(
             ? '; Social Security is exempt'
             : rules.retirementBenefit.kind === 'ga_exclusion'
               ? '; Social Security is exempt and an age-tiered retirement-income exclusion applies from age 62'
-              : '; Social Security is exempt and an income-tested age deduction applies from age 65';
+              : rules.retirementBenefit.kind === 'va_age_deduction'
+                ? '; Social Security is exempt and an income-tested age deduction applies from age 65'
+                : '; Social Security is exempt, government pensions are fully exempt, and a $20,000-per-person exclusion applies to other pension and IRA income near age 60';
 
     const surtax =
         rules.surtax === undefined

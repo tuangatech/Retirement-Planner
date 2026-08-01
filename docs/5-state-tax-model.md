@@ -4,10 +4,10 @@ How the simulator models **state** income tax, which states are modeled, the ver
 constants with their primary sources, and the procedure for re-verifying them every year.
 Federal tax is a separate model — see [`2-federal-tax-model.md`](2-federal-tax-model.md).
 
-**Status: four PRs shipped** (§9). The engine, the rules data, the wizard surface, and the
-verifier are in place, and **all twelve modeled states are live** — the nine with no income tax,
-Georgia (§4.2), Virginia (§4.3), and California (§4.4). Every other state still folds its burden
-into the user's manual marginal rate.
+**Status: five PRs shipped** (§9). The engine, the rules data, the wizard surface, and the
+verifier are in place, and **all thirteen modeled states are live** — the nine with no income
+tax, Georgia (§4.2), Virginia (§4.3), California (§4.4), and New York (§4.5). Every other state
+still folds its burden into the user's manual marginal rate.
 
 Implementation: [`stateTax.ts`](../src/lib/calculations/stateTax.ts) (logic) +
 [`stateTaxRules.json`](../src/lib/calculations/stateTaxRules.json) (constants, read by both the
@@ -20,14 +20,15 @@ re-checked by [`scripts/verify_plan.py`](../scripts/verify_plan.py).
 
 ## 1. Scope
 
-**Modeled: the nine states with no individual income tax, plus GA, VA, and CA — twelve in
+**Modeled: the nine states with no individual income tax, plus GA, VA, CA, and NY — thirteen in
 total**, all live. Every other state keeps the manual behavior: the user folds their state's
 rate into the single marginal rate on Screen 4.
 
 **Modeled means income tax only.** No state's sales, property, excise, or estate tax is modeled,
-in any of the eleven. That asymmetry matters most for the nine no-income-tax states, where the
+in any of the thirteen. That asymmetry matters most for the nine no-income-tax states, where the
 engine returns a true $0 that is easy to misread as a low total burden — several of them fund
-themselves through property or sales tax instead. Disclosed in the Assumptions panel.
+themselves through property or sales tax instead. Disclosed in the Assumptions panel. New York
+additionally levies NYC and Yonkers local income tax, not modeled either (§4.5).
 
 The nine no-income-tax states cost almost nothing to model (`taxesIncome: false` → `return 0`)
 and need no annual formula review, only a check that none of them has enacted an income tax:
@@ -39,13 +40,16 @@ and need no annual formula review, only a check that none of them has enacted an
 | NH | Interest & Dividends tax **repealed effective 1 Jan 2025** (HB 2, 2023 session) |
 | WA | No income tax, but a **capital-gains excise tax** applies above a high threshold — see below |
 
-GA, VA, and CA cover *structurally different* retiree benefits and rate shapes — GA gives a
+GA, VA, CA, and NY cover *structurally different* retiree benefits and rate shapes — GA gives a
 per-person, income-type-scoped **exclusion** under a flat rate; VA gives a household-level,
 means-tested **age deduction** under a single graduated schedule; CA has **no retiree benefit at
 all**, but its brackets vary by filing status, its personal/senior exemption is a **credit**
 applied after tax rather than a deduction from taxable income, and it adds a flat **surtax**
-above $1,000,000. Between the three, every field the rules schema carries is exercised. NY is
-deferred; §10 records what it would add.
+above $1,000,000; NY's retiree benefit is **source-dependent** (a full exemption for government
+pensions, a capped exclusion for private pension/IRA income) and its own surtax — a
+benefit-recapture mechanism reachable at an entirely ordinary retirement income, unlike CA's
+$1,000,000 line — needs no field of its own because it resolves into extra bracket rows. Between
+the four, every field the rules schema carries is exercised.
 
 ### Washington's capital-gains excise tax: disclosed, not modeled
 
@@ -65,7 +69,7 @@ income tax" for WA without that caveat.
 
 ### Why a blended rate is not good enough
 
-Three effects in the modeled states are impossible to express as a single added-on percentage:
+Four effects in the modeled states are impossible to express as a single added-on percentage:
 
 - **Georgia's exclusion starts at age 62** ($35,000) and reaches $65,000 only at 65. An
   early retiree pays GA tax on essentially all tax-deferred draws until 62, then watches the
@@ -82,6 +86,11 @@ Three effects in the modeled states are impossible to express as a single added-
   joint filers, so the same combined income owes different tax married than single (§4.4). Rare
   at this tool's typical income levels, but a draw large enough to cross the line is exactly the
   case a flat rate mis-sizes, the same failure mode as Virginia's band.
+- **New York recaptures the benefit of its own lower brackets** above $107,650 of combined
+  income — **not doubled for joint filers** — phased in over a series of $50,000-wide bands
+  until it reaches a flat 10.90% above $25,000,000 (§4.5). Unlike California's $1,000,000 line,
+  $107,650 is an entirely ordinary retirement income level, so this is not a rare-edge-case
+  kink; it is load-bearing for a meaningful share of NY plans.
 
 ---
 
@@ -158,21 +167,24 @@ taxable account.
 ### Breaking the circularity
 
 State tax depends on withdrawals, which depend on total tax. **Pass the state's formula, not a
-rate.** `executeWithdrawals` takes a `stateTaxOnDraws: (draws: number) => number` callback — the
-state's own `computeStateTax`, closed over the year's fixed income and evaluated at whatever draw
-the gross-up solver is currently testing:
+rate.** `executeWithdrawals` takes a `stateTaxOnDraws: (breakdown: StateDrawBreakdown) => number`
+callback — the state's own `computeStateTax`, closed over the year's fixed income and evaluated
+at whatever the gross-up solver is currently testing:
 
 ```ts
-(draws) => computeStateTax(stateRules, { ...stateInputsBase,
-              taxDeferredWithdrawals: draws }).tax - initialStateTax
+(breakdown) => computeStateTax(stateRules, { ...stateInputsBase,
+              taxDeferredWithdrawals: breakdown.taxDeferred,
+              brokerageGains: breakdown.brokerageGains,
+              hsaNonMedicalWithdrawals: breakdown.hsaNonMedical }).tax - initialStateTax
 ```
 
-That is not circular: `draws` is the solver's variable, and everything else in `stateInputsBase`
-is fixed income already computed for the year. Both halves of the gross-up now re-run their real
-formula — the federal side through the deduction floor and the SS phase-in, the state side
-through whatever exclusion or phase-out applies — so neither is a rate times an amount.
+That is not circular: `breakdown` is the solver's variable, and everything else in
+`stateInputsBase` is fixed income already computed for the year. Both halves of the gross-up now
+re-run their real formula — the federal side through the deduction floor and the SS phase-in, the
+state side through whatever exclusion or phase-out applies — so neither is a rate times an
+amount.
 
-**A single rate is not merely imprecise here, it is wrong in a direction that matters.** Two
+**A single rate is not merely imprecise here, it is wrong in a direction that matters.** Three
 earlier attempts got this wrong and are worth recording:
 
 1. *Probing at fixed income alone.* Mirroring `calculateTaxFreeTaxDeferredRoom` and evaluating the
@@ -186,6 +198,23 @@ earlier attempts got this wrong and are worth recording:
    Measured on a single 67-year-old with $45,000 of pension needing $30,000 net: sizing at the
    in-band 11.5% over-withdraws **$1,903**; sizing at the 5.75% bracket rate leaves **$690**
    of the year unfunded. Only re-running the formula charges what Virginia actually bills.
+3. *Pooling every draw type into one `draws` figure.* GA, VA, and CA all worked with a single
+   scalar passed as `taxDeferredWithdrawals`, because none of their benefits care which income
+   type a dollar came from. New York's does: its $20,000 exclusion covers pension/annuity/IRA
+   income but not brokerage gains or non-medical HSA withdrawals (§4.5). Under the default
+   withdrawal order (taxable before tax-deferred), a taxable-account draw's gain share was
+   booked into the same pooled figure the tax-deferred draw used, so the exclusion's `min(cap,
+   eligible)` saturated at the full $20,000 during the solve — using phantom room that real
+   settlement never had, because settlement correctly bounds the exclusion by the *real*
+   tax-deferred amount alone. Measured on the default plan's age-60 year: the solver sized a
+   $17,080 tax-deferred draw as if the $20,000 cap still had room, when a same-year $37,319
+   taxable-account draw had already realized $11,196 of gains that settlement correctly excludes
+   from that cap — settlement then billed **$124.63** against a solve that had priced **$0**, a
+   **$113.89** shortfall in that single year, two orders of magnitude past every other state's
+   sub-dollar residual. The fix generalizes the callback to a `StateDrawBreakdown` (`taxDeferred`
+   / `brokerageGains` / `hsaNonMedical`), so a state whose benefit is income-type-scoped is sized
+   against the type it will actually receive credit for, not whatever the solver happened to
+   lump it with.
 
 The rate a state charges on the next dollar is therefore never computed as a number anywhere in
 the engine. For reference, its shape is:
@@ -201,15 +230,21 @@ the engine. For reference, its shape is:
   status), with the exemption credit stepping down $6–$12 at a time as $2,500 increments of AGI
   pass by, and **+1 point above $1,000,000 taxable** from the surtax (§4.4). No age or income-
   type scoping at all — the only modeled state where a retiree's benefit is exactly $0.
+- **NY** → 0 while the $20,000 pension/IRA exclusion has room (same self-growing-room shape as
+  Georgia's), then the graduated bracket schedule — which itself rises and dips through a series
+  of benefit-recapture rows above $107,650 of taxable income, reaching 11.44% at one point before
+  dropping back to 7.35%, well before the top published rate of 10.90% (§4.5). The only modeled
+  state whose retiree benefit is scoped to specific income *types* rather than to age or a means
+  test.
 
 **Result: the state gross-up is exact, not an estimate.** Across a 60-seed sweep of the default
 plan, phantom spending fell from ~$12 per run to **$0.52** in Georgia (worst single year −$362 →
-**−$0.21**), and Virginia and California — carrying materially different tax bills — leak the
-same sub-dollar rounding as a no-income-tax state (Virginia **$0.74**, California **$0.68**,
-worst year −$0.26). What remains is the $1 convergence threshold in `solveGrossForNet`, which can
-now fall either side of zero rather than always over-withdrawing.
+**−$0.21**), and Virginia, California, and New York — carrying materially different tax bills —
+leak the same sub-dollar rounding as a no-income-tax state (Virginia **$0.74**, California
+**$0.68**, New York **$0.68**, worst year −$0.25). What remains is the $1 convergence threshold
+in `solveGrossForNet`, which can now fall either side of zero rather than always over-withdrawing.
 
-### All three income-taxing states compute from federal AGI
+### All four income-taxing states compute from federal AGI
 
 No new income plumbing is needed — every input already exists inside `calculateTotalTaxes`:
 
@@ -219,9 +254,11 @@ stateTaxable = max(0, stateAGI − stateBenefit − stateStandardDeduction − s
 stateTax     = max(0, applyRate(stateTaxable) − exemptionCredit) + surtax
 ```
 
-`exemptionCredit` and `surtax` are both $0 for GA and VA — California is the only state where the
-personal/senior exemption is a *credit* subtracted after `applyRate` rather than folded into
-`stateExemptions` before it, and the only one with a flat add-on above a threshold (§4.4).
+`exemptionCredit` and `surtax` are both $0 for GA, VA, and NY — California is the only state
+where the personal/senior exemption is a *credit* subtracted after `applyRate` rather than
+folded into `stateExemptions` before it, and the only one with a flat add-on above a threshold
+applied outside `applyRate` (§4.4). New York's own benefit-recapture surtax needs neither field:
+it is resolved directly into `applyRate`'s bracket table (§4.5).
 
 In the code that subtraction is structural rather than arithmetic. `StateTaxInputs` carries the
 *components* of federal AGI — pensions, part-time work, rental, tax-deferred withdrawals,
@@ -448,7 +485,7 @@ and to take the exemption credit "from the 2025 instructions for Form 540." This
 same — it holds TY2025's closed-out, fully confirmed figures, dated accordingly in the schema,
 rather than a projection. This makes California's annual review different in kind from Georgia's
 and Virginia's: re-verify against the *closed* year's Form 540 booklet once it is confirmed, not
-against a forecast of the year in progress (§11).
+against a forecast of the year in progress (§10).
 
 **Constants (TY2025)**
 
@@ -475,7 +512,108 @@ non-doubling behavior before the FTB instructions document made it explicit.
 Not modeled: the exemption-credit high-income phase-out is implemented (above), but the
 dependent exemption credit and the blind exemption are not — retirees rarely have dependents,
 the same reasoning as Georgia's unmodeled dependent exemption (§6). No local income tax exists
-in California, so unlike New York there is nothing to add there.
+in California, unlike New York's NYC and Yonkers taxes (§4.5).
+
+---
+
+### 4.5 New York
+
+New York has the structurally richest complexity of the four income-taxing states, but it needed
+**zero new schema fields** — the pieces are all reused from Georgia's and California's, just
+recombined. Its retirement benefit is *source-dependent* like nothing else modeled: government
+pensions are fully exempt with no cap, private pension/annuity/IRA income gets a capped,
+per-person exclusion instead. And its headline complexity — a benefit-recapture surtax that
+claws back the value of its own lower brackets — turns out to need no surtax field at all, because
+the recapture is fully resolved into extra rows of the ordinary bracket table.
+
+**Formula**
+
+```
+nyAGI      = federalAGI − federallyTaxableSS
+nyBenefit  = governmentPensionIncome + min(privateExclusionPerPerson × eligiblePeople,
+                                            privatePensionIncome + taxDeferredWithdrawals)
+nyTaxable  = max(0, nyAGI − nyBenefit − standardDeduction)
+nyTax      = applyBrackets(nyTaxable, ratesForFilingStatus)
+```
+
+No `exemptionCredit`, no `surtax` — both are $0 by construction because the recapture lives
+inside `ratesForFilingStatus` itself (below), and New York has no personal-exemption credit like
+California's.
+
+**The retirement benefit is source-dependent, not age- or means-dependent.** Tax Law §612(c)(3)
+exempts pension income from New York State, its local governments, the federal government, and
+the military **in full, regardless of age**. §612(c)(3-a) separately allows a **$20,000
+exclusion per qualifying person**, age 59½+, against pension, annuity, and IRA/tax-deferred
+income that is *not* government-source — a category unchanged since 1981. The two subtractions
+are independent: a household can have both a fully-exempt government pension and a
+partially-excluded private one in the same year.
+
+Because the exclusion is genuinely source-scoped, this is the first modeled state where a single
+`Pension` field was not enough. `Pension.isGovernment?: boolean` was added (optional, defaults
+to private — the conservative reading for pre-existing saved pensions, which never had this
+concept) and `income.ts` now reports a `governmentPensionIncome` subtotal alongside the existing
+total, threaded through `StateTaxInputs` as `governmentPensionIncome` / `privatePensionIncome`
+in place of Georgia/Virginia/California's single `pensions` field (those three simply sum the
+two back together in `stateAGI` and Georgia's own exclusion).
+
+Two decisions the statute leaves to the implementation, both already precedented by Georgia:
+
+- **Not poolable across spouses** ("neither of you can claim any unused part of your spouse's
+  exclusion," IT-201-I) — a couple where only one spouse has private pension/IRA income gets one
+  $20,000 exclusion, not two, if pooled accounts can't attribute the income to a person. Same
+  family of simplification as Georgia's per-person exclusion vs. pooled accounts (§6).
+- **The $20,000 threshold is modeled as age 60, not 59½** — the engine's simulated age is a
+  whole calendar-year integer with no fractional precision (no other state has needed a
+  half-year boundary). Rounding up denies the exclusion for the half-year someone is actually
+  eligible, understating the exclusion and overstating tax — the same conservative direction as
+  this project's other disclosed simplifications (docs/1-requirements.md's early-withdrawal-
+  penalty precedent uses the same reasoning for the same 59½ line).
+
+**The benefit-recapture surtax is real and reachable, unlike California's $1,000,000 line.**
+Above **$107,650 of NY AGI — not doubled for married filers** — New York claws back the value of
+its own lower brackets in a series of $50,000-wide phase-in bands, escalating toward a flat
+10.90% above $25,000,000. $107,650 combined income is an entirely ordinary NY retirement income
+level, so unlike Georgia's unmodeled military pensions or Virginia's unmodeled 87+ age deduction,
+this is not a rare edge case being skipped — it is squarely inside this tool's audience.
+
+Rather than reimplement the recapture's own worksheet mechanism (five bands, each testing
+against a different breakpoint with its own phase-in), the recapture is resolved directly into
+the ordinary bracket table, sourced from NY DTF's own official withholding publication
+(`NYS-50-T-NYS`), whose annualized "Method II Exact Calculation" tables already flatten the
+recapture into a cumulative schedule — confirmed by checking that each row's stated dollar base
+equals the running total of every prior row, the same convention Virginia's bracket table uses.
+This is why several of New York's published rates look non-monotonic: single filers see
+5.90% → 7.03% → 7.53% → 6.40% → 11.44% → 7.35% moving up through six consecutive bands — every
+jump and dip is the recapture, not a transcription error.
+
+**Constants (TY2026)**
+
+| Constant | Single | Married | Primary source |
+|---|---|---|---|
+| Brackets | 3.90% $0 / 4.40% $8,500 / 5.15% $11,700 / 5.40% $13,900 / 5.90% $80,650 / 7.03% $96,800 / 7.53% $107,650 / 6.40% $157,650 / 11.44% $215,400 / 7.35% $265,400 / 9.65% $1,077,550 / 10.30% $5,000,000 / 10.90% $25,000,000 | same shape, different breakpoints — see `stateTaxRules.json` | [NYS-50-T-NYS (1/26)](https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf) Method II annual tables; TY2026 cut confirmed via [tax.ny.gov withholding rate changes](https://www.tax.ny.gov/bus/wt/rate.htm) (Chapter 59, Laws of 2025) |
+| Standard deduction | $8,000 | $16,050 | [IT-201-I (2025)](https://www.tax.ny.gov/pdf/2025/inc/it201i_2025.pdf) p.11 — fixed by Tax Law §614, not indexed, unchanged for TY2026 |
+| Government pension exemption | full, no cap, any age | same | [tax.ny.gov — Information for Seniors](https://www.tax.ny.gov/pit/file/information_for_seniors.htm); Tax Law §612(c)(3) |
+| Private pension/IRA exclusion | $20,000/person, age 59½+ (modeled as 60) | same, per spouse | same source; Tax Law §612(c)(3-a) |
+| Social Security | exempt | same | [tax.ny.gov — Information for Seniors](https://www.tax.ny.gov/pit/file/information_for_seniors.htm) |
+| Capital gains | ordinary rates, no preference | same | New York has no preferential capital-gains rate |
+
+**On the bracket derivation, and why the tail above $1,077,550/$2,155,350 is derived rather than
+quoted.** NY DTF's official withholding tables (Method II) stop at $1,077,550 (single) /
+$2,155,350 (married) and hand off to a separate "Method III — Top Income Tax Rates" method for
+higher incomes. Method III is *not* the true marginal rate: its flat 10.45% / 11.10% / 11.70%
+figures are exactly +0.80 percentage points above the published 9.65% / 10.30% / 10.90% top
+rates — a deliberate payroll over-withholding margin for very large one-time payments,
+conceptually the same kind of markup as California's 1.1× EDD figure, confirmed by the size of
+the discontinuity at Method II's own boundary (using Method III's rate there does not agree with
+Method II's last row; the true top rates do, once continued as ordinary brackets). The three
+continuation rows above $1,077,550/$2,155,350 in `stateTaxRules.json` therefore use the
+confirmed-true 9.65%/10.30%/10.90% rates, not Method III's — and in any case this tail describes
+NY taxable income in the seven-to-eight-figure range, never reachable by this tool's audience.
+
+Not modeled: the $1,000 dependent exemption (retirees rarely have dependents, same reasoning as
+Georgia's and California's unmodeled dependent exemptions), the blind exemption, and NYC/Yonkers
+local income tax — New York is the only modeled state with a local income tax layered on top of
+the state one, and this tool computes neither city's.
 
 ---
 
@@ -497,11 +635,11 @@ do not repeat that pattern for 11+ states.
 > separately implemented. A wrong constant is caught by human review against the primary
 > source; a wrong formula is caught by the verifier.
 
-Shape the twelve modeled states need — all of it now committed. The lines marked `// VA` are
-Virginia's additions and `// CA` are California's; `filingThreshold` is Virginia-only,
-`exemptionCredit` and `surtax` are California-only. `reviewedFor` is one top-level field in the
-JSON rather than per state — the whole file is reviewed together, even though California's own
-entry is internally dated a year behind GA/VA (§4.4).
+Shape the thirteen modeled states need — all of it now committed. The lines marked `// VA` are
+Virginia's additions, `// CA` are California's, and `// NY` are New York's; `filingThreshold` is
+Virginia-only, `exemptionCredit` and `surtax` are California-only. `reviewedFor` is one top-level
+field in the JSON rather than per state — the whole file is reviewed together, even though
+California's own entry is internally dated a year behind GA/VA/NY (§4.4).
 
 ```ts
 type StateTaxRules = {
@@ -517,7 +655,7 @@ type StateTaxRules = {
         rate:
             | { kind: 'flat'; rate: number }
             | { kind: 'graduated'; brackets: Array<{ upTo: number | null; rate: number }> }   // VA
-            | { kind: 'graduated_by_status';                                                  // CA
+            | { kind: 'graduated_by_status';                                                  // CA, NY
                 single: Array<{ upTo: number | null; rate: number }>;
                 married: Array<{ upTo: number | null; rate: number }> };
         // Year-keyed: the last entry already in force, else the earliest (`pickForYear`).
@@ -535,7 +673,9 @@ type StateTaxRules = {
             | { kind: 'ga_exclusion'; tiers: Array<{ fromYear: number; age62: number; age65: number }>;
                 earnedIncomeSublimit: number }
             | { kind: 'va_age_deduction'; perPerson: number; minAge: number;                  // VA
-                threshold: { single: number; married: number }; reductionPerDollar: number };
+                threshold: { single: number; married: number }; reductionPerDollar: number }
+            | { kind: 'ny_pension_exclusion'; minAge: number;                                 // NY
+                privateExclusionPerPerson: number };
     }
 );
 ```
@@ -544,8 +684,12 @@ type StateTaxRules = {
 structurally different benefits do not justify an abstraction over benefits nobody has written
 yet, and California proves the point the other way: it needs the field to exist but never
 populates it. `exemptionCredit` and `surtax` are separate top-level fields rather than folded
-into `retirementBenefit` because they apply to every CA filer, not just retirees. §10 lists what
-NY would add, which is what is needed to widen the schema further without a rewrite.
+into `retirementBenefit` because they apply to every CA filer, not just retirees. New York's
+`ny_pension_exclusion` needed no new top-level field at all — its recapture surtax is fully
+resolved into `rate`'s bracket rows instead (§4.5) — but it did need a change *outside* this
+schema: `StateTaxInputs.pensions` (a single scalar) became `governmentPensionIncome` /
+`privatePensionIncome`, because New York is the first benefit that cares which pension a dollar
+came from. Georgia and Virginia simply sum the two fields back together.
 
 ---
 
@@ -570,16 +714,18 @@ NY would add, which is what is needed to widen the schema further without a rewr
   It used to multiply the draw by a single probed rate, which left ~$12 per run of phantom spending
   in Georgia. It now re-runs the state's own formula at each candidate draw (§3), so the residual
   is only `solveGrossForNet`'s $1 convergence threshold: **$0.52 per run in Georgia, $0.74 in
-  Virginia, $0.68 in California, $0.45 in Texas** — indistinguishable from a state with no income
-  tax. Pinned by tests in
+  Virginia, $0.68 in California, $0.68 in New York, $0.45 in Texas** — indistinguishable from a
+  state with no income tax. Pinned by tests in
   [`yearlyProjection.test.ts`](../src/lib/calculations/yearlyProjection.test.ts).
-- **The gross-up treats every taxable draw as ordinary state income.** The callback takes one
-  `draws` figure, so a brokerage gain and a non-medical HSA distribution are priced as
-  tax-deferred income. Exact for both in Virginia (no income-type scoping, no capital-gains
-  preference) and for gains in Georgia (an enumerated eligible category); slightly generous only
-  for a Georgia HSA draw, which the exclusion does not in fact cover. The final `computeStateTax`
-  splits the categories correctly, so the difference shows up as reinvested surplus, and
-  `allowNonMedicalAfter65` defaults to `false` anyway.
+- **The gross-up is broken out by income type, but federal tax still is not.** `stateTaxOnDraws`
+  receives a `StateDrawBreakdown` (`taxDeferred` / `brokerageGains` / `hsaNonMedical`) so a state
+  whose benefit is type-scoped — only New York, so far — prices each type against what it will
+  actually receive credit for (§3). The *federal* side of the same gross-up still sums all three
+  into one ordinary-income figure, which is exact for this tool's purposes since federal capital
+  gains are not modeled at a preferential rate either way. Georgia's HSA gap (its exclusion
+  enumerates specific categories that do not include non-qualified HSA distributions) is
+  unaffected by this change and remains a near-zero-impact simplification, since
+  `allowNonMedicalAfter65` defaults to `false`.
 - **Tax-smart draws are sized to the federal floor only.** The fill still targets the federal
   standard deduction even in a state whose own shield is smaller, so in Georgia a pre-62 fill
   owes 4.99% on the part above GA's $15,000 deduction. The draw is usually still worth making
@@ -587,13 +733,16 @@ NY would add, which is what is needed to widen the schema further without a rewr
   but the strategy does not optimise against the state, and the UI must not call it "tax-free".
 - **Virginia's 2030 deduction cliff is modeled as enacted** — likely overstates VA tax from
   2030 onward.
-- **State standard deductions are not inflated.** Neither GA's nor VA's is statutorily indexed;
-  both change only by legislation. Holding them flat while income inflates produces real
-  bracket creep. This is a deliberate asymmetry with the *federal* base deduction, which
+- **State standard deductions are not inflated.** None of GA's, VA's, or NY's is statutorily
+  indexed; all three change only by legislation (NY's has been fixed since at least 2018 — Tax
+  Law §614). Holding them flat while income inflates produces real bracket creep. This is a
+  deliberate asymmetry with the *federal* base deduction, which
   [`yearlyProjection.ts`](../src/lib/calculations/yearlyProjection.ts) does inflate because it
   genuinely is indexed — do not "fix" the inconsistency.
 - **Washington's capital-gains excise tax is not modeled** — see §1 for the threshold and why.
-- **No local income taxes** (relevant when NY lands: NYC and Yonkers; California has none).
+- **No local income taxes.** New York City and Yonkers both levy their own income tax on top of
+  the state's, and this tool computes neither — disclosed in New York's `caveat` (§4.5). No
+  other modeled state has a local income tax.
 - **No part-year or multi-state residency.** One state for the whole retirement.
 - **No state-level credits beyond the modeled ones** (California's personal/senior exemption
   credit, including its phase-out) — no CalEITC, dependent credits, itemized deductions, or
@@ -607,6 +756,21 @@ NY would add, which is what is needed to widen the schema further without a rewr
   TY2026 — a structural consequence of CA's indexing depending on same-year CPI data that cannot
   exist until the year is nearly over, confirmed by FTB's own 2026 estimated-tax instructions
   (§4.4). The true current-year figures, once finalized, will differ modestly.
+- **New York's pension/IRA exclusion vs pooled accounts** — the same family of simplification as
+  Georgia's (above): the exclusion is per person and not poolable, but pooled accounts cannot
+  attribute a specific withdrawal to a specific spouse, so a couple with lopsided private
+  pension/IRA income can be over- or under-excluded relative to attributing it correctly (§4.5).
+- **New York's $20,000 exclusion threshold is modeled as age 60, not the statutory 59½** — the
+  engine has no fractional-age precision. Understates the exclusion for the half-year someone is
+  actually eligible, overstating tax — the conservative direction (§4.5).
+- **New York's dependent exemption ($1,000/dependent) and blind exemption are not modeled** —
+  same reasoning as Georgia's and California's unmodeled dependent exemptions: retirees rarely
+  have dependents (§4.5).
+- **New York's continuation brackets above $1,077,550 single / $2,155,350 married are derived,
+  not directly quoted** — NY DTF's own withholding tables stop there and hand off to a
+  differently-purposed "top rate" method that is not the true marginal rate (§4.5). The true
+  published top rates were continued as ordinary brackets instead. Irrelevant in practice: this
+  tool's audience never approaches seven-figure taxable income in a single year.
 
 ---
 
@@ -641,12 +805,13 @@ future state that becomes the default carries the same consequence.
 **Keep all 51 entries in the Step 1 state selector.** Group them with native `<optgroup>`:
 
 ```
-── Tax computed automatically ──   AK FL GA NH NV SD TN TX WA WY   (VA joins when it lands)
-── Not modeled — add your state's rate manually ──   (the remaining 41)
+── Tax computed automatically ──   AK CA FL GA NH NV NY SD TN TX VA WA WY
+── Not modeled — add your state's rate manually ──   (the remaining 38)
 ```
 
-Both groups are derived from `isStateModeled`, so Georgia moved between them the moment its
-rules entry existed — no UI change was needed, and Virginia will move the same way.
+Both groups are derived from `isStateModeled`, so each state moved between them the moment its
+rules entry existed — no UI change was needed for Georgia, Virginia, California, or New York,
+and none will be needed for the next one either.
 
 **Do not replace the list with "modeled states + Other."** Three reasons:
 
@@ -675,7 +840,7 @@ change, not part of this work.
 
 ## 9. Delivery plan
 
-Four PRs. The integration risk and the formulas are deliberately separated.
+Five PRs. The integration risk and the formulas are deliberately separated.
 
 1. ✅ **Plumbing + the nine no-income-tax states.** Rules JSON and typed wrapper, `stateTax.ts`,
    the engine touch points, `taxes.stateTax` output, the `stateTaxMode` flag and its
@@ -689,6 +854,12 @@ Four PRs. The integration risk and the formulas are deliberately separated.
    the Behavioral Health Services Tax, tests. No new touch points or gross-up mechanism needed —
    the function-based design built for Virginia's phase-out priced California's surtax kink and
    credit step-downs correctly on the first attempt.
+5. ✅ **New York.** Brackets by filing status with the benefit-recapture surtax resolved into
+   extra bracket rows, the source-split retirement benefit (`Pension.isGovernment`, the
+   `governmentPensionIncome`/`privatePensionIncome` split through `StateTaxInputs`), tests. This
+   PR *did* need a new gross-up mechanism: `stateTaxOnDraws` widened from a single `draws` scalar
+   to a `StateDrawBreakdown`, because New York is the first benefit narrow enough that pooling
+   every draw type together over-granted it (§3).
 
 `verify_plan.py` must move in PR 1, not later: its `Total Tax = Fixed + Payroll + Withdrawal`
 check fails as soon as `taxes.stateTax` exists and is nonzero.
@@ -710,38 +881,21 @@ assumed linearity.** California's graduated, by-status brackets plus its surtax 
 independent case that could have exposed the same class of bug — it didn't need to, because the
 function-based design generalised cleanly the first time.
 
----
-
-## 10. Schema survey: what NY would add
-
-Not implemented, and its constants are not verified here. This table exists so the schema in §5
-can be widened later without a rewrite — it answers "what fields does each state force?", not
-"what are the numbers?"
-
-| Dimension | FL/TX | GA | VA | CA | NY |
-|---|---|---|---|---|---|
-| Income tax | none | flat | graduated | graduated | graduated |
-| Brackets vary by filing status | — | n/a | no | **yes** | **yes** |
-| Brackets indexed annually | — | n/a | no | **yes** | yes |
-| Social Security | — | exempt | exempt | exempt | exempt |
-| Retiree benefit shape | — | per-person income-type **exclusion** | household **means-tested deduction** | **none** | **per-source exclusion** |
-| Benefit is source-dependent | — | no (most income lumped) | no | — | **yes** (government pension 100%; private/IRA $20k) |
-| Age threshold | — | 62 / 65 | 65 | — | **59½** (non-integer) |
-| Means-tested | — | no | **yes** (AFAGI, $1:$1) | no | no |
-| Personal exemption | — | dependents only | deduction | **credit, not deduction** | deduction |
-| Local surcharge | — | no | no | no (but 1% BHST over $1M) | **yes** (NYC, Yonkers) |
-| Capital gains | — | ordinary | ordinary | ordinary | ordinary |
-
-**What NY forces:** bracket tables keyed by filing status (California already forced this,
-§4.4); a *source-partitioned* exclusion; a non-integer age threshold; locality surcharges.
-
-**Open product question, to settle before NY research begins:** NY's exclusion splits
-government from private pension income. Our `Pension` type has no such flag, so NY requires a
-new wizard input and a change to the input model — a product decision, not a tax-module one.
+**What California's income-type-agnostic benefit hid.** A third generalisation, and the one that
+finally broke: California and Virginia's benefits don't care *which* income type funds a draw, so
+pooling every draw into one `taxDeferredWithdrawals` figure inside the gross-up closure was
+invisible to every test up through PR 4. New York's exclusion is scoped to specific income types
+(pension/annuity/IRA, not brokerage gains or non-medical HSA withdrawals), and the default
+withdrawal order draws taxable before tax-deferred — so a taxable-account draw's gain share rode
+into the same pooled figure the tax-deferred draw used, over-granting the exclusion during the
+solve by as much as $113.89 in a single year on the default plan (§3). **A benefit that is
+type-agnostic cannot test whether your gross-up is type-aware.** The fix widens `stateTaxOnDraws`
+to a `StateDrawBreakdown`, and GA/VA/CA all pass unchanged because nothing about their formulas
+depends on the distinction — evidence the widening is additive, not a rewrite.
 
 ---
 
-## 11. Annual review procedure
+## 10. Annual review procedure
 
 State constants are year-specific. Once a year, and whenever a modeled state passes a tax bill:
 
@@ -764,6 +918,17 @@ until the *closed* year's FTB Form 540 booklet is published (typically the follo
 Re-verifying "TY2026" before then would mean re-deriving another provisional EDD withholding
 projection, not confirming a final number — wait for the real booklet instead.
 
+**New York is forward-enacted, like GA and VA, not in arrears like CA (§4.5) — but its
+own-year figures live in a withholding publication, not the return instructions.** NY's
+TY2026/TY2027 bottom-bracket rates are already written into statute (Chapter 59, Laws of 2025),
+and NY DTF publishes the following year's withholding tables (`NYS-50-T-NYS`) each January —
+ahead of the return instructions (`IT-201-I`), which lag by over a year. Re-verifying a future
+NY tax year should therefore start from the newest `NYS-50-T-NYS`, not wait for the matching
+`IT-201-I`, and re-confirm that the recapture is still resolved into the bracket table the same
+way (a future NY budget could in principle restructure the recapture mechanism itself, not just
+its rates). TY2027's further 0.1pp cut to the bottom five brackets is already enacted and should
+be picked up the January it takes effect.
+
 **Using an LLM for this:** treat it as a *change detector*, never as the source of truth —
 "here is the 2027 IT-511 and our committed Georgia constants; tell me which moved and quote
 the page." That task is bounded, diff-shaped, and human-approved. An extractor asked to simply
@@ -773,7 +938,7 @@ the success rate shifts a couple of points and nothing looks broken.
 
 ---
 
-## 12. Sources
+## 11. Sources
 
 **Georgia** — [HB 463 (AS PASSED)](https://www.legis.ga.gov/api/legislation/document/20252026/249080) ·
 [Gov. Kemp signing release, 2026-05-11](https://gov.georgia.gov/press-releases/2026-05-11/gov-kemp-signs-legislation-lowering-taxes-and-supporting-economic-growth) ·
@@ -797,4 +962,8 @@ the success rate shifts a couple of points and nothing looks broken.
 ftb.ca.gov itself returns HTTP 403 to automated fetches, which is why the above lean on
 leginfo.legislature.ca.gov and EDD instead.
 
-**Survey only, constants not verified** — [NY — Information for seniors](https://www.tax.ny.gov/pit/file/information_for_seniors.htm)
+**New York** — [NYS-50-T-NYS (1/26) — Withholding Tax Tables and Methods](https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf) (Method II annual tables — bracket rows, including the recapture) ·
+[tax.ny.gov — Withholding tax rate changes](https://www.tax.ny.gov/bus/wt/rate.htm) (confirms Chapter 59, Laws of 2025's TY2026 bottom-bracket cut) ·
+[IT-201-I (2025) Instructions for Form IT-201](https://www.tax.ny.gov/pdf/2025/inc/it201i_2025.pdf) (standard deduction, dependent exemption, pension/annuity exclusion mechanics, the NYS tax rate schedule and recapture worksheets for the prior year) ·
+[tax.ny.gov — Information for Seniors](https://www.tax.ny.gov/pit/file/information_for_seniors.htm) (Social Security exemption, government-pension full exemption, private-pension $20,000 exclusion) ·
+ftb.ca.gov's HTTP-403 problem does not apply to tax.ny.gov, which serves its own PDFs directly.
