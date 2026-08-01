@@ -6,10 +6,10 @@ across several states side by side. All figures use tax year **2026** — the st
 OBBBA senior bonus, Social Security provisional-income thresholds, and state bracket/exclusion
 constants currently committed in `taxes.ts` and `stateTaxRules.json`.
 
-Add new situations as new `## Situation N` sections; add states to an existing situation by
-extending its `states` list and rerunning (see "How to run this comparison" below). This is a
-living document — numbers here reflect whatever `INPUTS` was last run, not a fixed historical
-record.
+Add new situations as new `## Situation N` sections, computed on the live
+[State Tax Comparison page](https://retirement-planner-blond.vercel.app/state-tax-comparison)
+(see "How to run this comparison" below). This is a living document — numbers here reflect
+whatever was entered on that page, not a fixed historical record.
 
 ---
 
@@ -53,49 +53,25 @@ and $21,200 ($14,000 + $7,200) are ever taxable anywhere below.
 
 ### How to run this comparison
 
-The script `scripts/scenario-tax-comparison.test.ts` calls the production functions above
-directly — no UI, no simulation. To recalculate for a new situation, edit its `INPUTS` block
-(ages, filing status, income items, cost basis, and the list of states to compare), then run:
+Enter the numbers below on the live
+[State Tax Comparison page](https://retirement-planner-blond.vercel.app/state-tax-comparison)
+(or locally at `/state-tax-comparison`). It calls the same `calculateTotalTaxes` /
+`computeStateTaxDetailed` functions as this document, updates live as you type, and shows all 13
+modeled states side by side — not just the three below — each with its own expandable breakdown.
 
-```bash
-npx vitest run -c scripts/vitest.config.ts --reporter=verbose
-```
+| Field on the page | Value |
+|---|---|
+| Filing Status | Married filing jointly |
+| Your Age / Spouse's Age | 68 / 66 |
+| Social Security (household total) | $43,200 |
+| 401(k) / Traditional IRA Withdrawal | $14,000 |
+| Taxable Investment Income | $7,200 (LTCG + qualified dividends combined) |
+| Other Cash Withdrawn | $8,000 (the brokerage cost basis) |
+| Roth IRA / 401(k) Distribution | $12,000 |
+| HSA Withdrawal (qualified medical checked) | $9,000 |
 
-(`--reporter=verbose` is required to see the printed results — the default reporter hides
-`console.log` output on a passing run. `scripts/vitest.config.ts` is a separate Vitest config that
-points at this folder only, so the comparison never runs as part of `npm test`.)
-
-The `INPUTS` shape used for this situation:
-
-```ts
-const INPUTS = {
-    filingStatus: 'married_joint' as FilingStatus,
-    primaryAge: 68,
-    spouseAge: 66 as number | undefined,
-
-    socialSecurity: 43200,
-    pensions: 0,
-    partTimeWork: 0,
-    rentalIncome: 0,
-
-    taxDeferredWithdrawal: 14000,
-
-    brokerage: {
-        longTermCapitalGains: 6000,
-        qualifiedDividends: 1200,
-        costBasisWithdrawn: 8000,
-    },
-
-    rothDistribution: 12000,
-
-    hsaWithdrawal: {
-        amount: 9000,
-        qualifiedMedical: true,
-    },
-
-    states: ['GA', 'FL', 'NY'],
-};
-```
+Government Pension, Private Pension/Annuity, Part-Time Work, and Rental Income are left at $0 for
+this situation.
 
 ### Results
 
