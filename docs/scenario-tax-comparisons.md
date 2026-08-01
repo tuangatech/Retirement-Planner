@@ -13,43 +13,42 @@ whatever was entered on that page, not a fixed historical record.
 
 ---
 
-## Situation 1: MFJ couple, ages 68 & 66
+## Situation 1: MFJ couple, ages 57 & 55
 
 | Income source | Annual amount | Taxable? |
 |---|---|---|
-| Social Security (both spouses combined) | $43,200 | Partially — via the federal provisional-income formula |
+| Social Security (both spouses combined) | $43,000 | Partially — via the federal provisional-income formula |
 | 401(k)/traditional IRA distribution | $14,000 | Yes — ordinary income |
-| Long-term capital gains (brokerage) | $6,000 | Yes — gain |
-| Qualified dividends | $1,200 | Yes — taxed the same as the gain above in this engine |
-| Brokerage cost basis withdrawn | $8,000 | No — return of principal, never income |
+| Taxable investment income (capital gains, dividends, interest) | $8,000 | Yes — all taxed the same in this engine |
+| Other cash withdrawn (brokerage cost basis / bank principal) | $9,000 | No — return of principal, never income |
 | Roth IRA distribution (qualified) | $12,000 | No — by law (IRC §408A), not an engine gap |
 | HSA withdrawal (qualified medical) | $9,000 | No — by law (IRC §223), not an engine gap |
-| **Total gross cash flow** | **$93,400** | |
+| **Total gross cash flow** | **$95,000** | |
 
-**On the $8,000 cost basis**: a brokerage withdrawal is composed of gain plus a return of the
-money originally invested (cost basis). Only the gain is income — withdrawing your own principal
-back is never taxed. Here the household withdraws $14,000 total from the brokerage account
-($6,000 gain + $8,000 basis); the engine needs that split to tax only the $6,000.
+**On the $9,000 of other cash withdrawn**: this is money simply moving, not being earned — a
+brokerage withdrawal's return of principal (cost basis), or straight-up bank/HYSA/CD principal.
+It's never income, so it counts toward the household's total cash flow but never toward any
+taxable-income figure below.
 
 ### Income composition and engine mapping
 
-Neither this engine's federal model nor any modeled state gives long-term capital gains or
-qualified dividends a preferential rate over ordinary income (see caveats below), so LTCG and
-dividends are combined into one taxable "brokerage gain" figure — this loses no fidelity versus
-treating them separately.
+This engine's federal model and every modeled state tax capital gains, dividends, and interest
+at the same rate as ordinary income — there's no 0%/15%/20% LTCG preference and no separate
+treatment for interest (see caveats below). That's why the page has a single "Taxable Investment
+Income" field rather than separate ones per income type.
 
 | Component | Engine field | Value used |
 |---|---|---|
-| Social Security | `income.socialSecurity` | $43,200 |
+| Social Security | `income.socialSecurity` | $43,000 |
 | 401(k)/IRA distribution | `withdrawals.taxDeferred` / `taxDeferredWithdrawals` | $14,000 |
-| LTCG + qualified dividends (gain) | `brokerageGains` (state); derived for federal via `costBasisPercentage` | $7,200 |
-| Brokerage cost basis | `costBasisPercentage` (federal only — state's `brokerageGains` is already gain-only, so basis is simply never included there) | $8,000 of a $15,200 federal withdrawal input → 52.6% cost basis |
+| Taxable investment income | `brokerageGains` (state) / `taxable` withdrawal, gain-only (federal) | $8,000 |
+| Other cash withdrawn | Not entered into any taxable-income field — it never affects tax | $9,000 |
 | Roth IRA distribution | — | Always $0 taxable; not entered into any taxable-income field |
 | HSA withdrawal | `hsaNonMedicalWithdrawals` / `hsaNonMedicalWithdrawal` | $0 (all $9,000 is qualified medical, so none of it is entered as taxable) |
 
-The $93,400 total above reconciles every dollar in the situation table: $43,200 + $14,000 +
-$7,200 (gain) + $8,000 (basis) + $12,000 (Roth) + $9,000 (HSA) = $93,400. Only $43,200 (partially)
-and $21,200 ($14,000 + $7,200) are ever taxable anywhere below.
+The $95,000 total above reconciles every dollar in the situation table: $43,000 + $14,000 +
+$8,000 (investment income) + $9,000 (other cash) + $12,000 (Roth) + $9,000 (HSA) = $95,000. Only
+$43,000 (partially) and $22,000 ($14,000 + $8,000) are ever taxable anywhere below.
 
 ### How to run this comparison
 
@@ -62,11 +61,11 @@ modeled states side by side — not just the three below — each with its own e
 | Field on the page | Value |
 |---|---|
 | Filing Status | Married filing jointly |
-| Your Age / Spouse's Age | 68 / 66 |
-| Social Security (household total) | $43,200 |
+| Your Age / Spouse's Age | 57 / 55 |
+| Social Security (household total) | $43,000 |
 | 401(k) / Traditional IRA Withdrawal | $14,000 |
-| Taxable Investment Income | $7,200 (LTCG + qualified dividends combined) |
-| Other Cash Withdrawn | $8,000 (the brokerage cost basis) |
+| Taxable Investment Income | $8,000 (capital gains, dividends, interest combined) |
+| Other Cash Withdrawn | $9,000 (the brokerage cost basis) |
 | Roth IRA / 401(k) Distribution | $12,000 |
 | HSA Withdrawal (qualified medical checked) | $9,000 |
 
@@ -77,21 +76,22 @@ this situation.
 
 | | Federal | Georgia | Florida | New York |
 |---|---|---|---|---|
-| **Tax owed** | **$0** | **$0** | **$0** | **$0** |
+| **Tax owed** | **$0** | **$0** | **$0** | **$232** |
 
 ### Federal walkthrough
 
-- Non-SS AGI items: $14,000 (401k) + $7,200 (gain + dividends) = **$21,200**
-- Provisional income: $21,200 + ½ × $43,200 = **$42,800** → falls in the 50%-tier band ($32,000–$44,000 MFJ)
-- Taxable Social Security: min($21,600, 50% × ($42,800 − $32,000)) = **$5,400**
-- Standard deduction (2026 MFJ, both spouses 65+): $32,200 base + $1,650 × 2 (age-65 addition) + $6,000 × 2 (OBBBA senior bonus) = **$47,500**
-- Taxable income: max(0, $5,400 + $21,200 − $47,500) = **$0** → **federal tax $0**
+- Non-SS AGI items: $14,000 (401k) + $8,000 (investment income) = **$22,000**
+- Provisional income: $22,000 + ½ × $43,000 = **$43,500** → falls in the 50%-tier band ($32,000–$44,000 MFJ)
+- Taxable Social Security: min($21,500, 50% × ($43,500 − $32,000)) = **$5,750**
+- Standard deduction (2026 MFJ, neither spouse 65+): **$32,200** base only — no age-65 addition, no OBBBA senior bonus
+- Taxable income: max(0, $5,750 + $22,000 − $32,200) = **$0** → **federal tax $0**
 
 ### Georgia walkthrough
 
-- State AGI: $14,000 + $7,200 = **$21,200** (Social Security is excluded by construction — see caveats)
-- Retirement-income exclusion: both spouses 65+ → $65,000 × 2 = $130,000 cap, applied against $21,200 of eligible income (401k + gain, both enumerated categories) → excludes the full **$21,200**
-- Taxable income: max(0, $21,200 − $21,200 − $30,000 standard deduction) = **$0** → **Georgia tax $0**
+- State AGI: $14,000 + $8,000 = **$22,000** (Social Security is excluded by construction — see caveats)
+- Retirement-income exclusion: Georgia's exclusion starts at age 62; neither spouse (57, 55) has
+  reached it yet → **$0** excluded
+- Taxable income: max(0, $22,000 − $0 − $30,000 standard deduction) = **$0** → **Georgia tax $0**
 
 ### Florida walkthrough
 
@@ -100,19 +100,19 @@ Florida has no individual income tax. `computeStateTax` returns a genuine, engin
 
 ### New York walkthrough
 
-- State AGI: same as Georgia's, **$21,200**
-- New York's retirement benefit is source-scoped, unlike Georgia's: only the $14,000 401(k)
-  distribution is eligible for the private-pension exclusion (brokerage gains and dividends are
-  never eligible, regardless of age) — both spouses are 68/66, both ≥ 60 (the app's whole-year
-  stand-in for the statutory 59½), so the cap is $20,000 × 2 = $40,000, applied against $14,000
-  of eligible income → excludes the full **$14,000**
+- State AGI: same as Georgia's, **$22,000**
+- New York's private-pension exclusion starts at age 60 (the app's whole-year stand-in for the
+  statutory 59½); neither spouse (57, 55) has reached it yet → **$0** excluded
 - New York's standard deduction is fixed by statute at **$16,050 MFJ**
-- Taxable income: max(0, $21,200 − $14,000 − $16,050) = max(0, **−$8,850**) = **$0** → **New York tax $0**
+- Taxable income: max(0, $22,000 − $0 − $16,050) = **$5,950**
+- New York tax: $5,950 falls entirely within the bottom MFJ bracket (up to $8,500, taxed at
+  3.90%) → $5,950 × 3.90% = $232.05 → **New York tax $232**
 
-New York's benefit doesn't reach the $7,200 of brokerage gain/dividends the way Georgia's
-exclusion does, but the $16,050 standard deduction alone still absorbs that remainder here. A
-situation with more brokerage income relative to 401(k)/pension income would expose the gap
-between Georgia and New York that this one doesn't.
+At this age, neither state's retirement-income exclusion applies at all — Georgia's starts at 62,
+New York's at 60 — so the result comes down entirely to standard-deduction size. Georgia's
+$30,000 MFJ deduction fully absorbs the $22,000 state AGI; New York's smaller, fixed $16,050
+deduction does not, leaving $5,950 taxable. The same household five to seven years older, once
+both exclusions are active, would owe $0 everywhere instead.
 
 ### Caveats specific to this app's engine (not this situation)
 

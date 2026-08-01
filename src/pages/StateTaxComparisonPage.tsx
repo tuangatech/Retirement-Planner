@@ -73,12 +73,12 @@ export default function StateTaxComparisonPage() {
     const [age, setAge] = useState(57);
     const [spouseAge, setSpouseAge] = useState(55);
 
-    const [socialSecurity, setSocialSecurity] = useState(43200);
+    const [socialSecurity, setSocialSecurity] = useState(43000);
     const [governmentPensionIncome, setGovernmentPensionIncome] = useState(0);
     const [privatePensionIncome, setPrivatePensionIncome] = useState(0);
     const [taxDeferredWithdrawal, setTaxDeferredWithdrawal] = useState(14000);
-    const [investmentGains, setInvestmentGains] = useState(7200); // $6,000 LTCG + $1,200 dividends
-    const [nonTaxableCashWithdrawn, setNonTaxableCashWithdrawn] = useState(8000); // brokerage cost basis
+    const [investmentGains, setInvestmentGains] = useState(8000); // LTCG + Dividends
+    const [nonTaxableCashWithdrawn, setNonTaxableCashWithdrawn] = useState(9000); // brokerage cost basis
     const [rothDistribution, setRothDistribution] = useState(12000);
     const [hsaAmount, setHsaAmount] = useState(9000);
     const [hsaQualifiedMedical, setHsaQualifiedMedical] = useState(true);
