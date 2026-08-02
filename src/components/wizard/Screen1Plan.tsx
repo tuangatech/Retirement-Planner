@@ -354,7 +354,7 @@ export function Screen1Plan() {
 
                 {/* One-time expenses */}
                 <div className="mt-6">
-                    <div className="flex justify-between items-start mb-3">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
                         <div>
                             <h4 className="font-semibold text-lg flex items-center gap-2">
                                 One-Time Major Expenses
@@ -373,9 +373,9 @@ export function Screen1Plan() {
                         </div>
                         <button
                             onClick={handleAddExpense}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap"
+                            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap"
                         >
-                            + Add Expense
+                            + Add
                         </button>
                     </div>
 
@@ -391,7 +391,7 @@ export function Screen1Plan() {
                     {oneTimeExpenses.length > 0 ? (
                         <div className="space-y-2">
                             {oneTimeExpenses.map((expense) => (
-                                <div key={expense.id} className={`flex gap-2 items-center p-3 rounded-md ${invalidIds.has(expense.id) ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
+                                <div key={expense.id} className={`flex flex-col sm:flex-row gap-2 sm:items-center p-3 rounded-md ${invalidIds.has(expense.id) ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50'}`}>
                                     <input
                                         ref={el => { descRefs.current[expense.id] = el; }}
                                         type="text"
@@ -399,38 +399,40 @@ export function Screen1Plan() {
                                         onChange={(e) => handleExpenseChange(expense.id, 'description', e.target.value)}
                                         onBlur={() => setDirtyIds(prev => new Set(prev).add(expense.id))}
                                         placeholder="Description (e.g., 3 weeks in Europe, New car)"
-                                        className={`flex-1 px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 ${invalidIds.has(expense.id) ? 'border-amber-400' : ''}`}
+                                        className={`sm:flex-1 px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 ${invalidIds.has(expense.id) ? 'border-amber-400' : ''}`}
                                         maxLength={100}
                                     />
-                                    <div className="relative w-32">
-                                        <span className="absolute left-3 top-2 text-gray-500">$</span>
-                                        <input
-                                            type="number"
-                                            value={expense.amount}
-                                            onChange={(e) => handleExpenseChange(expense.id, 'amount', parseFloat(e.target.value) || 0)}
-                                            className="w-full pl-7 pr-3 py-2 border rounded-md bg-white text-right focus:ring-2 focus:ring-blue-500"
-                                            step="1000"
-                                            min="0"
-                                        />
+                                    <div className="flex gap-2 items-center">
+                                        <div className="relative flex-1 sm:flex-none sm:w-32">
+                                            <span className="absolute left-3 top-2 text-gray-500">$</span>
+                                            <input
+                                                type="number"
+                                                value={expense.amount}
+                                                onChange={(e) => handleExpenseChange(expense.id, 'amount', parseFloat(e.target.value) || 0)}
+                                                className="w-full pl-7 pr-3 py-2 border rounded-md bg-white text-right focus:ring-2 focus:ring-blue-500"
+                                                step="1000"
+                                                min="0"
+                                            />
+                                        </div>
+                                        <div className="w-20 sm:w-24">
+                                            <input
+                                                type="number"
+                                                value={expense.age}
+                                                onChange={(e) => handleExpenseChange(expense.id, 'age', parseInt(e.target.value) || retirementAge)}
+                                                className="w-full px-3 py-2 border rounded-md bg-white text-center focus:ring-2 focus:ring-blue-500"
+                                                min={retirementAge}
+                                                max={lifeExpectancy}
+                                                placeholder="Age"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={() => handleRemoveExpense(expense.id)}
+                                            className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                            title="Remove expense"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
                                     </div>
-                                    <div className="w-24">
-                                        <input
-                                            type="number"
-                                            value={expense.age}
-                                            onChange={(e) => handleExpenseChange(expense.id, 'age', parseInt(e.target.value) || retirementAge)}
-                                            className="w-full px-3 py-2 border rounded-md bg-white text-center focus:ring-2 focus:ring-blue-500"
-                                            min={retirementAge}
-                                            max={lifeExpectancy}
-                                            placeholder="Age"
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={() => handleRemoveExpense(expense.id)}
-                                        className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                        title="Remove expense"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
                                 </div>
                             ))}
                         </div>

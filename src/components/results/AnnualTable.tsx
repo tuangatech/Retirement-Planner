@@ -151,13 +151,13 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
     return (
         <div className="space-y-4">
             <div className="bg-white rounded-xl border-2 border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <div>
                         <h3 className="text-lg font-semibold">Annual Breakdown</h3>
                         <p className="text-sm text-gray-600">Year-by-year overview (export CSV for detailed account breakdowns)</p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                         <select
                             value={selectedPercentile}
                             onChange={(e) => setSelectedPercentile(e.target.value as 'p10' | 'p50' | 'p90')}
@@ -191,7 +191,7 @@ export default function AnnualTable({ results, inputs }: AnnualTableProps) {
                 {/* ✅ CLEAN TABLE: 8 columns for easy scanning */}
                 <TooltipProvider delayDuration={100}>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm table-fixed">
+                    <table className="w-full min-w-[640px] text-sm table-fixed">
                         {/* Thin phase spine + Age; the 5 money columns share the rest equally */}
                         <colgroup>
                             <col className="w-[5px]" />
