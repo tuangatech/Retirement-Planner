@@ -1,5 +1,6 @@
 // src/components/results/AssumptionsPanel.tsx
 
+import { Link } from 'react-router-dom';
 import { AlertTriangle, Info } from 'lucide-react';
 import type { UserInputs } from '@/types';
 import { RMD_START_AGE } from '@/lib/calculations/rmd';
@@ -151,6 +152,11 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                                 thresholds are not inflation-indexed (the "tax torpedo")
                             </li>
                             <li>Long-term capital gains taxed at the flat rate — the 0%/15%/20% brackets are NOT modeled</li>
+                            <li>
+                                Taxable-account withdrawals split into gain vs. cost basis using a single fixed
+                                percentage ({((inputs.accounts.taxable.costBasisPercentage ?? 0.7) * 100).toFixed(0)}% basis) —
+                                it stays constant instead of rising over time as more of the account's growth gets realized
+                            </li>
                             <li>No itemized deductions or tax credits</li>
                             {stateDisclosure && stateTaxComputed ? (
                                 <>
@@ -169,6 +175,13 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                                     Social Security and some retirement income, so a blended rate can be well off
                                 </li>
                             )}
+                            <li>
+                                Curious how another state would compare? Try the{' '}
+                                <Link to="/state-tax-comparison" className="underline font-medium">
+                                    State Tax Comparison
+                                </Link>{' '}
+                                tool.
+                            </li>
                             <li>IRMAA (Medicare surcharges) estimated by user, not calculated from precise MAGI</li>
                             <li>RMDs enforced starting at age {RMD_START_AGE} (SECURE 2.0 start age for anyone born 1960+, which covers this tool's FIRE audience; born 1951–1959 would be 73){inputs.personal.filingStatus === 'married_joint' ? '. For couples, one household RMD on the pooled balance begins when the older spouse reaches 75' : ''}</li>
                             <li>
@@ -189,8 +202,7 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                     <AssumptionSection title="Healthcare Assumptions">
                         <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                             <li>
-                                Medicare premiums based on 2025 rates, inflated at
-                                {(inputs.simulation.healthcareInflationRate * 100).toFixed(1)}% annually
+                                Medicare premiums based on 2025 rates, inflated at {(inputs.simulation.healthcareInflationRate * 100).toFixed(1)}% annually
                             </li>
                             <li>Out-of-pocket costs are estimates and vary significantly by individual health</li>
                             <li>
@@ -294,28 +306,16 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                         <h4 className="font-semibold mb-1">Q: How do I include my house in retirement planning?</h4>
                         <p className="mb-2">
                             Your primary residence is typically NOT included as a liquid retirement asset because
-                            you need somewhere to live, and selling creates one-time cash but requires finding new housing.
+                            you need somewhere to live — by default, just leave it out of your plan.
                         </p>
-                        <p className="font-medium mb-1">If you plan to tap home equity:</p>
-                        <ul className="ml-4 space-y-1 list-disc">
-                            <li>
-                                <strong>Option A - One-Time Downsizing:</strong> Plan to sell at a specific age
-                                (add as One-Time Expense in Step 2 for moving costs), add net proceeds to your
-                                Taxable Account balance, and adjust spending down to reflect lower housing costs.
-                            </li>
-                            <li>
-                                <strong>Option B - Reverse Mortgage or HELOC:</strong> Model as Rental Income with
-                                your estimated annual draw (e.g., $20k/year). Mark it as NOT inflation-adjusted.
-                                Note: This ignores HELOC interest costs and reverse mortgage fees.
-                            </li>
-                            <li>
-                                <strong>Option C - Emergency Reserve Only:</strong> Don't include in planning numbers.
-                                Keep as backup if portfolio runs low for peace of mind.
-                            </li>
-                        </ul>
+                        <p className="mb-1">
+                            If you plan to downsize, model it directly: add a One-Time Expense in Step 1 for moving
+                            costs at your planned sale age, add the net sale proceeds to your Taxable Account
+                            balance, and lower your spending afterward to reflect the smaller home.
+                        </p>
                         <p className="text-xs mt-2 text-blue-800 italic">
-                            What we DON'T model: Mortgage payments, property taxes, HELOC interest,
-                            reverse mortgage fees, home appreciation vs inflation.
+                            What we DON'T model: mortgage payments, property taxes, home appreciation vs inflation,
+                            or tapping equity via a reverse mortgage or HELOC while staying in the home.
                         </p>
                     </div>
 

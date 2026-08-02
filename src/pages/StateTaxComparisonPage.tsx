@@ -70,19 +70,19 @@ function CurrencyField({
 // situation rather than an arbitrary or all-zero starting point.
 export default function StateTaxComparisonPage() {
     const [filingStatus, setFilingStatus] = useState<FilingStatus>('married_joint');
-    const [age, setAge] = useState(57);
-    const [spouseAge, setSpouseAge] = useState(55);
+    const [age, setAge] = useState(58);
+    const [spouseAge, setSpouseAge] = useState(56);
 
-    const [socialSecurity, setSocialSecurity] = useState(43000);
+    const [socialSecurity, setSocialSecurity] = useState(0);
     const [governmentPensionIncome, setGovernmentPensionIncome] = useState(0);
     const [privatePensionIncome, setPrivatePensionIncome] = useState(0);
-    const [taxDeferredWithdrawal, setTaxDeferredWithdrawal] = useState(14000);
-    const [investmentGains, setInvestmentGains] = useState(8000); // LTCG + Dividends
-    const [nonTaxableCashWithdrawn, setNonTaxableCashWithdrawn] = useState(9000); // brokerage cost basis
-    const [rothDistribution, setRothDistribution] = useState(12000);
-    const [hsaAmount, setHsaAmount] = useState(9000);
+    const [taxDeferredWithdrawal, setTaxDeferredWithdrawal] = useState(25000);  // 401(k) + Traditional IRA
+    const [investmentGains, setInvestmentGains] = useState(6000); // LTCG + Dividends
+    const [nonTaxableCashWithdrawn, setNonTaxableCashWithdrawn] = useState(13000); // brokerage cost basis
+    const [rothDistribution, setRothDistribution] = useState(0); // Roth IRA + Roth 401(k)
+    const [hsaAmount, setHsaAmount] = useState(26000); // HSA withdrawal
     const [hsaQualifiedMedical, setHsaQualifiedMedical] = useState(true);
-    const [partTimeWork, setPartTimeWork] = useState(0);
+    const [partTimeWork, setPartTimeWork] = useState(8000);
     const [rentalIncome, setRentalIncome] = useState(0);
 
     const [effectiveTaxRatePct, setEffectiveTaxRatePct] = useState(12);
