@@ -85,8 +85,6 @@ export default function StateTaxComparisonPage() {
     const [partTimeWork, setPartTimeWork] = useState(8000);
     const [rentalIncome, setRentalIncome] = useState(0);
 
-    const [effectiveTaxRatePct, setEffectiveTaxRatePct] = useState(12);
-
     const [expandedFederal, setExpandedFederal] = useState(false);
     const [expandedState, setExpandedState] = useState<string | null>(null);
 
@@ -107,12 +105,11 @@ export default function StateTaxComparisonPage() {
             partTimeWork,
             rentalIncome,
             hsaNonMedicalWithdrawal,
-            effectiveTaxRate: effectiveTaxRatePct / 100,
         }),
         [
             filingStatus, age, isMFJ, spouseAge, socialSecurity, governmentPensionIncome,
             privatePensionIncome, taxDeferredWithdrawal, investmentGains, partTimeWork,
-            rentalIncome, hsaNonMedicalWithdrawal, effectiveTaxRatePct,
+            rentalIncome, hsaNonMedicalWithdrawal,
         ]
     );
 
@@ -286,27 +283,14 @@ export default function StateTaxComparisonPage() {
                 {/* ---- Assumptions ---- */}
                 <div className="border border-amber-200 rounded-lg p-5 bg-amber-50/40">
                     <h2 className="font-semibold text-lg mb-3 text-amber-900">Federal Tax Assumption</h2>
-                    <div className="max-w-xs">
-                        <label className="block text-sm font-medium mb-1">Effective Federal Tax Rate</label>
-                        <div className="relative">
-                            <input
-                                type="number"
-                                value={effectiveTaxRatePct}
-                                onChange={(e) => setEffectiveTaxRatePct(parseFloat(e.target.value) || 0)}
-                                className="w-full pr-8 pl-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                                step="1"
-                                min="0"
-                                max="50"
-                            />
-                            <span className="absolute right-3 top-2 text-gray-500">%</span>
-                        </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                        This tool doesn&apos;t model real IRS tax brackets — it applies one flat
-                        rate to federal taxable income above your standard deduction, currently{' '}
+                    <p className="text-xs text-gray-500">
+                        Federal tax uses the real 2026 progressive brackets (10%–37%) on taxable
+                        income above your standard deduction, currently{' '}
                         <strong>{money(result.federal.standardDeduction)}</strong> for this household
                         (base deduction + age-65+ addition + the OBBBA senior bonus, if either of you
-                        is 65+). It has no effect when taxable income is $0.
+                        is 65+). It does not yet apply the lower 0%/15%/20% long-term capital-gains
+                        rates — investment gains above are still taxed as ordinary income, which can
+                        overstate federal tax for a household living mostly off capital gains.
                     </p>
                 </div>
 
