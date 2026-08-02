@@ -18,7 +18,6 @@ const ZERO_TAX_SITUATION: StateTaxComparisonInput = {
     partTimeWork: 0,
     rentalIncome: 0,
     hsaNonMedicalWithdrawal: 0,
-    effectiveTaxRate: 0.12,
 };
 
 describe('compareStatesTax', () => {
@@ -62,7 +61,6 @@ describe('compareStatesTax', () => {
             partTimeWork: 0,
             rentalIncome: 0,
             hsaNonMedicalWithdrawal: 0,
-            effectiveTaxRate: 0.12,
         });
 
         const byState = Object.fromEntries(result.states.map((r) => [r.state, r]));

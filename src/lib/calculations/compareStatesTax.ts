@@ -11,7 +11,6 @@
  */
 
 import {
-    calculateTotalTaxes,
     calculateTaxableSocialSecurity,
     calculateStandardDeduction,
     type FilingStatus,
@@ -19,6 +18,52 @@ import {
 import { computeStateTaxDetailed, type StateTaxInputs, type StateTaxDetail } from './stateTax';
 import { getStateTaxRules, modeledStates } from './stateTaxRules';
 import type { USState } from '@/types';
+
+/**
+ * 2026 federal ordinary-income tax brackets (Tax Foundation, the same primary source
+ * `docs/2-federal-tax-model.md` cites for the standard deduction). Used only by this
+ * standalone comparison tool — the multi-year Monte Carlo engine (`taxes.ts`) keeps its
+ * single flat marginal rate on purpose, since the withdrawal gross-up needs it to stay
+ * solvable each year (see that doc). This tool has no gross-up iteration, so real brackets
+ * are a strict accuracy improvement with no such constraint. Review annually.
+ */
+const FEDERAL_TAX_BRACKETS_2026: Record<FilingStatus, { rate: number; min: number }[]> = {
+    single: [
+        { rate: 0.10, min: 0 },
+        { rate: 0.12, min: 12400 },
+        { rate: 0.22, min: 50400 },
+        { rate: 0.24, min: 105700 },
+        { rate: 0.32, min: 201775 },
+        { rate: 0.35, min: 256225 },
+        { rate: 0.37, min: 640600 },
+    ],
+    married_joint: [
+        { rate: 0.10, min: 0 },
+        { rate: 0.12, min: 24800 },
+        { rate: 0.22, min: 100800 },
+        { rate: 0.24, min: 211400 },
+        { rate: 0.32, min: 403550 },
+        { rate: 0.35, min: 512450 },
+        { rate: 0.37, min: 768700 },
+    ],
+};
+
+/**
+ * Applies the real 2026 progressive brackets to taxable income (already net of the
+ * standard deduction). Still taxes investment gains as ordinary income — this tool
+ * doesn't yet model the 0%/15%/20% LTCG/qualified-dividend preferential rates.
+ */
+function calculateProgressiveFederalTax(taxableIncome: number, filingStatus: FilingStatus): number {
+    const brackets = FEDERAL_TAX_BRACKETS_2026[filingStatus];
+    let tax = 0;
+    for (let i = 0; i < brackets.length; i++) {
+        const { rate, min } = brackets[i];
+        if (taxableIncome <= min) break;
+        const nextMin = brackets[i + 1]?.min ?? Infinity;
+        tax += (Math.min(taxableIncome, nextMin) - min) * rate;
+    }
+    return tax;
+}
 
 export interface StateTaxComparisonInput {
     filingStatus: FilingStatus;
@@ -37,9 +82,6 @@ export interface StateTaxComparisonInput {
     rentalIncome: number;
     /** Only the non-medical share; qualified-medical HSA withdrawals are never taxable and are not entered here. */
     hsaNonMedicalWithdrawal: number;
-
-    /** Flat rate applied to federal taxable income above the standard deduction (this engine has no real tax brackets). */
-    effectiveTaxRate: number;
 }
 
 export interface FederalTaxDetail {
@@ -90,30 +132,7 @@ export function compareStatesTax(input: StateTaxComparisonInput): StateTaxCompar
     const agi = taxableSocialSecurity + otherOrdinaryIncome;
     const taxableIncome = Math.max(0, agi - standardDeduction);
 
-    const federalTaxes = calculateTotalTaxes(
-        {
-            socialSecurity: input.socialSecurity,
-            pensions: input.governmentPensionIncome + input.privatePensionIncome,
-            partTimeWork: input.partTimeWork,
-            rentalIncome: input.rentalIncome,
-        },
-        {
-            taxDeferred: input.taxDeferredWithdrawal,
-            roth: 0,
-            taxable: input.investmentGains,
-        },
-        input.effectiveTaxRate,
-        0.85, // statutory SS taxable cap — this tool doesn't expose a state-specific override
-        0, // costBasisPercentage — investmentGains is already gain-only, see field doc
-        0, // payrollTax — not modeled in this standalone tool
-        input.age,
-        input.year,
-        1,
-        input.hsaNonMedicalWithdrawal,
-        input.filingStatus,
-        true,
-        input.spouseAge
-    );
+    const federalTax = calculateProgressiveFederalTax(taxableIncome, input.filingStatus);
 
     const stateInputs: StateTaxInputs = {
         year: input.year,
@@ -144,7 +163,7 @@ export function compareStatesTax(input: StateTaxComparisonInput): StateTaxCompar
             taxableSocialSecurity,
             standardDeduction,
             taxableIncome,
-            tax: federalTaxes.total,
+            tax: federalTax,
         },
         states,
     };

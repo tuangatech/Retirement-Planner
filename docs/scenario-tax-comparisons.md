@@ -1,8 +1,9 @@
 # Scenario tax comparisons
 
 Worked examples that run one household's income profile through this app's actual tax engine
-(`calculateTotalTaxes` in `taxes.ts`, `computeStateTax` in `stateTax.ts`) and compare the result
-across several states side by side. All figures use tax year **2026** — the standard deduction,
+(`compareStatesTax.ts`, which applies real 2026 federal brackets via `calculateProgressiveFederalTax`
+and `computeStateTax` in `stateTax.ts` per state) and compare the result across several states side
+by side. All figures use tax year **2026** — the standard deduction,
 OBBBA senior bonus, Social Security provisional-income thresholds, and state bracket/exclusion
 constants currently committed in `taxes.ts` and `stateTaxRules.json`.
 
@@ -54,7 +55,7 @@ $43,000 (partially) and $22,000 ($14,000 + $8,000) are ever taxable anywhere bel
 
 Enter the numbers below on the live
 [State Tax Comparison page](https://retirement-planner-blond.vercel.app/state-tax-comparison)
-(or locally at `/state-tax-comparison`). It calls the same `calculateTotalTaxes` /
+(or locally at `/state-tax-comparison`). It calls the same `calculateProgressiveFederalTax` /
 `computeStateTaxDetailed` functions as this document, updates live as you type, and shows all 13
 modeled states side by side — not just the three below — each with its own expandable breakdown.
 
@@ -116,11 +117,15 @@ both exclusions are active, would owe $0 everywhere instead.
 
 ### Caveats specific to this app's engine (not this situation)
 
-- **Federal tax here is a flat-rate approximation, not a real bracket calculation.** This app has
-  no ordinary-income bracket table and no 0%/15%/20% LTCG/qualified-dividend preferential rate —
-  `calculateTotalTaxes` applies one user-supplied effective tax rate to taxable income above the
-  deduction floor. It doesn't affect this situation (taxable income floors at $0 either way), but
-  it will matter for any future situation where AGI exceeds the standard deduction.
+- **Federal tax here uses real 2026 ordinary-income brackets (10%–37%), but no LTCG preference.**
+  `calculateProgressiveFederalTax` applies the actual bracket schedule to taxable income above the
+  deduction floor — this is a real bracket calculation, not a flat-rate approximation. It still has
+  no 0%/15%/20% LTCG/qualified-dividend preferential rate, so capital gains and dividends are taxed
+  as ordinary income; that part doesn't affect this situation (taxable income floors at $0 either
+  way), but will overstate federal tax for any situation where gains make up a large share of AGI
+  above the deduction floor. Note this comparison tool differs here from the multi-year Monte Carlo
+  engine (`calculateTotalTaxes` in `taxes.ts`), which keeps a single flat marginal rate on purpose —
+  see `docs/2-federal-tax-model.md` for why.
 - Social Security taxation *is* the real IRC §86 provisional-income formula, not an approximation.
 - State AGI structurally excludes Social Security for every modeled state (Georgia, Florida, New
   York, and the rest) — there's no explicit "subtract SS" step because SS is simply never added
