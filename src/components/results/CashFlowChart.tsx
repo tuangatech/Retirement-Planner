@@ -192,7 +192,7 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
 
                         <YAxis
                             yAxisId="left"
-                            label={{ value: 'Annual Cash Flow ($)', angle: -90, position: 'insideLeft' }}
+                            label={{ value: 'Cash Flow', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
                             tickFormatter={(value: number) => `${formatMoney(value)}`}
                             tick={{ fontSize: 12 }}
                         />
@@ -200,7 +200,7 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
                         <YAxis
                             yAxisId="right"
                             orientation="right"
-                            label={{ value: 'Portfolio Balance ($)', angle: 90, position: 'insideRight' }}
+                            label={{ value: 'Balance', angle: 90, position: 'insideRight', style: { fontSize: 12 } }}
                             tickFormatter={(value: number) => `${formatMoney(value)}`}
                             tick={{ fontSize: 12 }}
                         />
@@ -231,7 +231,7 @@ export default function CashFlowChart({ results, inputs }: CashFlowChartProps) {
                                 strokeWidth={2}
                                 strokeDasharray="5 5"
                                 label={{
-                                    value: `Typical Failure Age (${results.failedRuns.medianAgeOfDepletion})`,
+                                    value: `Failure Age (${results.failedRuns.medianAgeOfDepletion})`,
                                     position: 'top',
                                     fill: '#dc2626',
                                     fontSize: 11,
