@@ -144,7 +144,7 @@ export default function MonteCarloChart({ results, inputs }: MonteCarloChartProp
                                     stroke="#ef4444"
                                     strokeDasharray="3 3"
                                     strokeWidth={2}
-                                    label={{ value: `Typical Failure Age (${results.failedRuns.medianAgeOfDepletion})`, position: 'top', fill: '#dc2626', fontSize: 11 }}
+                                    label={{ value: `Failure Age (${results.failedRuns.medianAgeOfDepletion})`, position: 'top', fill: '#dc2626', fontSize: 11 }}
                                 />
                             )}
 

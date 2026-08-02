@@ -328,7 +328,7 @@ export function Screen2SavingsIncome() {
                                 <button
                                     onClick={() => addPension({ id: Date.now().toString(), name: 'New Pension', monthlyAmount: 1000, startAge: personal.retirementAge, colaRate: 0 })}
                                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">
-                                    + Add Pension
+                                    + Add
                                 </button>
                             </div>
                             {isMFJ && (
@@ -442,13 +442,13 @@ export function Screen2SavingsIncome() {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex justify-between items-center border rounded-lg p-4 bg-gray-50">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border rounded-lg p-4 bg-gray-50">
                             <div>
                                 <span className="font-medium">Part-Time Work</span>
                                 <span className="text-sm text-gray-500 ml-2">Optional income from working in retirement</span>
                             </div>
                             <button onClick={() => updatePartTimeWork({ enabled: true })}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">+ Add Part-Time Work</button>
+                                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">+ Add</button>
                         </div>
                     )}
 
@@ -502,13 +502,13 @@ export function Screen2SavingsIncome() {
                             </label>
                         </div>
                     ) : (
-                        <div className="flex justify-between items-center border rounded-lg p-4 bg-gray-50">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border rounded-lg p-4 bg-gray-50">
                             <div>
                                 <span className="font-medium">Rental Income</span>
                                 <span className="text-sm text-gray-500 ml-2">Optional net income from rental properties</span>
                             </div>
                             <button onClick={() => updateRentalIncome({ enabled: true })}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">+ Add Rental Income</button>
+                                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap">+ Add</button>
                         </div>
                     )}
                 </div>
