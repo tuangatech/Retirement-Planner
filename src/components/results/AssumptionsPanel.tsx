@@ -151,6 +151,11 @@ export default function AssumptionsPanel({ inputs }: AssumptionsPanelProps) {
                                 thresholds are not inflation-indexed (the "tax torpedo")
                             </li>
                             <li>Long-term capital gains taxed at the flat rate — the 0%/15%/20% brackets are NOT modeled</li>
+                            <li>
+                                Taxable-account withdrawals split into gain vs. cost basis using a single fixed
+                                percentage ({((inputs.accounts.taxable.costBasisPercentage ?? 0.7) * 100).toFixed(0)}% basis) —
+                                it stays constant instead of rising over time as more of the account's growth gets realized
+                            </li>
                             <li>No itemized deductions or tax credits</li>
                             {stateDisclosure && stateTaxComputed ? (
                                 <>
