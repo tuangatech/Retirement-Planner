@@ -237,6 +237,7 @@ Configuration lives in `vite.config.ts`, `tsconfig.json`, `tailwind.config.js`, 
 
 - **[1-requirements.md](docs/1-requirements.md)** — product requirements
 - **[2-federal-tax-model.md](docs/2-federal-tax-model.md)** — federal tax logic, constants/sources
+- **[federal-tax-explained.html](docs/federal-tax-explained.html)** — illustrated walkthrough of the federal model: the Social Security provisional-income formula and the resulting "tax torpedo" (open in a browser)
 - **[3-withdrawal-strategy.md](docs/3-withdrawal-strategy.md)** — withdrawal order and tax-efficiency suggestions
 - **[4-married-filing-jointly.md](docs/4-married-filing-jointly.md)** — married-filing-jointly (couples) model and roadmap
 - **[5-state-tax-model.md](docs/5-state-tax-model.md)** — per-state tax model (13 states live incl. GA, VA, CA, and NY), constants and sources
