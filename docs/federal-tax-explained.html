@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Federal Tax for Retirees — and how this simulator models it</title>
+<style>
+    :root {
+        --ink: #1a2733;
+        --ink-soft: #5a6b7b;
+        --line: #d9e1e8;
+        --paper: #fdfdfb;
+        --panel: #f4f7f9;
+        --fed: #2c5282;          /* Federal accent */
+        --fed-soft: #e6ecf5;
+        --free: #2f7d64;        /* excluded / untaxed */
+        --free-soft: #e6f2ee;
+        --taxed: #b45309;       /* taxed */
+        --taxed-soft: #fdf1e0;
+        --code: #24303c;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 56px 28px 96px; }
+
+    header { border-bottom: 3px solid var(--ink); padding-bottom: 22px; margin-bottom: 40px; }
+    .kicker {
+        font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .16em; text-transform: uppercase; color: var(--fed); margin-bottom: 14px;
+    }
+    h1 { font-size: 2.15rem; line-height: 1.15; margin: 0 0 12px; letter-spacing: -.02em; }
+    .standfirst { font-size: 1.1rem; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+
+    h2 {
+        font-size: 1.4rem; margin: 52px 0 8px; padding-top: 20px;
+        border-top: 1px solid var(--line); letter-spacing: -.01em;
+    }
+    h2 .num {
+        font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+        color: var(--fed); display: block; margin-bottom: 6px; letter-spacing: .12em;
+    }
+    h3 { font-size: 1.05rem; margin: 30px 0 6px; }
+    p { margin: 12px 0; }
+    strong { font-weight: 700; }
+
+    .lede { font-size: 1.05rem; color: var(--ink-soft); margin-top: 0; }
+
+    /* ---------- figures ---------- */
+    figure {
+        margin: 26px 0; padding: 22px 22px 16px;
+        background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    }
+    figcaption {
+        font: 500 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); margin-top: 14px; padding-top: 12px;
+        border-top: 1px dashed var(--line);
+    }
+    figcaption b { color: var(--ink); }
+    svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .lbl { font: 500 12px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-sm { font: 500 10.5px ui-sans-serif, system-ui, sans-serif; fill: var(--ink-soft); }
+    .lbl-num { font: 700 13px ui-sans-serif, system-ui, sans-serif; fill: var(--ink); }
+    .lbl-white { font: 700 12px ui-sans-serif, system-ui, sans-serif; fill: #fff; }
+
+    /* ---------- callouts ---------- */
+    .note, .warn, .key {
+        border-radius: 8px; padding: 16px 18px; margin: 24px 0;
+        font-size: .96rem;
+    }
+    .note { background: var(--panel); border-left: 4px solid var(--ink-soft); }
+    .warn { background: var(--taxed-soft); border-left: 4px solid var(--taxed); }
+    .key  { background: var(--fed-soft);  border-left: 4px solid var(--fed); }
+    .note p:first-child, .warn p:first-child, .key p:first-child { margin-top: 0; }
+    .note p:last-child, .warn p:last-child, .key p:last-child { margin-bottom: 0; }
+    .tag {
+        display: inline-block; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px;
+        margin-right: 8px; vertical-align: 2px;
+    }
+    .tag-fed { background: var(--fed); color: #fff; }
+    .tag-warn { background: var(--taxed); color: #fff; }
+    .tag-key { background: var(--ink); color: #fff; }
+
+    /* ---------- tables ---------- */
+    table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: .94rem; }
+    caption {
+        text-align: left; font: 600 13px ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink-soft); padding-bottom: 8px;
+    }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    th {
+        font: 600 12px ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--ink-soft); background: var(--panel);
+    }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: #fafcfd; }
+    .yes { color: var(--free); font-weight: 700; }
+    .no  { color: var(--taxed); font-weight: 700; }
+
+    code {
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--panel); padding: 1px 5px; border-radius: 4px; color: var(--code);
+    }
+    pre {
+        background: var(--code); color: #e8eef4; padding: 16px 18px; border-radius: 8px;
+        overflow-x: auto; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+    .cmt { color: #8fa6ba; }
+
+    ul, ol { padding-left: 22px; }
+    li { margin: 7px 0; }
+
+    footer {
+        margin-top: 64px; padding-top: 20px; border-top: 3px solid var(--ink);
+        font: 13px/1.6 ui-sans-serif, system-ui, sans-serif; color: var(--ink-soft);
+    }
+    a { color: var(--fed); }
+    @media print {
+        body { background: #fff; }
+        figure, table { break-inside: avoid; }
+        h2 { break-after: avoid; }
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+    <div class="kicker">Retirement Planner · Tax Model Explainer</div>
+    <h1>Federal tax for retirees</h1>
+    <p class="standfirst">Why Social Security is never fully taxed but is rarely fully exempt
+    either, why the tax on your <em>next</em> withdrawal dollar can briefly run at nearly twice
+    your headline rate, and how this simulator turns IRS Rev. Proc. 2025-32 into a single
+    number.</p>
+</header>
+
+<p class="lede">Every state this simulator models eventually hands off to one shared federal
+calculation. Unlike a state's flat or bracketed rate, the interesting part of the federal model
+isn't the rate — it's what counts as taxable in the first place. Social Security is taxed by a
+formula, not a percentage, and that formula interacts with everything else you draw in a way
+that produces a genuine "torpedo": a stretch of income where tax rises faster than the headline
+rate would suggest.</p>
+
+<div class="key">
+    <span class="tag tag-key">The whole model in one line</span>
+    <p style="margin-top:10px"><code>Federal tax = 12% (your rate) × max(0, [taxable Social Security + ordinary income] − standard deduction)</code></p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART ONE · THE TAX</span>How income becomes taxable federally</h2>
+
+<p>Federal tax has no state-style "exclusion." Instead it runs a formula to decide how much of
+your Social Security counts at all, adds that to everything else, and shields the total with a
+standard deduction before applying one flat marginal rate:</p>
+
+<figure>
+<svg viewBox="0 0 840 400" role="img" aria-label="Waterfall diagram showing ordinary income plus a partially-taxable slice of Social Security, minus the standard deduction, leaving a small taxable remainder">
+    <line x1="60" y1="330" x2="800" y2="330" stroke="#d9e1e8" stroke-width="1.5"/>
+
+    <!-- Bar A: Ordinary income -->
+    <rect x="70" y="219" width="120" height="111" fill="#b45309" rx="3"/>
+    <text class="lbl-white" x="130" y="280" text-anchor="middle">$37,200</text>
+    <text class="lbl" x="130" y="352" text-anchor="middle">Ordinary income</text>
+    <text class="lbl-sm" x="130" y="368" text-anchor="middle">401(k) withdrawal — fully taxable</text>
+
+    <!-- plus -->
+    <text class="lbl-num" x="212" y="215" text-anchor="middle" style="fill:#2c5282">+</text>
+
+    <!-- Bar B: Social Security, split taxable/exempt -->
+    <rect x="230" y="256" width="120" height="74" fill="#2f7d64" rx="3"/>
+    <rect x="230" y="201" width="120" height="55" fill="#b45309" rx="3"/>
+    <text class="lbl-white" x="290" y="297" text-anchor="middle">$24,620</text>
+    <text class="lbl-white" x="290" y="232" text-anchor="middle">$18,580</text>
+    <text class="lbl" x="290" y="352" text-anchor="middle">Social Security $43,200</text>
+    <text class="lbl-sm" x="290" y="368" text-anchor="middle">partially taxable, not exempt</text>
+
+    <!-- gives -->
+    <text class="lbl-num" x="372" y="215" text-anchor="middle" style="fill:#2c5282">=</text>
+
+    <!-- Bar C: combined taxable base -->
+    <rect x="390" y="164" width="120" height="166" fill="#5a6b7b" rx="3"/>
+    <text class="lbl-white" x="450" y="250" text-anchor="middle">$55,780</text>
+    <text class="lbl" x="450" y="352" text-anchor="middle">Taxable base</text>
+    <text class="lbl-sm" x="450" y="368" text-anchor="middle">before the deduction</text>
+
+    <!-- minus deduction -->
+    <text class="lbl-num" x="532" y="215" text-anchor="middle" style="fill:#2c5282">−</text>
+    <rect x="550" y="188" width="120" height="142" fill="#2f7d64" rx="3"/>
+    <text class="lbl-white" x="610" y="262" text-anchor="middle">$47,500</text>
+    <text class="lbl" x="610" y="352" text-anchor="middle">Standard deduction</text>
+    <text class="lbl-sm" x="610" y="368" text-anchor="middle">MFJ, both 65+ (incl. senior bonus)</text>
+
+    <!-- equals -->
+    <text class="lbl-num" x="692" y="215" text-anchor="middle" style="fill:#2c5282">=</text>
+    <rect x="710" y="305" width="90" height="25" fill="#b45309" rx="2"/>
+    <text class="lbl-num" x="755" y="295" text-anchor="middle" style="fill:#b45309">$8,280</text>
+    <text class="lbl" x="755" y="352" text-anchor="middle">Taxable income</text>
+    <text class="lbl-sm" x="755" y="368" text-anchor="middle">× 12% = $993.60 tax</text>
+
+    <text class="lbl-sm" x="70" y="70">The same couple as the Georgia explainer — $80,400 of income, but a $993.60 federal bill, not $0.</text>
+</svg>
+<figcaption><b>Not a coincidence — the sequel to the Georgia example.</b> This is the couple from
+<code>docs/zero-tax-bill-georgia-retiree.pdf</code> and
+<code>state-tax-explained-georgia.html</code>, with the non-SS $37,200 reframed as a tax-deferred
+withdrawal so the federal side isn't trivially zero. Only <b>$18,580</b> of the $43,200 Social
+Security benefit is federally taxable — never all of it by statute, but here it's the majority
+because other income already pushes provisional income past both thresholds. The $47,500
+deduction is fully used this time (unlike Georgia's, which had nothing left to absorb), leaving
+$8,280 taxed at the flat 12% rate: <b>$993.60</b>. Pinned by a regression test in
+<code>taxes.test.ts</code> and quoted in <code>docs/2-federal-tax-model.md</code>.</figcaption>
+</figure>
+
+<h3>Step 1 — how much of Social Security counts</h3>
+<p>The IRS provisional-income formula (IRC §86) is not a fixed percentage. It compares
+<em>provisional income</em> — every other AGI item plus half your Social Security benefit —
+against two thresholds, and phases SS into the taxable base in two tiers:</p>
+
+<table>
+<caption>Provisional-income thresholds (frozen since 1983/1993 — not inflation-indexed)</caption>
+<thead><tr><th>Filing status</th><th class="num">0% tier ends</th><th class="num">50% tier ends</th><th>Above the second threshold</th></tr></thead>
+<tbody>
+    <tr><td>Single</td><td class="num">$25,000</td><td class="num">$34,000</td><td>85% of the marginal dollar</td></tr>
+    <tr><td>Married filing jointly</td><td class="num">$32,000</td><td class="num">$44,000</td><td>85% of the marginal dollar</td></tr>
+</tbody>
+</table>
+
+<p>The result is capped at 85% of the benefit — Congress never lets more than that become
+taxable, no matter how high other income runs. This part of the model is the real statutory
+formula, not an approximation; the freeze on the thresholds is what makes it bite harder every
+year (Part Two).</p>
+
+<h3>Step 2 — the standard-deduction floor</h3>
+<p>Taxable Social Security plus every other ordinary item (pensions, part-time work, rental,
+tax-deferred withdrawals, brokerage <em>gain</em>, non-medical HSA withdrawals after 65) forms
+the taxable base. The standard deduction is subtracted from that base before any rate applies —
+base amount, plus an age-65 addition, plus the temporary OBBBA senior bonus:</p>
+
+<table>
+<caption>Standard deduction components, TY2026</caption>
+<thead><tr><th>Component</th><th class="num">Single</th><th class="num">MFJ</th><th>Notes</th></tr></thead>
+<tbody>
+    <tr><td>Base standard deduction</td><td class="num">$16,100</td><td class="num">$32,200</td><td>Inflation-indexed each year</td></tr>
+    <tr><td>Age-65+ addition</td><td class="num">$2,050</td><td class="num">$1,650 / spouse</td><td>Per person once that person turns 65</td></tr>
+    <tr><td>OBBBA senior bonus (2025–2028)</td><td class="num">$6,000 / person</td><td class="num">$6,000 / person</td><td>Sunsets after TY2028 — see Part Three</td></tr>
+</tbody>
+</table>
+
+<h3>Step 3 — one flat rate above the floor</h3>
+<p>Whatever remains after the deduction is taxed at a single user-set rate — <strong>12% by
+default</strong> (<code>combinedEffectiveRate</code> in <code>TaxSettings</code>, editable on the
+wizard's Assumptions step). When a modeled state is selected this rate is federal-only, since
+state tax is computed separately from its own rules; for any other state it doubles as the
+user's own federal + state blend. Because the deduction and the SS formula are both modeled
+explicitly, this is closer to a marginal rate than a blended effective one — see Part Three for
+why it stops there and doesn't become a full bracket table.</p>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART TWO · THE SHAPE</span>Why the marginal rate can spike above the headline</h2>
+
+<p>Because taxable Social Security rises with other income up to the 85% cap, every extra dollar
+of withdrawal does double duty while the formula is active: it adds itself to the base <em>and</em>
+pulls up to 85 more cents of Social Security in behind it. The result is a marginal rate on your
+<em>next</em> dollar that can run at up to <strong>1.85×</strong> the headline rate — not
+hypothetically; it's the direct algebra of the 85%-tier formula.</p>
+
+<figure>
+<svg viewBox="0 0 840 330" role="img" aria-label="Step chart of the marginal federal rate on the next dollar of ordinary income, for a single filer with $24,000 of Social Security: flat at 0%, then 18%, then 22.2%, then back to 12%">
+    <!-- shaded zones -->
+    <rect x="90"  y="45" width="214" height="210" fill="#e6f2ee" opacity=".85"/>
+    <rect x="304" y="45" width="98"  height="210" fill="#fdf1e0" opacity=".55"/>
+    <rect x="402" y="45" width="266" height="210" fill="#fdf1e0" opacity="1"/>
+    <rect x="668" y="45" width="132" height="210" fill="#f4f7f9" opacity=".9"/>
+    <text class="lbl-sm" x="197" y="38" text-anchor="middle" style="fill:#2f7d64">0% · shielded by deduction</text>
+    <text class="lbl-sm" x="353" y="38" text-anchor="middle" style="fill:#b45309">18% · 1.5×</text>
+    <text class="lbl-sm" x="535" y="38" text-anchor="middle" style="fill:#b45309">22.2% · 1.85× — the peak</text>
+    <text class="lbl-sm" x="734" y="38" text-anchor="middle">12% · headline restored</text>
+
+    <!-- grid -->
+    <g stroke="#dde5ea" stroke-width="1">
+        <line x1="90" y1="205" x2="800" y2="205"/>
+        <line x1="90" y1="104" x2="800" y2="104"/>
+        <line x1="90" y1="53"  x2="800" y2="53"/>
+    </g>
+    <line x1="90" y1="255" x2="800" y2="255" stroke="#1a2733" stroke-width="1.5"/>
+    <line x1="90" y1="45"  x2="90"  y2="255" stroke="#1a2733" stroke-width="1.5"/>
+
+    <!-- y labels -->
+    <text class="lbl-sm" x="82" y="259" text-anchor="end">0%</text>
+    <text class="lbl-sm" x="82" y="209" text-anchor="end">6%</text>
+    <text class="lbl-sm" x="82" y="158" text-anchor="end">12%</text>
+    <text class="lbl-sm" x="82" y="108" text-anchor="end">18%</text>
+    <text class="lbl-sm" x="82" y="57"  text-anchor="end">24%</text>
+
+    <!-- headline reference -->
+    <line x1="90" y1="154" x2="800" y2="154" stroke="#5a6b7b" stroke-width="1.2" stroke-dasharray="3 3"/>
+    <text class="lbl-sm" x="95" y="148">12% headline rate</text>
+
+    <!-- boundary lines -->
+    <line x1="304" y1="45" x2="304" y2="255" stroke="#1a2733" stroke-dasharray="4 3" stroke-width="1.2"/>
+    <line x1="402" y1="45" x2="402" y2="255" stroke="#1a2733" stroke-dasharray="4 3" stroke-width="1.2"/>
+    <line x1="668" y1="45" x2="668" y2="255" stroke="#1a2733" stroke-dasharray="4 3" stroke-width="1.2"/>
+
+    <!-- the step line -->
+    <polyline points="90,255 304,255 304,104 402,104 402,69 668,69 668,154 800,154"
+              fill="none" stroke="#2c5282" stroke-width="2.5"/>
+    <g fill="#2c5282">
+        <circle cx="304" cy="255" r="4"/><circle cx="304" cy="104" r="4"/>
+        <circle cx="402" cy="104" r="4"/><circle cx="402" cy="69"  r="4"/>
+        <circle cx="668" cy="69"  r="4"/><circle cx="668" cy="154" r="4"/>
+    </g>
+
+    <!-- boundary callouts -->
+    <text class="lbl-sm" x="304" y="274" text-anchor="middle">$15,067</text>
+    <text class="lbl-sm" x="402" y="274" text-anchor="middle">$22,000</text>
+    <text class="lbl-sm" x="668" y="274" text-anchor="middle">$40,706</text>
+
+    <!-- x axis dollar scale -->
+    <g class="lbl-sm" text-anchor="middle">
+        <text x="90"  y="290">$0</text>
+        <text x="374" y="290">$20k</text>
+        <text x="658" y="290">$40k</text>
+        <text x="800" y="290">$50k</text>
+    </g>
+    <text class="lbl" x="445" y="308" text-anchor="middle">Next dollar of ordinary income / withdrawal</text>
+    <text class="lbl" x="18" y="150" text-anchor="middle" transform="rotate(-90 18 150)">Marginal federal rate</text>
+</svg>
+<figcaption><b>Measured, not illustrative.</b> A single filer, age 62, $24,000/year Social
+Security, $16,100 standard deduction, 12% headline rate (TY2026). Below $15,067 the deduction
+absorbs everything — $0 tax despite Social Security already being partly "taxable" internally.
+From $15,067–$22,000 the 50%-tier formula doubles the effective marginal rate on withdrawals to
+18%; from $22,000–$40,706 the 85%-tier formula pushes it to 22.2%. Past $40,706 all $20,400 of
+taxable Social Security (85% of the benefit) is already counted, so the next dollar stops
+dragging any more in behind it — the rate drops straight back to the 12% headline, for good.</figcaption>
+</figure>
+
+<div class="warn">
+    <span class="tag tag-warn">The trap</span>
+    <p style="margin-top:10px">The torpedo band doesn't exist at all before you claim Social
+    Security — with no SS benefit, ordinary withdrawals are simply taxed at the flat rate above
+    the deduction floor, full stop. The same nominal withdrawal that cost 12% the year before
+    claiming can cost up to 22.2% the year after, purely from this interaction — no bracket
+    changed, no extra dollar of spending happened. The engine's tax-smart withdrawal solver
+    re-derives the correct tax-free room every single year (Part Four), so the plan itself
+    doesn't get this wrong — but it does mean a plan's "tax-free withdrawal room" can shrink
+    sharply the year Social Security starts, which is worth knowing before you're surprised by
+    it.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART THREE · SCHEDULED &amp; SKIPPED</span>What's modeled, what sunsets, and what we skip</h2>
+
+<p>Current federal law contains one genuine, unconditional future change relevant here, and
+several things this simulator chooses not to model at all — and they get different treatment:</p>
+
+<figure>
+<svg viewBox="0 0 840 250" role="img" aria-label="Two-branch diagram: the OBBBA senior bonus sunset is modeled, while the MAGI phase-out and real tax brackets are deliberately skipped">
+    <rect x="270" y="14" width="300" height="44" rx="8" fill="#1a2733"/>
+    <text class="lbl-white" x="420" y="41" text-anchor="middle">Federal law, 2026 and beyond</text>
+
+    <path d="M380 58 L380 78 L210 78 L210 100" fill="none" stroke="#5a6b7b" stroke-width="1.5"/>
+    <path d="M460 58 L460 78 L630 78 L630 100" fill="none" stroke="#5a6b7b" stroke-width="1.5"/>
+    <text class="lbl-sm" x="270" y="93" text-anchor="middle">a statute with an end date</text>
+    <text class="lbl-sm" x="640" y="93" text-anchor="middle">rare for this tool's audience, or an engine constraint</text>
+
+    <!-- left: model it -->
+    <rect x="60" y="100" width="300" height="120" rx="8" fill="#e6f2ee" stroke="#2f7d64"/>
+    <text class="lbl" x="80" y="126" style="font-weight:700;fill:#2f7d64">AUTOMATIC SUNSET → model it</text>
+    <text class="lbl-sm" x="80" y="150">OBBBA senior bonus ($6,000/person) expires</text>
+    <text class="lbl-sm" x="80" y="168">after TY2028, full stop.</text>
+    <text class="lbl-sm" x="80" y="196" style="fill:#2f7d64">seniorBonusLastYear drops it automatically.</text>
+
+    <!-- right: skip it -->
+    <rect x="480" y="100" width="300" height="120" rx="8" fill="#fdf1e0" stroke="#b45309"/>
+    <text class="lbl" x="500" y="126" style="font-weight:700;fill:#b45309">DELIBERATE GAP → simplify</text>
+    <text class="lbl-sm" x="500" y="150">Senior-bonus MAGI phase-out (above $150k MFJ /</text>
+    <text class="lbl-sm" x="500" y="168">$75k single); full 10–37% brackets; 0/15/20% LTCG.</text>
+    <text class="lbl-sm" x="500" y="196" style="fill:#b45309">Rare for this tool's FIRE audience, or needed flat.</text>
+</svg>
+<figcaption><b>Why the brackets stay flat here.</b> Unlike Georgia's contingent rate cuts, the
+missing bracket table isn't a forecasting problem — it's a solvability one. The multi-year
+engine's withdrawal gross-up (Part Four) needs to invert "tax as a function of the draw" every
+single year; a single flat rate makes that a one-line division, while a seven-bracket schedule
+stacked under a §86 formula makes it a much harder equation to invert reliably at scale. The
+senior-bonus phase-out is a plainer simplification: this tool's audience is overwhelmingly
+FIRE-community retirees well under the $150k/$75k MAGI threshold.</figcaption>
+</figure>
+
+<div class="note">
+    <span class="tag tag-key">Not true everywhere in this app anymore</span>
+    <p style="margin-top:10px">The standalone <a href="https://retirement-planner-blond.vercel.app/state-tax-comparison">State Tax
+    Comparison</a> page is a single tax year with no gross-up to solve, so it doesn't inherit that
+    constraint: it applies the real 2026 progressive brackets (10%–37%) via
+    <code>calculateProgressiveFederalTax</code> in <code>compareStatesTax.ts</code>. The one gap
+    it still shares with the main engine is the 0/15/20% LTCG/qualified-dividend preference —
+    capital gains are taxed as ordinary income in both places. See
+    <code>docs/scenario-tax-comparisons.md</code> for the worked comparison.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="num">PART FOUR · IMPLEMENTATION</span>How the simulator computes it</h2>
+
+<p class="lede">The tax rules above are the interesting part. This section is a short tour of
+where they live in the code, for anyone reading the engine.</p>
+
+<h3>Constants live directly in TypeScript, duplicated by hand in Python</h3>
+<p>Unlike per-state rules, federal constants aren't split into a shared JSON file — there are
+only two filing statuses to cover, not fifty states, so a JSON-plus-reader layer buys less. They
+sit in <code>TAX_RULES</code> in <code>src/lib/calculations/taxes.ts</code>, with the primary
+source cited beside each one, and are duplicated by hand into
+<code>scripts/verify_plan.py</code>'s own <code>TAX_RULES</code> table — the same
+independent-re-derivation pattern the state modules use, just without the shared file.</p>
+
+<figure>
+<svg viewBox="0 0 840 290" role="img" aria-label="Architecture diagram: TAX_RULES in taxes.ts feeding the withdrawal engine and the Python verifier; the engine's three touch points">
+    <rect x="330" y="12" width="190" height="52" rx="8" fill="#2c5282"/>
+    <text class="lbl-white" x="425" y="34" text-anchor="middle">TAX_RULES</text>
+    <text x="425" y="51" text-anchor="middle" style="font:500 10px ui-sans-serif" fill="#e6ecf5">taxes.ts — constants + sources</text>
+
+    <path d="M360 64 L200 64 L200 92" fill="none" stroke="#2c5282" stroke-width="1.5"/>
+    <path d="M490 64 L660 64 L660 92" fill="none" stroke="#2c5282" stroke-width="1.5"/>
+
+    <!-- engine functions -->
+    <rect x="60" y="92" width="280" height="52" rx="8" fill="#fff" stroke="#1a2733" stroke-width="1.5"/>
+    <text class="lbl" x="200" y="114" text-anchor="middle" style="font-weight:700">taxes.ts formulas</text>
+    <text class="lbl-sm" x="200" y="131" text-anchor="middle">SS, deduction, gross-up, marginal rate</text>
+
+    <!-- Python verifier -->
+    <rect x="520" y="92" width="280" height="52" rx="8" fill="#fff" stroke="#5a6b7b" stroke-width="1.5" stroke-dasharray="5 3"/>
+    <text class="lbl" x="660" y="114" text-anchor="middle" style="font-weight:700">verify_plan.py</text>
+    <text class="lbl-sm" x="660" y="131" text-anchor="middle">re-derives it independently</text>
+
+    <!-- three touch points -->
+    <path d="M200 144 L200 168" fill="none" stroke="#1a2733" stroke-width="1.5"/>
+    <text class="lbl-sm" x="212" y="162">used in three places, all required:</text>
+
+    <rect x="60" y="176" width="243" height="44" rx="6" fill="#f4f7f9" stroke="#d9e1e8"/>
+    <text class="lbl-sm" x="72" y="194" style="font-weight:700">1 · the cash-flow gap</text>
+    <text class="lbl-sm" x="72" y="210">sizing what the year must fund</text>
+
+    <rect x="313" y="176" width="243" height="44" rx="6" fill="#f4f7f9" stroke="#d9e1e8"/>
+    <text class="lbl-sm" x="325" y="194" style="font-weight:700">2 · the withdrawal gross-up</text>
+    <text class="lbl-sm" x="325" y="210">drawing enough to pay the tax</text>
+
+    <rect x="566" y="176" width="234" height="44" rx="6" fill="#f4f7f9" stroke="#d9e1e8"/>
+    <text class="lbl-sm" x="578" y="194" style="font-weight:700">3 · the final reckoning</text>
+    <text class="lbl-sm" x="578" y="210">taxes.onFixedIncome + onWithdrawals</text>
+
+    <rect x="60" y="238" width="740" height="40" rx="6" fill="#fdf1e0" stroke="#b45309"/>
+    <text class="lbl-sm" x="74" y="255" style="font-weight:700;fill:#b45309">Miss any one of them and the engine under-withdraws by the tax every single year:</text>
+    <text class="lbl-sm" x="74" y="270" style="fill:#b45309">the plan spends money it never took out, and depletion risk is understated.</text>
+</svg>
+<figcaption><b>Federal tax is a cash outflow, not just a reported figure</b> — same lesson as the
+state modules, same three touch points.</figcaption>
+</figure>
+
+<h3>The tax-free withdrawal room is bisected against the real formula</h3>
+<p>To know how much can be pulled from a tax-deferred account before the torpedo band starts,
+the engine can't just subtract: each candidate withdrawal changes provisional income, which
+changes how much Social Security joins the base, which changes the total — the same circular
+problem Part Two describes. Rather than solve that algebraically, it bisects against the actual
+provisional-income formula:</p>
+
+<pre><code><span class="cmt">// taxes.ts — calculateTaxFreeTaxDeferredRoom bisects against the real §86 formula</span>
+const totalTaxableAt = (x) =&gt;
+    calculateTaxableSocialSecurity(ssBenefit, otherOrdinaryTaxable + x, filingStatus, ssTaxablePctCap)
+    + otherOrdinaryTaxable + x;
+<span class="cmt">// bisect for the largest x with totalTaxableAt(x) &lt;= deduction</span></code></pre>
+
+<p>This is the same discipline as Georgia's marginal-rate handling in
+<code>state-tax-explained-georgia.html</code>: hand the solver the real formula rather than a
+probed or assumed rate, and the torpedo's kinks come out correctly for free.</p>
+
+<h3>Simplifications, stated plainly</h3>
+<ul>
+    <li><strong>One flat marginal rate above the floor</strong> in the multi-year engine — no
+        10–37% bracket table. User-set, default 12%. The standalone comparison tool now differs
+        here (Part Three).</li>
+    <li><strong>No 0%/15%/20% long-term capital-gains preference</strong>, anywhere in the app —
+        brokerage gains are taxed as ordinary income everywhere, including the comparison tool.</li>
+    <li><strong>Provisional-income thresholds are never inflated</strong> — correct, since they
+        are statutorily frozen. This is precisely what makes the torpedo band swallow more
+        retirees every year as nominal incomes rise with inflation.</li>
+    <li><strong>OBBBA senior-bonus MAGI phase-out not modeled</strong> — negligible above $150k
+        MFJ / $75k single, rare for this tool's audience.</li>
+    <li><strong>No itemized deductions, above-the-line adjustments, or credits.</strong></li>
+    <li><strong>No survivor's penalty yet</strong> — the MFJ → single transition on the first
+        spouse's death (deduction roughly halves, brackets compress) is Phase 3, deferred. See
+        <code>docs/2-federal-tax-model.md</code>.</li>
+</ul>
+
+<div class="note">
+    <span class="tag tag-key">Verification</span>
+    <p style="margin-top:10px">Federal arithmetic is re-derived independently in Python
+    (<code>verify_plan.py</code>) and cross-checked on exported runs — the most recent export
+    checked, a 10,000-run plan with a 33% success rate, passed <b>528 of 528</b> deterministic
+    checks across all 33 simulated years at the p50 percentile. The couple in Part One's headline
+    figure is separately pinned by a regression test in <code>taxes.test.ts</code>.</p>
+</div>
+
+<footer>
+    <p><strong>Sources.</strong>
+    <a href="https://taxfoundation.org/data/all/federal/2026-tax-brackets/">Tax Foundation — 2026 federal brackets and standard deduction</a> ·
+    <a href="https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill">IRS Rev. Proc. 2025-32</a> ·
+    <a href="https://www.kiplinger.com/taxes/new-tax-deduction-change-over-65">Kiplinger — age-65 standard deduction addition</a> ·
+    <a href="https://nationaltaxtools.com/guides/senior-standard-deduction-obbba/">National Tax Tools — OBBBA senior bonus</a> ·
+    <a href="https://www.congress.gov/crs-product/RL32552">Congress.gov CRS RL32552 — Social Security provisional-income thresholds</a> · IRC §86.</p>
+    <p><strong>Companion documents.</strong> <code>docs/2-federal-tax-model.md</code> holds the
+    full federal model with the annual-review procedure; <code>docs/scenario-tax-comparisons.md</code>
+    covers the standalone comparison tool's federal calculation;
+    <code>state-tax-explained-georgia.html</code> is the source of the couple reused in Part One.</p>
+    <p>Educational projections only — not financial, tax, or legal advice. Tax constants are
+    year-specific (TY2026) and must be re-verified annually.</p>
+</footer>
+
+</div>
+</body>
+</html>
